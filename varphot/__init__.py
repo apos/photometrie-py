@@ -14,7 +14,7 @@ from .batch import (read_frame, measure_frame, run_batch, qc_frames, ensemble_ma
                     stars_from_field_config, scintillation_mag)
 from .periodfit import harmonic_fit
 from .camera import (bayer_planes, center_roi, pair_stats, gain_from_pair, ptc_fit, read_noise_e, full_well_e,
-                     linearity_curve, dark_current_e_per_s, detect_saturation, exposure_from_header, iso_from_header)
+                     linearity_curve, dark_current_e_per_s, detect_saturation, exposure_from_header, iso_from_header, histogram_gaps, compression_verdict)
 from .camera_presets import PRESETS, CameraPreset, VendorValues, get_preset, preset_choices
 
 __all__ = [
@@ -29,6 +29,6 @@ __all__ = [
     "read_frame", "measure_frame", "run_batch", "qc_frames", "ensemble_mag", "light_curve",
     "stars_from_field_config", "scintillation_mag", "harmonic_fit",
     "bayer_planes", "center_roi", "pair_stats", "gain_from_pair", "ptc_fit", "read_noise_e", "full_well_e",
-    "linearity_curve", "dark_current_e_per_s", "detect_saturation", "exposure_from_header", "iso_from_header",
+    "linearity_curve", "dark_current_e_per_s", "detect_saturation", "exposure_from_header", "iso_from_header", "histogram_gaps", "compression_verdict",
     "PRESETS", "CameraPreset", "VendorValues", "get_preset", "preset_choices",
 ]
