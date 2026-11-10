@@ -232,7 +232,7 @@ def check_field_stars(img, wcs, stars: pd.DataFrame, exptime_s: float, limit_adu
 def comp_v_min(table: pd.DataFrame, exptime_s: float, rec_exptime_s: float, limit_adu: float, offset: float = 0.0) -> float | None:
     """Hellste Helligkeit (V), die ein Comp bei der empfohlenen Belichtung haben darf, ohne ``limit_adu`` zu ueberschreiten.
 
-    Warum: NB03 soll nur Comps waehlen, die nicht saettigen. Wie: Aus den ungesaettigten Katalogsternen des Probebildes ``ZP = median(V + 2,5·log10(raw_max − offset))``;
+    Warum: NB01 soll nur Comps waehlen, die nicht saettigen. Wie: Aus den ungesaettigten Katalogsternen des Probebildes ``ZP = median(V + 2,5·log10(raw_max − offset))``;
     bei ``rec_exptime_s`` steigt das Signal um ``rec/exptime``; ``V_min = ZP − 2,5·log10(rec/exptime · ... )``: ein Stern erreicht die Grenze, wenn ``(limit − offset) = (raw_max − offset)·rec/exptime``,
     also bei ``V_min = ZP + 2,5·log10(rec/exptime) − 2,5·log10(limit − offset)``. Rueckgabe ``None`` ohne brauchbare Sterne. Grenzen: setzt Linearitaet und V-Werte im Katalog voraus; der Spitzenwert haengt
     von der FWHM ab (Comps aehnlicher Breite wie das Ziel).
@@ -282,8 +282,8 @@ def night_altitudes(ra_deg: float, dec_deg: float, site, date: dt.date | None = 
 def field_of_view_deg(format_px, pixel_um: float, focal_mm: float) -> tuple[float, float]:
     """Bildfeld (lange, kurze Seite) in Grad aus Pixelzahl, Pixelgroesse und Brennweite; ``FOV = 2·atan(Sensorkante / 2f)``.
 
-    Warum: NB03 braucht die Feldgroesse fuer die Comp-Suche; sie soll aus dem Aufbau kommen statt von Hand. Grenzen: ohne Verzeichnung und ohne Reducer-Unsicherheit — die wirkliche Brennweite
-    steht erst nach dem Plate Solve fest (NB02/NB03 mit Referenzbild ueberschreibt diesen Wert). Validierung: ``tests/test_plan.py``.
+    Warum: NB01 braucht die Feldgroesse fuer die Comp-Suche; sie soll aus dem Aufbau kommen statt von Hand. Grenzen: ohne Verzeichnung und ohne Reducer-Unsicherheit — die wirkliche Brennweite
+    steht erst nach dem Plate Solve fest (NB01/NB01 mit Referenzbild ueberschreibt diesen Wert). Validierung: ``tests/test_plan.py``.
     """
     w, h = sorted((float(format_px[0]), float(format_px[1])), reverse=True)
     f = lambda px: math.degrees(2 * math.atan(px * pixel_um / 1000.0 / (2 * focal_mm)))
@@ -317,6 +317,7 @@ class ObservingPlan:
     v_comp_min: float | None = None               # hellster zulaessiger Comp (V) bei der empfohlenen Belichtung (aus den Probebildern)
     field_checks: list = field(default_factory=list)   # je Katalogstern: id, Rolle, V, hellster Pixel, t_max, S/N
     moon: dict = field(default_factory=dict)      # Beleuchtung/Abstand im Beobachtungsfenster
+    aperture_info: dict = field(default_factory=dict)  # Befund der Aperturwahl (Methode, r_growth, r_snr, S/N-Verhaeltnis, Handbuchradius)
     fwhm_sharp_px: float | None = None            # FWHM des scharfen Referenzbildes (NB00 Schritt 3c)
     defocus_factor: float | None = None           # FWHM(geplanter Fokus)/FWHM(scharf)
     plate_solve: dict = field(default_factory=dict)  # Ergebnis des Plate-Solve-Tests (getestet, geloest, Skala, Leiter der Unschaerfe)
