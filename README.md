@@ -82,12 +82,12 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 | Nr. | Notebook               | Eingabe                        | Ausgabe                          |
 |-----|------------------------|--------------------------------|----------------------------------|
 | 00  | `00_planung`           | Ziel, Methode, Kamera-Profil, Probebilder | Plan (Belichtung, FWHM, Aperturen, Meldefilter) in `plans/` |
-| 01  | `01_kalibrierung`      | Siril-Workspace, Rohbilder     | kalibrierte FITS in `cal/`       |
+| 01  | `01_kalibrierung`      | Siril-Workspace, Rohbilder     | kalibrierte FITS in `cal/`; Vorbedingungen inkl. optionaler KI-Zweitlesung (Weg-Prüfung) |
 | 02  | `02_plate_solve`       | 1 kalibriertes FITS            | WCS-Header, Sternkarte PNG       |
 | 03  | `03_feld_und_comps`    | Referenzbild + AAVSO VSP       | `field_config.json`              |
 | 04  | `04_photometrie_batch` | alle kalibrierten FITS         | `messtabelle.csv`                |
 | 05  | `05_lichtkurve`        | `messtabelle.csv`              | Lichtkurve PNG, `zeitreihe.csv`  |
-| 06  | `06_bericht`           | `zeitreihe.csv` (+ Plan, Beobachter, `field_config.json`) | AAVSO Extended Format, **vor dem Schreiben geprüft** (`exports/`), kein Upload |
+| 06  | `06_bericht`           | `zeitreihe.csv` (+ Plan, Beobachter, `field_config.json`) | AAVSO Extended Format, **vor dem Schreiben geprüft** (Format + Inhalt), Bericht mit „Offene Punkte“ und Reifegrad, optional KI-Zweitlesung (`exports/`), kein Upload |
 | 08  | `08_transformation` | Messtabellen der 3 Farbkanäle (R, G, B) + Katalog (B, V, R) | Koeffizienten `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv`, Gütetest, Meldung `TG`/`V` … (`transform_*.json`); Demo-Modus |
 | 07  | `07_kamera_charakterisierung` | rohe Bayer-Bilder: Bias, Flat-Paare, Linearitätsreihe, Darks | Kameraprofil je Farbebene (Gain, Rauschen, Full Well, Linearität, Dunkelstrom); Demo-Modus mit synthetischen Bildern |
 
@@ -111,8 +111,17 @@ Alle 88 IAU-Sternbilder werden unterstützt. Beim ersten Start werden Sternposit
 
 ---
 
+## Lokale KI-Zweitlesung (optional)
+
+NB06 kann den Bericht von einer **lokalen** KI gegenlesen lassen (Widersprüche, Unklares, Fehlendes; nie Zahlen, ändert nichts). Weg und Reihenfolge: stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama);
+Opencode nur mit lokalem Modell, Aufrufe nur an Rechner im privaten Netz. Einrichtung: Schlüssel `ai` in der privaten `observer.json` (Beispiel im Kopf von `varphot/aireview.py`); NB01 zeigt, welcher Weg gefunden wurde. Abschalten: `VARPHOT_AI=off`.
+Kleine Modelle irren (Fehlalarme, Übersehenes) — maßgeblich bleiben die festen Prüfungen, Details und Probelauf in KONZEPT §11.14.
+
+---
+
 ## Entwicklung
 
+Tests: `pytest` (mit Abdeckung: `pytest --cov=varphot --cov-report=term-missing`, aktuell 91 %); statische Prüfung: `ruff check varphot tools tests`.
 Git-Regeln, Datenschutz (das Repo ist öffentlich), Test- und **Dokumentationsrichtlinie** (Warum/Wie/Grenzen/Validierung/Quellen
 in jedem Docstring): [docs/entwicklung.md](docs/entwicklung.md). Farbkamera (Siril, TG/TB/TR, AAVSO): KONZEPT.md §11.
 
@@ -126,8 +135,11 @@ photometrie-py/
 │   ├── catalog.py      # Crossmatch, Comp/Check-Auswahl mit QC-Flags
 │   ├── photometry.py   # Aperturphotometrie, Ensemble-Differenzmagnitude
 │   ├── plot.py         # Sternkarte, Lichtkurven-4-Panel
+│   ├── batch.py, plan.py, transform.py, aavso.py, camera.py, cfa.py   # Stapelphotometrie, Planung, Transformation, AAVSO-Export, Kamera, Kanaltrennung
+│   ├── maturity.py     # Reifegrad: was ist an echten Daten geprüft
+│   ├── aireview.py     # lokale KI-Zweitlesung (Opencode/Ollama), nur privates Netz
 │   └── synthetic.py    # Synthetische Testdaten (nur für Tests)
-├── notebooks/          # Jupyter-Notebooks (01–06)
+├── notebooks/          # Jupyter-Notebooks (00–08)
 ├── data/
 │   ├── const_topology.json        # 88 IAU-Sternbilder (topologisch, gebündelt)
 │   └── constellation_lines.json   # Sternpositionen aus SIMBAD (generiert)
