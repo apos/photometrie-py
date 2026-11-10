@@ -30,6 +30,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **PSF-Photometrie (in Arbeit)**: `build_psf()`, `psf_flux()` — bekannter Fehler, siehe unten.
 
 ### Behoben
+- Sternbildkarte (NB02 Schritt 5): Linien werden als Großkreisbögen projiziert und am Kartenrand abgeschnitten statt
+  verworfen, sobald ein Endstern weit außerhalb liegt; ein Sternbild zählt, sobald eine Linie das Fenster berührt
+  (`great_circle_xy()`, `polyline_in_window()`). Gemessen: +1 bis +3 Linien je Zielfeld (M16, δ Cep, Polarnähe, Orion).
 - `solve_image()` nutzte ASTAPs Standard von 500 Sternen: am 2,1°-Feld blieb ein Rotationsfehler von ~1,2″ am Rand
   (Gaia-Prüfung). Jetzt `max_stars=5000` (→ 0,85″ Trend, schlechteste Zelle 0,60″).
 - Sternbildkarte (NB02 Schritt 5) zeigte bei Zielen auf der Gegenseite des Himmels gespiegelte Sternbilder

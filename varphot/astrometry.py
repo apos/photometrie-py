@@ -11,6 +11,7 @@ import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
@@ -91,7 +92,6 @@ def gnomonic(ra, dec, ra0, dec0, min_cos: float = 0.1):
     haben keine gueltige Abbildung und liefern ``(nan, nan)`` — sonst wuerden sie gespiegelt
     ins Bild fallen (Fehler in v0.2.0: Orion erschien im Feld von M16).
     """
-    import numpy as np
     r0, d0 = np.radians(ra0), np.radians(dec0)
     r, d = np.radians(np.asarray(ra, float)), np.radians(np.asarray(dec, float))
     dr = (r - r0 + np.pi) % (2 * np.pi) - np.pi
@@ -102,3 +102,41 @@ def gnomonic(ra, dec, ra0, dec0, min_cos: float = 0.1):
         y = np.degrees((np.cos(d0) * np.sin(d) - np.sin(d0) * np.cos(d) * np.cos(dr)) / cos_c)
     x, y = np.where(ok, x, np.nan), np.where(ok, y, np.nan)
     return (float(x), float(y)) if x.ndim == 0 else (x, y)
+
+
+def great_circle_xy(ra1, dec1, ra2, dec2, ra0, dec0, n: int = 64, min_cos: float = 0.1):
+    """Grosskreis-Bogen zwischen zwei Himmelspunkten, gnomonisch um (ra0, dec0) projiziert (Grad).
+
+    Gibt ``n`` Stuetzpunkte (x, y) zurueck; Punkte auf der abgewandten Halbkugel (``cos c <= min_cos``)
+    sind NaN. Bei Projektion von Grosskreisen entstehen Geraden — liegen beide Endpunkte vorn, ist der Bogen
+    daher exakt die Strecke dazwischen; bei einem Endpunkt hinten bleibt der vordere Teil erhalten (statt
+    die ganze Linie zu verwerfen).
+    """
+    def vec(ra, dec):
+        r, d = np.radians(ra), np.radians(dec)
+        return np.array([np.cos(d) * np.cos(r), np.cos(d) * np.sin(r), np.sin(d)])
+
+    a, b = vec(ra1, dec1), vec(ra2, dec2)
+    omega = np.arccos(np.clip(a @ b, -1, 1))
+    t = np.linspace(0, 1, n)
+    if omega < 1e-9:
+        pts = np.tile(a, (n, 1))
+    else:                                           # Slerp; bei exakt gegenueberliegenden Punkten mehrdeutig
+        pts = (np.sin((1 - t) * omega)[:, None] * a + np.sin(t * omega)[:, None] * b) / np.sin(omega)
+    ra = np.degrees(np.arctan2(pts[:, 1], pts[:, 0])) % 360
+    dec = np.degrees(np.arcsin(np.clip(pts[:, 2], -1, 1)))
+    return gnomonic(ra, dec, ra0, dec0, min_cos)
+
+
+def polyline_in_window(x, y, half: float, samples: int = 400) -> bool:
+    """True, wenn der Linienzug (x, y; NaN trennt Teile) das Fenster [-half, half]^2 beruehrt —
+    auch wenn kein Stuetzpunkt darin liegt (lange Strecke quer durchs Fenster)."""
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    for i in range(len(x) - 1):
+        if not np.all(np.isfinite([x[i], y[i], x[i + 1], y[i + 1]])):
+            continue
+        s = np.linspace(0, 1, samples)
+        px, py = x[i] + s * (x[i + 1] - x[i]), y[i] + s * (y[i + 1] - y[i])
+        if np.any((np.abs(px) <= half) & (np.abs(py) <= half)):
+            return True
+    return False
