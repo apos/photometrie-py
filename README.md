@@ -194,6 +194,7 @@ den Bedingungen der jeweiligen Quelle; bei Veröffentlichungen Quelle nennen.
 
 - **Teleskop**: Celestron C9.25 SCT (235 mm, f/10 → f/7 mit Reducer)
 - **Kamera**: QHY268M (APS-C Mono, 6252×4176 px, 3,76 µm Pixel)
+- **Weitere Kameras** (Vorlagen in `varphot/camera_presets.py`, Messung mit NB07): Player One Ares-C Pro (Farbe, IMX533, gekühlt), Panasonic Lumix S9 (Vollformat, spiegellos, RAW → Siril → FITS)
 - **Filter**: Johnson-Cousins B, V, Rc, Ic (Baader Bessel, 2")
 - **Plate Solver**: ASTAP (lokal, offline)
 

@@ -9,6 +9,13 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unveröffentlicht]
 
 ### Neu
+- **Kamera-Auswahl** (`varphot/camera_presets.py`): Vorlagen für **Player One Ares-C Pro** (Herstellerdaten aus dem Handbuch gelesen) und **Panasonic Lumix S9** (Vollformat; Panasonic-Spezifikation gelesen: nur elektronischer Verschluss,
+  6000×4000, RAW-Bittiefe nicht angegeben) sowie „Eigene Kamera“, jeweils mit Prüfstatus je Angabe. **NB07** wählt Kamera und Einstellung (Dropdown oder `VARPHOT_CAMERA`/`VARPHOT_CAMERA_SETTING`); die Bittiefe wird bei Unbekannten aus dem Maximalwert abgeleitet
+  (`detect_saturation`: mehrere Bilder am Anschlag = gesättigt, sonst Abbruch statt falscher Wert); RAW-Ordner werden erkannt und auf die Siril-Wandlung (`tools/siril_convert_raw.ssf`, ungetestet) verwiesen.
+- **Mehrere Kameraprofile** in `observer.json` (Liste `cameras`, je Modell + Einstellung; `camera` = aktive). **NB01** wählt die Kamera (Profil, Vorlage oder neu) und bewahrt dabei die NB07-Felder; ältere Dateien bleiben lesbar.
+- KONZEPT §11.11: Lumix S9 (Spezifikation, Folgen, offene Punkte, u. a. ob die Kamera astro-modifiziert ist).
+
+### Neu
 - **NB07 Kamera-Charakterisierung** (`notebooks/07_kamera_charakterisierung.ipynb`, `varphot/camera.py`): Bayer-Ebenen trennen, Offset und Maximalwert, **Gain per Photon-Transfer-Kurve**
   je Farbebene (Gegenprobe Einzelpaar-Formel), Ausleserauschen aus Bias-Paar, Full Well, Linearitätsbereich aus Belichtungsreihe (robuste Referenzgerade), Dunkelstrom aus Darks;
   Vergleich mit Herstellerwerten (Ares-C Pro, Gain 0 LRN), Speichern als Kameraprofil in `PHOTOMETRIE_PY_DATA/` und `observer.json` (nur im Modus `real`).
