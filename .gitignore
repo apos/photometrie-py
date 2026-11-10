@@ -12,3 +12,8 @@ demo/siril_workspace/
 venv/
 .venv/
 
+demo/real_m16/*.wcs
+demo/real_m16/*.ini
+*.egg-info/
+demo/real_m16/*.ecsv
+data/fields/

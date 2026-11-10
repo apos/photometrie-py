@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "varphot"
+dynamic = ["version"]
+description = "Differentielle Photometrie fuer Veraenderliche (Jupyter-Workflow)"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+packages = ["varphot"]
+
+[tool.setuptools.dynamic]
+version = { attr = "varphot.__version__" }

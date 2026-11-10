@@ -25,3 +25,5 @@ ipyfilechooser
 pandas>=2.1
 tqdm
 Pillow
+-e .
+pytest
