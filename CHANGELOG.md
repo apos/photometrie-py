@@ -8,6 +8,24 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Geändert / korrigiert
+- **`v_from_gaia`:** Koeffizienten gegen die Gaia-EDR3-Dokumentation (Tab. 5.7) geprüft — stimmen; der Gültigkeitsbereich war falsch angegeben
+  (2,75 statt **5,0** für BP−RP) und σ = 0,03017 statt 0,04. Gegenprobe gegen die AAVSO-Sequenz: 31 Sterne, Streuung 0,029 mag
+  (`tools/compare_gaia_vsp.py`).
+- **`scintillation_mag`:** Formel auf Osborn et al. (2015), Gl. 2 umgestellt (gelesen) und mit deren Korrekturfaktor `c_y = 1,5` (Young unterschätzt
+  die mediane Szintillation „typically by a factor of 1.5") versehen. Wert am LCO-Satz ~0,008 statt ~0,006 mag.
+- **Zitate geprüft:** Calabretta & Greisen 2002, Stetson 1987, Lomb 1976, Scargle 1982, Vallenari 2023, Montegriffo 2023, Riello 2021, Osborn 2015.
+  Merline & Howell 1995 war nicht auffindbar und wurde entfernt; Howell 2006 bleibt ohne Kapitelangabe.
+- **Lizenzen:** Nutzungsbedingungen der Testdaten im Wortlaut nachgetragen (`docs/testdaten.md` §3): LCO = CC BY-NC 4.0 mit Namensnennung;
+  EXOTIC-Beispielsatz ohne Lizenz (alle Rechte vorbehalten, keine Weitergabe); MicroObservatory-Bedingungen nicht prüfbar (TLS-Fehler der Seite).
+  Die Daten waren vor dieser Prüfung geladen worden — jetzt als Regel in `docs/entwicklung.md` §2a.
+
+### Neu
+- **KONZEPT §11 neu gefasst:** AAVSO-Regeln aus dem Wortlaut (Extended Format, Forum-Zusammenfassung zu OSC: `OBSTYPE=DSLR`, `FILTER` = Band des Ergebnisses),
+  Transformationsgleichungen nach Kamenec 2023 (gelesen), Herstellerdaten der Ares-C Pro (Handbuch gelesen: IMX533, 14 bit, Gain-Tabelle, kein IR-Sperrfilter im Fenster),
+  Gaia gegen AAVSO quantitativ, Erklärung zu Sirils Lichtkurve, Entwurf NB07 (Kamera-Charakterisierung) und NB08 (Transformationskoeffizienten), Beispieldaten, Prüfstatus.
+- **`tools/compare_gaia_vsp.py`:** misst Gaia-V/B/R gegen die AAVSO-Sequenz im Feld eines Ziels.
+
 ### Neu
 - **Testdaten-Download** (`varphot/testdata.py`, `tools/download_testdata.py`): `lco-dcep` (LCO-Archiv, MD5-geprüft) und `hatp32`
   (EXOTIC-Beispielsatz), Standardziel `~/astro_testdata`. Quellen, Auswahl und Ergebnisse: `docs/testdaten.md`, README.

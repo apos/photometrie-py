@@ -140,12 +140,25 @@ def vsp_flags(comment: str) -> list[str]:
 def v_from_gaia(g, bp_rp):
     """Johnson-V aus Gaia G und BP-RP.
 
-    Warum: Gaia deckt jedes Feld ab; fuer Comps ausserhalb der AAVSO-Sequenz wird so ein V gewonnen. Wie: ``V = G - (-0,02704 +
-    0,01424 C - 0,2156 C^2 + 0,01426 C^3)`` mit ``C = BP-RP`` (Gaia-EDR3-Dokumentation, Tab. 5.8; Koeffizienten aus dem
-    Gedaechtnis -> gegen die Doku pruefen). Gueltig fuer -0,5 < BP-RP < 2,75, sigma ~ 0,04 mag. Grenzen: fuer rote Sterne
-    (BP-RP > 1,5) unsicherer; am LCO-Satz wich der Check-Stern (BP-RP 1,76) um +0,15 mag vom Katalog ab. Validierung: 5 VSP-Sterne,
-    Abweichung <= 0,07 mag. Quelle: Riello, M. et al. 2021, A&A 649, A3 (geprueft, Zitat; die Transformationstabelle
-    selbst nicht gelesen).
+    Warum: Gaia deckt jedes Feld ab; fuer Comps ausserhalb der AAVSO-Sequenz wird so ein V gewonnen.
+    Wie: ``V = G - (-0,02704 + 0,01424 C - 0,2156 C^2 + 0,01426 C^3)`` mit ``C = BP-RP``, ``sigma = 0,03017 mag``,
+    gueltig fuer ``-0,5 < BP-RP < 5,0``.
+
+    Pruefung der Koeffizienten: am 2026-11-10 gegen die Gaia-EDR3-Dokumentation (Tab. 5.7, Johnson-Cousins-Block;
+    Gueltigkeitsbereich Tab. 5.8) verglichen — alle vier Koeffizienten und sigma stimmen. (Die frueher hier genannte
+    Obergrenze 2,75 und sigma 0,04 waren falsch.)
+    Gegenprobe gegen die AAVSO-Sequenz (VSP): 31 Sterne im Feld von delta Cep, V_Gaia - V_VSP: Mittel +0,009,
+    Streuung 0,029, max 0,067 mag; fuer V > 10 ueberwiegend positiv (+0,02..+0,07), d. h. Gaia-V schwacher.
+    Reproduzierbar mit ``tools/compare_gaia_vsp.py``.
+
+    Grenzen: Gaia ist *nicht* die AAVSO-Referenz (Johnson/Cousins, APASS/Landolt-Anschluss); die Streuung 0,03 mag gehoert
+    ins Fehlerbudget (``gaia_v_err``). Rote Sterne unsicherer (Check-Stern mit BP-RP 1,76 am LCO-Satz: +0,15 mag).
+    Fuer AAVSO-Meldungen sind VSP-Comps vorzuziehen; Gaia-Comps nur mit Kennzeichnung (Extended Format: Kommentarcode K,
+    Angaben in NOTES).
+
+    Quellen: Riello, M. et al. 2021, A&A 649, A3, doi:10.1051/0004-6361/202039587 (Zitat geprueft); Gaia-EDR3-Dokumentation
+    https://gea.esac.esa.int/archive/documentation/GEDR3/Data_processing/chap_cu5pho/cu5pho_sec_photSystem/cu5pho_ssec_photRelations.html
+    (Koeffizienten dort gelesen).
     """
     c = np.asarray(bp_rp, float)
     return np.asarray(g, float) - (-0.02704 + 0.01424 * c - 0.2156 * c ** 2 + 0.01426 * c ** 3)

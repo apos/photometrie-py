@@ -150,7 +150,7 @@ def field_from_wcs(wcs: WCS, shape) -> dict:
     um die Bildmitte projiziert; Laenge der Verbindungen = Kantenlaengen. Rueckgabe ``ra0, dec0`` (Grad), ``field_deg`` =
     (lange, kurze Seite) in Grad, ``pa_deg`` = Richtung der langen Seite von Osten nach Norden (wie ``vsp.in_field``: 0 =
     West-Ost, 90 = Nord-Sued). Grenze: Verzerrung (SIP) wird ignoriert. Validierung: ``tests/test_batch.py``.
-    Quelle: TAN-Projektion nach Calabretta, M. R. & Greisen, E. W. 2002, A&A 395, 1077 (aus dem Gedaechtnis, nicht geprueft).
+    Quelle: TAN-Projektion nach Calabretta, M. R. & Greisen, E. W. 2002, A&A 395, 1077, doi:10.1051/0004-6361:20021327 (Zitat per Suche geprueft).
     """
     ny, nx = shape
     cx, cy = (nx - 1) / 2, (ny - 1) / 2

@@ -84,9 +84,11 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 | 01  | `01_kalibrierung`      | Siril-Workspace, Rohbilder     | kalibrierte FITS in `cal/`       |
 | 02  | `02_plate_solve`       | 1 kalibriertes FITS            | WCS-Header, Sternkarte PNG       |
 | 03  | `03_feld_und_comps`    | Referenzbild + AAVSO VSP       | `field_config.json`              |
-| 04  | `04_photometrie_batch` | alle kalibrierten FITS         | `messtabelle.parquet`            |
-| 05  | `05_lichtkurve`        | `messtabelle.parquet`          | Lichtkurve PNG, `zeitreihe.csv`  |
-| 06  | `06_bericht`           | `zeitreihe.csv`                | AAVSO-kompatibles Exportformat   |
+| 04  | `04_photometrie_batch` | alle kalibrierten FITS         | `messtabelle.csv`                |
+| 05  | `05_lichtkurve`        | `messtabelle.csv`              | Lichtkurve PNG, `zeitreihe.csv`  |
+| 06  | `06_bericht`           | `zeitreihe.csv`                | AAVSO-kompatibles Exportformat (in Arbeit) |
+| 07  | *geplant* Kamera-Charakterisierung | Flats/Bias/Darks | Kameraprofil (Gain, Rauschen, Linearität) |
+| 08  | *geplant* Transformationskoeffizienten | Standardfeld-Bilder | `transform.json` (Farbkamera: TG/TB/TR → V/B/R) |
 
 ---
 
