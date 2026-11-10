@@ -166,3 +166,41 @@ def test_bprp_from_bv_matches_vsp_gaia_pairs():
              (0.93, 1.34), (0.98, 1.12), (0.99, 1.12)]
     bv, bp = np.array(pairs).T
     assert np.mean(np.abs(V.bprp_from_bv(bv) - bp)) < 0.2
+
+
+# ------------------------------------------------------------ TAP-Antwortformate und Ausfall-Umschaltung
+class _Resp:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.payload
+
+
+def test_tap_json_handles_list_rows_and_dict_rows(monkeypatch):
+    meta = [{"name": "source_id"}, {"name": "g"}]                     # ARI: kleine Namen, Zeilen als Dicts
+    ari = {"metadata": meta, "data": [{"source_id": 1, "g": 9.5}]}
+    esa = {"metadata": [{"name": "source_id"}, {"name": "G"}], "data": [[2, 8.5]]}
+    q = "SELECT source_id, phot_g_mean_mag AS G FROM gaiadr3.gaia_source"
+    monkeypatch.setattr(V, "_TAP_ORDER", [V.GAIA_TAP_ARI])
+    monkeypatch.setattr(V.requests, "post", lambda *a, **k: _Resp(ari))
+    assert V._tap_json(q) == [{"source_id": 1, "G": 9.5}]
+    monkeypatch.setattr(V.requests, "post", lambda *a, **k: _Resp(esa))
+    assert V._tap_json(q) == [{"source_id": 2, "G": 8.5}]
+
+
+def test_tap_json_falls_back_and_demotes_failed_service(monkeypatch):
+    calls = []
+
+    def post(url, **k):
+        calls.append(url)
+        if url == V.GAIA_TAP:
+            raise V.requests.Timeout("ESA haengt")
+        return _Resp({"metadata": [{"name": "x"}], "data": [[1]]})
+    monkeypatch.setattr(V, "_TAP_ORDER", [V.GAIA_TAP, V.GAIA_TAP_ARI])
+    monkeypatch.setattr(V.requests, "post", post)
+    assert V._tap_json("SELECT 1 AS x") == [{"x": 1}]
+    assert calls == [V.GAIA_TAP, V.GAIA_TAP_ARI] and V._TAP_ORDER[0] == V.GAIA_TAP_ARI   # ESA ans Ende

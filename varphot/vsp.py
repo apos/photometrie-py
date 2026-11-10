@@ -5,7 +5,7 @@ abfragen -> Regeln anwenden -> Comp/Check/Reserve mit Begründung für jeden ver
 Alle Netzabfragen werden als JSON zwischengespeichert (Offline-Betrieb am Teleskop).
 
 Hosts: SIMBAD über den Harvard-Spiegel (``simbad.cds.unistra.fr`` antwortet auf ``/simbad/`` mit 404),
-Gaia DR3 über das ESA-TAP (``gea.esac.esa.int``). ``vizier.cds.unistra.fr`` liefert (Stand 2026-11-10)
+Gaia DR3 über das ESA-TAP (``gea.esac.esa.int``), bei Ausfall über den ARI-Spiegel (``gaia.ari.uni-heidelberg.de``). ``vizier.cds.unistra.fr`` liefert (Stand 2026-11-10)
 ein Zertifikat für ``aladin.cds.unistra.fr`` (Hostname-Fehler), der VizieR-Spiegel in Harvard liefert für
 ``I/355/gaiadr3`` leere Kegel -> beides nicht verwendet. Zertifikatsprüfung wird NICHT abgeschaltet.
 """
@@ -24,6 +24,8 @@ from astropy.table import Table
 VSP_URL = "https://app.aavso.org/vsp/api/chart/"
 SIMBAD_TAP = "https://simbad.cfa.harvard.edu/simbad/sim-tap/sync"
 GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
+GAIA_TAP_ARI = "https://gaia.ari.uni-heidelberg.de/tap/sync"       # Gaia-DR3-Spiegel (ZAH/ARI Heidelberg), gleiche Tabellen
+_TAP_ORDER = [GAIA_TAP, GAIA_TAP_ARI]                              # faellt ein Dienst aus, rutscht er ans Ende
 DEFAULT_CACHE = Path.home() / ".cache" / "varphot"
 
 # Auswahlregeln (Startwerte, ueberschreibbar per cfg); Begruendungen: BM 00002 Abschnitt 3
@@ -143,21 +145,29 @@ def v_from_gaia(g, bp_rp):
 
 
 def _tap_json(query: str, timeout: int = 90, tries: int = 3) -> list[dict]:
-    """ADQL-Abfrage am ESA-Gaia-TAP (JSON) mit Wiederholung bei Timeout (der Dienst antwortet zeitweise langsam)."""
+    """ADQL-Abfrage an einem Gaia-TAP (JSON). Der ESA-Dienst antwortet zeitweise nicht (Timeouts, 503);
+    dann wird der ARI-Spiegel versucht. Ein ausgefallener Dienst rutscht in ``_TAP_ORDER`` ans Ende.
+    Spaltennamen werden auf die im Query mit ``AS`` vergebene Schreibweise zurueckgesetzt (ARI liefert klein)."""
     import time
+    aliases = {a.lower(): a for a in re.findall(r"\bAS\s+(\w+)", query, re.I)}
     last = None
     for k in range(tries):
-        try:
-            r = requests.post(GAIA_TAP, data=dict(REQUEST="doQuery", LANG="ADQL", FORMAT="json", QUERY=query),
-                              timeout=timeout)
-            r.raise_for_status()
-            j = r.json()
-            names = [c["name"] for c in j["metadata"]]
-            return [dict(zip(names, row)) for row in j["data"]]
-        except (requests.Timeout, requests.ConnectionError) as e:
-            last = e
-            time.sleep(2 * (k + 1))
-    raise RuntimeError(f"Gaia-TAP nach {tries} Versuchen nicht erreichbar: {last}")
+        for url in list(_TAP_ORDER):
+            try:
+                r = requests.post(url, data=dict(REQUEST="doQuery", LANG="ADQL", FORMAT="json", QUERY=query),
+                                  timeout=timeout if len(_TAP_ORDER) == 1 or url == _TAP_ORDER[-1] else min(timeout, 25))
+                r.raise_for_status()
+                j = r.json()
+                names = [aliases.get(c["name"].lower(), c["name"]) for c in j["metadata"]]
+                # ESA liefert Zeilen als Listen, der ARI-Spiegel als Dicts (Schluessel klein geschrieben)
+                return [{aliases.get(k.lower(), k): v for k, v in row.items()} if isinstance(row, dict)
+                        else dict(zip(names, row)) for row in j["data"]]
+            except (requests.Timeout, requests.ConnectionError, requests.HTTPError, ValueError) as e:
+                last = e
+                if url == _TAP_ORDER[0] and len(_TAP_ORDER) > 1:
+                    _TAP_ORDER.append(_TAP_ORDER.pop(0))          # ausgefallenen Dienst ans Ende
+        time.sleep(2 * (k + 1))
+    raise RuntimeError(f"Gaia-TAP nach {tries} Runden nicht erreichbar: {last}")
 
 
 def gaia_cone(ra: float, dec: float, radius_arcsec: float = 40.0, gmax: float = 18.0,
