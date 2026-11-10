@@ -8,6 +8,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Neu
+- **NB08 Transformationskoeffizienten** (`notebooks/08_transformation.ipynb`, `varphot/transform.py`): `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv` nach AAVSO DSLR Observing Manual v1.4 Gl. 6.15–6.18 (gelesen) aus Standardsternen mit Geraden und Sigma-Clipping (`linfit`);
+  mittlere instrumentelle Magnituden je Kanal aus den NB04-Messtabellen mit Abzug der Bildnullpunkte (`instrumental_table`); Extinktion k aus dem Nullpunktgang (`fit_extinction`); Anwendung `transform_target` (Gl. 6.11–6.14, Extinktion 6.19–6.21);
+  **Leave-one-out-Gütetest** (`loo_validation`: transformiert gegen nicht transformiert) mit Entscheidung `TG`/`V` je Band; Katalog aus CSV oder AAVSO-VSP (`catalog_from_vsp_table`); Ergebnis `transform_<Kamera>_<Einstellung>.json`.
+  Demo-Modus mit synthetischem Standardfeld: Koeffizienten auf ±0,003 wiedergefunden (Tbv 1,489 statt 1,493). 9 neue Tests. Nicht mit echten Standardfeld-Aufnahmen geprüft; NB05/NB06 wenden die Transformation noch nicht an.
+
 ### Behoben
 - **NB04-Cache-Pfad:** Eine bereits berechnete `messtabelle_roh_*.csv` wurde mit `keep_default_na=False` gelesen; leere Felder (NaN) blieben leere Zeichenketten und machten Zahlenspalten zu Text
   (`TypeError: '>' not supported between 'str' and 'float'` in `qc_frames`). Neu `read_measurements()` (Regressionstest). Der Fehler trat nur beim zweiten Lauf auf.
