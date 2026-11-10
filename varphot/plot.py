@@ -140,18 +140,20 @@ def plot_comp_field(res, target, field_deg=(2.49, 1.67), pa_deg=None, margin_deg
         ax.plot(-xi, eta, "r-", lw=1.6, label=f"Sensorfeld (PA {pa_deg:g}°, Rand {margin_deg}°)")
     style = {"comp": ("o", "green", "Comp"), "check": ("D", "darkorange", "Check"),
              "reserve": ("o", "tab:blue", "Reserve"), "verworfen": ("x", "0.55", "verworfen")}
-    for role, (mk, col, lab) in style.items():
-        m = np.asarray(res["role"]) == role
-        if not m.any():
-            continue
-        kw = dict(c=col) if mk == "x" else dict(facecolors="none", edgecolors=col)
-        ax.scatter(x[m], y[m], marker=mk, s=70 if role != "verworfen" else 36, linewidths=1.6,
-                   label=f"{lab} ({m.sum()})", zorder=3, **kw)
-        for xx, yy, r in zip(x[m], y[m], res[m]):
-            if np.isfinite(xx) and abs(xx) < 1.9 and abs(yy) < 1.9:
-                ax.annotate(f"{r['label']}" + (f"  V={r['V']:.1f}" if role != "verworfen" else ""), (xx, yy),
-                            xytext=(6, 5), textcoords="offset points", fontsize=7.5 if role != "verworfen" else 6.5,
-                            color=col)
+    src_all = np.asarray(res["source"]).astype(str) if "source" in res.colnames else np.array(["VSP"] * len(res))
+    for role, (mk0, col, lab) in style.items():
+        for src, mk in (("VSP", mk0), ("Gaia", "s" if mk0 != "x" else "+")):
+            m = (np.asarray(res["role"]).astype(str) == role) & (src_all == src)
+            if not m.any():
+                continue
+            kw = dict(c=col) if mk in ("x", "+") else dict(facecolors="none", edgecolors=col)
+            ax.scatter(x[m], y[m], marker=mk, s=70 if role != "verworfen" else 36, linewidths=1.6,
+                       label=f"{lab} {'(Gaia-V)' if src == 'Gaia' else ''} ({m.sum()})".replace("  ", " "), zorder=3, **kw)
+            for xx, yy, r in zip(x[m], y[m], res[m]):
+                if np.isfinite(xx) and abs(xx) < 1.9 and abs(yy) < 1.9:
+                    ax.annotate(f"{r['label']}" + (f"  V={r['V']:.1f}" if role != "verworfen" else ""), (xx, yy),
+                                xytext=(6, 5), textcoords="offset points",
+                                fontsize=7.5 if role != "verworfen" else 6.5, color=col)
     ax.plot(0, 0, "*", ms=16, c="gold", mec="k", zorder=4, label=target.get("name", "Ziel"))
     ax.set_xlim(1.9, -1.9); ax.set_ylim(-1.9, 1.9)
     ax.set_xlabel("RA-Offset vom Ziel [°] (Osten links)"); ax.set_ylabel("Dec-Offset vom Ziel [°]")

@@ -106,3 +106,63 @@ def test_reject_summary_counts(table):
     res = V.select_comps_catalog(table, DELCEP, use_gaia=False)
     s = V.reject_summary(res)
     assert s["Feld"] >= 20 and "veränderlich/NSV" in s
+
+
+# ------------------------------------------------------------ Gaia-Feldsterne (fill_with_gaia)
+def _cands(rows):
+    cols = ["source_id", "ra", "dec", "G", "bp_rp", "varflag", "ruwe", "nss"]
+    return Table(rows=rows, names=cols)
+
+
+def test_fill_with_gaia_adds_isolated_stars_and_logs_rejections(table, monkeypatch):
+    ra0, dec0 = DELCEP["ra"], DELCEP["dec"]
+    bprp_t = float(V.bprp_from_bv(DELCEP["BV"]))
+    # G so waehlen, dass V (aus G, BP-RP) im Bereich 5,5-10,5 liegt
+    rows = [
+        (11, ra0, dec0 + 0.20, 8.0, bprp_t, "NOT_AVAILABLE", 1.0, 0),          # gut
+        (12, ra0, dec0 - 0.25, 8.5, bprp_t + 0.05, "NOT_AVAILABLE", 1.0, 0),   # gut
+        (13, ra0, dec0 + 0.30, 8.2, bprp_t + 0.02, "NOT_AVAILABLE", 1.0, 0),   # Nachbar -> verworfen (Rang 2)
+        (14, ra0, dec0 + 0.35, 8.0, bprp_t, "VARIABLE", 1.0, 0),               # Gaia-variabel -> nie Kandidat
+        (15, ra0, dec0 - 0.30, 8.0, bprp_t + 1.0, "NOT_AVAILABLE", 1.0, 0),    # Farbe passt nicht
+        (16, ra0, dec0 + 1.50, 8.0, bprp_t, "NOT_AVAILABLE", 1.0, 0),          # ausserhalb des Feldes
+        (17, ra0, dec0 + 0.005, 8.0, bprp_t, "NOT_AVAILABLE", 1.0, 0),         # im Halo des Ziels
+    ]
+    monkeypatch.setattr(V, "_gaia_candidates_raw", lambda *a, **k: _cands(rows))
+
+    def fake_cone(ra, dec, radius_arcsec=36, gmax=18, cache_dir=None, force=False):
+        me = [r for r in rows if abs(r[2] - dec) < 1e-9][0]
+        out = [(me[0], ra, dec, me[3], me[4], "NOT_AVAILABLE", 1.0, 0)]
+        if me[0] == 13:                                   # Nachbar 10" entfernt, nur 1 mag schwaecher
+            out.append((99, ra + 10 / 3600 / np.cos(np.radians(dec)), dec, me[3] + 1.0, 0.9, "NOT_AVAILABLE", 1.0, 0))
+        return _cands(out)
+    monkeypatch.setattr(V, "gaia_cone", fake_cone)
+
+    cfg = {"field_pa_deg": 0, "comp_n": 10}                      # Ziel 10 Comps; VSP allein liefert 9, kein Check
+    base = V.select_comps_catalog(table, DELCEP, cfg, use_gaia=False)
+    assert int((base["role"] == "comp").sum()) == 9 and not (base["role"] == "check").any()
+    res = V.fill_with_gaia(base, DELCEP, cfg)
+    g = res[res["source"] == "Gaia"]
+    roles = {int(a.split()[-1]): str(r) for a, r in zip(g["auid"], g["role"])}
+    assert roles[11] == "comp" and roles[12] == "check"        # 9 VSP-Comps + 1 Gaia-Comp, dann Check
+    assert roles[13] == "verworfen"
+    assert "Gaia-Nachbar" in [r for a, r in zip(g["auid"], g["reasons"]) if a.endswith(" 13")][0]
+    assert not {14, 15, 16, 17} & set(roles)                    # Kandidatenfilter, nicht aufgefuehrt
+    assert (res["role"] == "comp").sum() == 10
+    assert set(res[res["source"] == "VSP"]["auid"]) == set(base["auid"])   # VSP-Zeilen unveraendert
+    assert all(res["V_err"][res["source"] == "Gaia"] == V.VSP_CFG["gaia_v_err"])
+
+
+def test_fill_with_gaia_noop_when_ensemble_complete(table, monkeypatch):
+    called = []
+    monkeypatch.setattr(V, "_gaia_candidates_raw", lambda *a, **k: called.append(1))
+    base = V.select_comps_catalog(table, DELCEP, {"field_pa_deg": 90}, use_gaia=False)   # 8 Comps
+    out = V.fill_with_gaia(base, DELCEP, {"field_pa_deg": 90, "comp_n": 4})
+    assert out is base and not called
+
+
+def test_bprp_from_bv_matches_vsp_gaia_pairs():
+    # gemessene Paare (B-V, BP-RP) um del Cep: Naeherung muss im Mittel < 0,2 mag danebenliegen
+    pairs = [(0.26, 0.35), (0.34, 0.60), (0.44, 0.74), (0.46, 0.62), (0.58, 0.73), (0.62, 0.78),
+             (0.93, 1.34), (0.98, 1.12), (0.99, 1.12)]
+    bv, bp = np.array(pairs).T
+    assert np.mean(np.abs(V.bprp_from_bv(bv) - bp)) < 0.2
