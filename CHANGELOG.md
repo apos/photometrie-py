@@ -9,6 +9,15 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unveröffentlicht]
 
 ### Neu
+- **AAVSO-Export (NB06, `varphot/aavso.py`):** Extended Format v1.2 schreiben und gegen dessen Regeln prüfen (Pflichtparameter, 15 Felder, Feldlängen, Filtercodes, Ensemble-Regel, JD, Leerzeilen; Beispiele der Format-Seite als Tests). Datei nur bei fehlerfreier Prüfung; kein Upload.
+  Testdaten (LCO) mit Code `TST01` und markiertem Dateinamen; Gaia-Comps werden gekennzeichnet; transformierter Export nur nach bestandenem NB08-Gütetest.
+- **Transformation in der Lichtkurve:** `transformed_light_curve()` (je Bild und Comp nach Handbuch Gl. 6.11–6.14, Median über die Comps) und NB05 Schritt 6 (optional, `VARPHOT_TRANSFORM_FILE`, Messtabellen der drei Kanäle).
+- **Gaia-Sperre für die Transformation:** `fit_transform`/`transformed_light_curve` lehnen Kataloge mit Gaia-abgeleiteten Werten ab (Spalte `source` oder Gaia-Kennung `g1` …); NB03 schaltet für TB/TR/B/R die Gaia-Ergänzung ab.
+- **AAVSO-Standardfelder per Programm:** `fetch_std_field()` (VSP-Schnittstelle mit `special=std_field`): M 67 (190 Sterne), NGC 7790 (178), M 11 (415), NGC 3532 (226), NGC 1252 (22), Melotte 111 (85) mit U/B/V/Rc/Ic — kein Herunterladen von Hand nötig. NB08 nutzt sie (`VARPHOT_NB08_STDFIELD`).
+- **NB00:** jeden Katalogstern (Ziel, Comps, Check) einzeln gegen Obergrenze und S/N ≥ 100 prüfen (`check_field_stars`), `V_comp_min` im Plan; **Mond** in der Sichtbarkeit; Methode `monorgb` (Mono + RGB-Filter). **NB03 liest den Plan** (`comp_v_range`, neue Regel `comp_bv_abs`).
+- **Kanaltrennung:** `varphot/cfa.py` und `tools/split_cfa.py` (R, G = Mittel beider Grün, B; WCS und Pixelskala angepasst; getestet), `tools/siril_calibrate_cfa.ssf` (ungetestet). Preset `qhy268m` (Mono). KONZEPT §11.12 (RGB-Filterrad), §11.13.
+
+### Neu
 - **NB08 Transformationskoeffizienten** (`notebooks/08_transformation.ipynb`, `varphot/transform.py`): `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv` nach AAVSO DSLR Observing Manual v1.4 Gl. 6.15–6.18 (gelesen) aus Standardsternen mit Geraden und Sigma-Clipping (`linfit`);
   mittlere instrumentelle Magnituden je Kanal aus den NB04-Messtabellen mit Abzug der Bildnullpunkte (`instrumental_table`); Extinktion k aus dem Nullpunktgang (`fit_extinction`); Anwendung `transform_target` (Gl. 6.11–6.14, Extinktion 6.19–6.21);
   **Leave-one-out-Gütetest** (`loo_validation`: transformiert gegen nicht transformiert) mit Entscheidung `TG`/`V` je Band; Katalog aus CSV oder AAVSO-VSP (`catalog_from_vsp_table`); Ergebnis `transform_<Kamera>_<Einstellung>.json`.
