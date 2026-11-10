@@ -58,7 +58,20 @@ Der Check-Stern weicht um +0,15 mag vom Katalog ab (Gaia-abgeleitetes V roter St
 Ergebnis: ASTAP löst Bild 1 in 0,2 s (`radius_deg=5`, `fov_deg=0.72`). Die Pipeline (NB04/05) lief mit diesem Satz noch
 nicht; er soll Transit, Clear-Filter und grobe Pixelskala abdecken.
 
-## 3. Noch fehlend: Farbkamera (One-Shot-Color)
+## 3. Lizenzen und Nutzungsbedingungen (Stand 2026-11-10, im Wortlaut geprüft soweit zugänglich)
+
+**Versäumnis:** Beide Datensätze wurden geladen, *bevor* die Bedingungen gelesen waren. Das ist nachgeholt; die Regel steht jetzt in
+`docs/entwicklung.md` §2a. Die Daten liegen nur lokal (`~/astro_testdata`), nicht im Repo und nicht in Nextcloud.
+
+| Datensatz | Quelle der Bedingungen | Wortlaut (Auszug) | Folgen |
+|---|---|---|---|
+| `lco-dcep` | <https://lco.global/observatory/acknowledgments/> (gelesen 2026-11-10) | „All images and data derived from observations made at LCO facilities are made available for scientific or educational use, subject to the Creative Commons license BY-NC 4.0 and in the case of science data, subject to an additional proprietary period.“ — „… to be freely shared and redistributed on the condition that an appropriate attribution is made.“ — „Any use of LCO images and data not for scientific or educational purposes, e.g. for commercial purposes, is not permitted unless through an explicit arrangement.“ Kontakt `image_use@lco.global`. | CC BY-NC 4.0: nur nicht-kommerziell, Namensnennung. Namensnennung für Bilder: „Image taken with [Teleskop] operated by Las Cumbres Observatory“; in Veröffentlichungen: „This work makes use of observations from the Las Cumbres Observatory global telescope network.“ und Zitat Brown, T. M. et al. 2013, PASP 125, 1031 (Kürzel „LCOGT“). Weitergabe wäre mit Namensnennung erlaubt; wir geben die Bilder nicht weiter (das Download-Skript holt sie aus dem Archiv). |
+| `hatp32` | GitHub `rzellem/EXOTIC_sampledata` (API-Abfrage 2026-11-10): `license: null`, keine Lizenzdatei; README: „Sample transit observations for testing EXOTIC“. Der Code-Repo `rzellem/exotic` steht unter einer BSD-ähnlichen Lizenz (Caltech/JPL), die **nicht** für den Datensatz gilt. | — | **Keine Lizenz für die Daten = alle Rechte vorbehalten.** Nur lokale Tests; nicht weitergeben, nicht ins Repo. Ursprung (MicroObservatory, CfA, Harvard-Smithsonian) in Veröffentlichungen nennen. |
+| MicroObservatory (Ursprung von `hatp32`) | <https://microobservatory.org> | **Nicht prüfbar:** TLS-Zertifikatsfehler der Seite („unable to verify the first certificate“); die Prüfung wurde nicht abgeschaltet. Die Websuche fand keine Nutzungsbedingungen für das Archiv. | Bedingungen unbekannt → keine Weitergabe. Offen: Rückfrage beim CfA oder Bedingungen später lesen. |
+
+Software, die wir nur lesen und zitieren: `astronomyk/seestar_photometry` ist laut GitHub GPL-3.0 — Code wird nicht übernommen.
+
+## 4. Noch fehlend: Farbkamera (One-Shot-Color)
 
 Für das Konzept TG/TB/TR (KONZEPT.md §11) fehlt ein Satz mit Roh-Bayer-Bildern eines Veränderlichen. Kandidaten:
 siehe KONZEPT.md §11.6.
