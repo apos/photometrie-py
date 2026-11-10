@@ -27,4 +27,9 @@ CFG = {
     "target_ap_r_in": 55,
     "target_ap_r_out": 70,
     # Hintergrundring Ziel: mindestens target_ap_r + 5 px Abstand
+    # PSF-Photometrie (fokussierte Felder; nicht für defokussiertes Ziel)
+    "psf_stamp_size":    25,     # Briefmarkengröße in Pixeln (ungerade bevorzugt)
+    "psf_oversampling":   2,     # EPSF-Überabtastung
+    "psf_maxiters":       5,     # EPSFBuilder-Iterationen
+    "psf_peak_lo":      500,     # untere Flussgrenze für PSF-Referenzsterne (ADU)
 }
