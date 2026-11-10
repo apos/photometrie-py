@@ -28,3 +28,4 @@ Pillow
 -e .
 pytest
 nbstripout
+requests
