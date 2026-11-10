@@ -2,6 +2,7 @@
 import datetime as dt
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from varphot.observer import Site
@@ -73,3 +74,67 @@ def test_plan_roundtrip_and_latest(tmp_path):
     assert p2.exptime_max_s == 3.5 and p2.aperture["ap_r"] == 7 and p2.created
     assert latest_plan("del cep", tmp_path).camera_model == "Cam A" and latest_plan("anderes", tmp_path) is None
     assert set(METHODS) == {"mono", "osc", "dslr"}
+
+
+def _wcs(nx=600, ny=500, scale=1.44, ra=337.29, dec=58.41):
+    from astropy.wcs import WCS
+    w = WCS(naxis=2)
+    w.wcs.crpix = [nx / 2, ny / 2]
+    w.wcs.crval = [ra, dec]
+    w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    w.wcs.cdelt = [-scale / 3600, scale / 3600]
+    return w
+
+
+def test_night_altitudes_has_moon_columns():
+    site = Site("T", 50.0, 8.0, 100.0)
+    df = night_altitudes(337.29, 58.42, site, dt.date(2026, 11, 10), step_min=60)
+    for c in ("alt_moon", "moon_sep", "moon_illum", "moon_ok", "ok_moon"):
+        assert c in df
+    assert df["moon_illum"].between(0, 1).all() and df["moon_sep"].between(0, 180).all()
+    assert df["alt_moon"].between(-90, 90).all()
+
+
+def test_moon_illum_full_vs_new():
+    site = Site("T", 50.0, 8.0, 100.0)
+    new = night_altitudes(0, 0, site, dt.date(2026, 11, 9), step_min=360)["moon_illum"].mean()
+    full = night_altitudes(0, 0, site, dt.date(2026, 11, 24), step_min=360)["moon_illum"].mean()   # etwa 15 Tage spaeter
+    assert full > new + 0.5
+
+
+def test_plane_wcs_positions_consistent():
+    from varphot.plan import plane_wcs
+    w = _wcs()
+    wp = plane_wcs(w, (0.5, 0.5))
+    ra, dec = 337.30, 58.42
+    xr, yr = w.world_to_pixel_values(ra, dec)
+    xp, yp = wp.world_to_pixel_values(ra, dec)
+    assert xp == pytest.approx((xr - 0.5) / 2, abs=1e-6) and yp == pytest.approx((yr - 0.5) / 2, abs=1e-6)
+
+
+def test_check_field_stars_flags_the_limiting_comp_and_faint_star():
+    from varphot.plan import check_field_stars, comp_v_min
+    w = _wcs()
+    yy, xx = np.mgrid[0:500, 0:600]
+    img = 100.0 + np.random.default_rng(9).normal(0, 4, (500, 600))
+    pos = {"T": (300, 250, 8000.0), "c1": (120, 100, 15000.0), "c2": (450, 400, 3000.0), "c3": (150, 380, 60.0)}   # c1 ist heller als das Ziel
+    s = 5.0 / 2.355
+    for _, (x0, y0, pk) in pos.items():
+        img += pk * np.exp(-((xx - x0) ** 2 + (yy - y0) ** 2) / (2 * s * s))
+    img = np.clip(img, 0, 16383)
+    rows = []
+    for k, (x0, y0, pk) in pos.items():
+        ra, dec = w.pixel_to_world_values(x0, y0)
+        rows.append(dict(id=k, role="target" if k == "T" else "comp", ra=float(ra), dec=float(dec), V=4.0 - 2.5 * np.log10(pk / 8000.0)))
+    cat = pd.DataFrame(rows)
+    t = check_field_stars(img, w, cat, exptime_s=1.0, limit_adu=12287, offset=100, aperture=aperture_from_fwhm(5.0), gain=1.0,
+                          read_noise_e=5.0, max_adu=16383)
+    r = t.set_index("id")
+    assert r.loc["c1", "limiting"] and not r.loc["T", "limiting"]                    # der helle Comp schlaegt zuerst an
+    assert r.loc["c1", "t_max_s"] < r.loc["T", "t_max_s"] < r.loc["c2", "t_max_s"]
+    assert r.loc["c1", "t_max_s"] == pytest.approx(1.0 * (12287 - 100) / (15100 - 100), rel=0.03)
+    assert r.loc["c1", "over_limit"] and not r.loc["T", "over_limit"]                # c1 (15 100 ADU) ueber der Obergrenze 12 287, das Ziel (8 100) darunter
+    assert not r.loc["c1", "saturated"]                                              # 15 100 < 98 % von 16 383: noch nicht abgeschnitten, aber zu hell fuer die 75-%-Regel
+    assert not r.loc["c3", "ok_snr"] and r.loc["T", "ok_snr"]                        # der schwache Comp hat zu wenig S/N
+    vmin = comp_v_min(t, 1.0, 1.0, 12287, 100)
+    assert vmin is not None and vmin == pytest.approx(4.0 - 2.5 * np.log10((12287 - 100) / (8100 - 0)), abs=0.1)

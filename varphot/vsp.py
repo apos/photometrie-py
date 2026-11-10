@@ -37,6 +37,7 @@ VSP_CFG = {
     "comp_v_range": (5.5, 10.5),     # nicht zu hell (Saettigung) und nicht zu schwach (S/N)
     "comp_err_max": 0.05,            # max. Fehler der VSP-V-Helligkeit [mag]
     "comp_bv_tol": 0.40,             # max. |B-V(Comp) - B-V(Ziel)|
+    "comp_bv_abs": None,             # absoluter B-V-Bereich der Comps, z. B. (0.3, 1.0) fuer Bayer-Kameras (AAVSO-DSLR-Handbuch §6.3.1); None = aus
     "comp_r_iso_arcsec": 36.0,       # kein Gaia-Nachbar im Aperturbereich (25 px * 1,44")
     "comp_neighbour_dmag": 3.0,      # Nachbar zaehlt, wenn er max. so viel schwaecher ist wie der Comp
     "comp_ruwe_max": 1.4,
@@ -99,6 +100,39 @@ def fetch_vsp(star: str, fov_arcmin: float = 180, maglimit: float = 10.0,
         return r.json()
 
     d = _cached_json(cache_dir, f"vsp_{star}_{fov_arcmin:g}_{maglimit:g}", fetch, force)
+    return vsp_table(d)
+
+
+# AAVSO-Standardfelder (Johnson-Cousins UBVRcIc), abrufbar ueber die VSP-Schnittstelle mit ``special=std_field`` (Liste: https://www.aavso.org/apps/vsd/stdfields).
+# Koordinaten (Grad, ICRS) und Kartengroesse [Bogenminuten]; Sternzahlen am 2026-11-10 abgefragt: M 67 190, NGC 7790 178, M 11 415, NGC 3532 226, NGC 1252 22, Melotte 111 85.
+STD_FIELDS = {
+    "M67": (132.825, 11.8, 60),
+    "NGC 7790": (359.630458, 61.2025, 20),
+    "M11": (282.77, -6.27, 40),
+    "NGC 3532": (166.4, -58.75, 60),
+    "NGC 1252": (48.0, -57.77, 60),
+    "Melotte 111": (186.0, 26.0, 180),
+}
+
+
+def fetch_std_field(name: str, maglimit: float = 16.0, cache_dir=None, force=False) -> Table:
+    """Standardstern-Photometrie (Johnson-Cousins U, B, V, Rc, Ic) eines AAVSO-Standardfeldes als Tabelle (wie :func:`vsp_table`).
+
+    Warum: Die Transformationskoeffizienten (NB08) brauchen viele Sterne mit B, V, R ueber einen grossen Farbbereich; die AAVSO fuehrt dafuer Standardfelder. Die VSP-Schnittstelle liefert sie mit
+    ``special=std_field`` (keine Anmeldung noetig, anders als die Webseiten, die automatische Abrufe sperren). Wie: Abfrage mit Koordinaten und Kartengroesse aus :data:`STD_FIELDS`, Ergebnis im Cache.
+    Grenzen: Es werden nur die hier gelisteten Felder angeboten (Namensabfrage der VSP liefert HTTP 400); die Werte sind die der AAVSO, nicht Landolt/Stetson im Original (M 67 ist laut
+    AAVSO-Forum nachtraeglich mit J-C-Filtern revidiert). Beobachtbarkeit bedenken: NGC 3532 und NGC 1252 sind von Mitteleuropa nicht sichtbar.
+    """
+    if name not in STD_FIELDS:
+        raise KeyError(f"unbekanntes Standardfeld '{name}' (gueltig: {', '.join(STD_FIELDS)})")
+    ra, dec, fov = STD_FIELDS[name]
+
+    def fetch():
+        r = requests.get(VSP_URL, params=dict(ra=ra, dec=dec, fov=fov, maglimit=maglimit, special="std_field", format="json"), timeout=90)
+        r.raise_for_status()
+        return r.json()
+
+    d = _cached_json(cache_dir, f"stdfield_{name.replace(' ', '')}_{maglimit:g}", fetch, force)
     return vsp_table(d)
 
 
@@ -238,6 +272,9 @@ def _stage1_reasons(r, sep_deg, inside, target, cfg):
             why.append(f"V={r['V']:.2f} außerhalb {v_lo}–{v_hi}")
         if r["V_err"] > cfg["comp_err_max"]:
             why.append(f"V-Fehler {r['V_err']:.3f} > {cfg['comp_err_max']}")
+        bv_abs = cfg.get("comp_bv_abs")
+        if bv_abs and not (bv_abs[0] <= r["BV"] <= bv_abs[1]):
+            why.append(f"B-V {r['BV']:.2f} außerhalb {bv_abs[0]}–{bv_abs[1]} (Handbuch §6.3.1: keine roten/sehr blauen Comps)")
         if target.get("BV") is not None and abs(r["BV"] - target["BV"]) > cfg["comp_bv_tol"]:
             why.append(f"B-V {r['BV']:.2f} weicht {abs(r['BV'] - target['BV']):.2f} vom Ziel ab "
                        f"(> {cfg['comp_bv_tol']})")
