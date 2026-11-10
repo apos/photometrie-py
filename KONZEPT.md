@@ -258,6 +258,6 @@ Abhängigkeiten: **P0 blockiert P1; P1 blockiert P2.**
 | P2 | L | Spektren-Auswertung SHG 700 (Neon-Kalibrierung) | eigenes Notebook |
 
 **Offene Klärungen (blockieren P0)**:
-- Beobachtungsort-Koordinaten für BJD und Luftmasse
-- AAVSO-Beobachtercode vorhanden oder beantragen?
+- ~~Beobachtungsort-Koordinaten für BJD und Luftmasse~~ — erledigt 2026-11-10: NB01 Abschnitt 0 (Picker, lokal gespeichert, nicht im Repo)
+- ~~AAVSO-Beobachtercode~~ — erledigt 2026-11-10: vorhanden, NB01 Abschnitt 0 (lokal gespeichert)
 - Mac-Modell/macOS-Version für ASTAP-Freigabe (Apple Silicon Signing)
