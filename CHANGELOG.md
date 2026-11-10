@@ -8,6 +8,10 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+## [0.5.0] — 2026-11-10
+
+NB00 umgebaut (Vorbedingungen, Bereitschaft NB07/NB08, Defokus-Vergleich, Plate-Solve-Test), Defokus-Simulation, gemeinsame Vorbedingungsprüfung in NB01/NB00.
+
 ### Neu
 - **NB00 umgebaut:** Schritt 0 **Vorbedingungen** (gemeinsame Prüfung mit NB01, `varphot.readiness`: Python, Pakete, ASTAP, Siril, Datenordner, `observer.json`, KI-Wege); Schritt 2b **Bereitschaft** (Kameraprofil NB07, Transformation NB08, am Standort sichtbare Standardfelder); Schritt 3c **scharf gegen defokussiert** (FWHM, Spitzenwert, S/N-Folgen, Wunschbelichtung → nötiger Defokus, `defocus_tradeoff`/`defocus_needed`) und **Plate-Solve-Test** mit ASTAP am geplanten Fokus und an künstlich verunschärften Bildern (`defocus_solve_ladder`); der Plan speichert FWHM scharf, Defokusfaktor, Plate-Solve-Ergebnis und Bereitschaft.
   `fwhm_summary` weist FWHM heller und schwacher Sterne getrennt aus (helle Sterne sind auf echten Bildern breiter). NB01 nutzt dieselbe Prüfung (Siril optional statt ✗). `solve_array` löst Arrays ohne WCS (RA/Dec in Grad → `OBJCTRA`/`OBJCTDEC`).
