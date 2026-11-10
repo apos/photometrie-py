@@ -64,3 +64,22 @@ def render_frame(cat, t, w, fwhm=4.5, zp=21.0, airmass_trend=0.0, cfg=None):
         img[y1:y2, x1:x2] += flux * sub / (2 * np.pi * s * s)
     img = _rng.poisson(img.clip(0)).astype(float) + _rng.normal(0, 4, img.shape)
     return np.clip(img, 0, 65535)
+
+
+def bayer_frame(shape=(400, 600), signal_e=10000.0, gain=2.0, read_noise_e=3.0, offset=100.0, max_adu=16383,
+                pattern="RGGB", qe=None, dark_e=0.0, flat_amp=0.03, rng=None):
+    """Synthetisches rohes Bayer-Flat in ADU (Test und Demo fuer NB07): Schrot- plus Ausleserauschen, Offset, ADC-Grenze.
+
+    ``signal_e``: mittlere Elektronen je Pixel (vor ``qe``); ``qe``: Faktoren je Ebene (``R``, ``G1``, ``G2``, ``B``);
+    ``flat_amp``: feste Vignettierung (±), die in Differenzen verschwindet. Ergebnis ``round(clip((e + N(0,RN))/gain + offset))``.
+    """
+    from .camera import BAYER_OFFSETS
+    rng = rng or np.random.default_rng()
+    ny, nx = shape
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    flat = 1.0 + flat_amp * np.cos(np.pi * (xx / nx - 0.5)) * np.cos(np.pi * (yy / ny - 0.5)) - flat_amp
+    q = np.ones((ny, nx))
+    for name, (r, c) in BAYER_OFFSETS[pattern].items():
+        q[r::2, c::2] = (qe or {}).get(name, 1.0)
+    e = rng.poisson((signal_e * flat * q + dark_e).clip(0)).astype(float) + rng.normal(0, read_noise_e, (ny, nx))
+    return np.clip(np.round(e / gain + offset), 0, max_adu)
