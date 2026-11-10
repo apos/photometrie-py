@@ -8,6 +8,7 @@ from .plot import chart_map, plot_comp_field, plot_detections, plot_wcs_check, p
 from .cache import skip_if_fresh
 from .astrometry import solve_image, SolveResult, gnomonic, great_circle_xy, polyline_in_window
 from .wcscheck import check_wcs, gaia_field, WCSCheck
+from .observer import Observer, Site, Camera
 
 __all__ = [
     "CFG",
@@ -16,4 +17,5 @@ __all__ = [
     "chart_map", "plot_comp_field", "plot_detections", "plot_wcs_check", "plot_lightcurve",
     "skip_if_fresh",
     "solve_image", "SolveResult", "gnomonic", "great_circle_xy", "polyline_in_window", "check_wcs", "gaia_field", "WCSCheck",
+    "Observer", "Site", "Camera",
 ]
