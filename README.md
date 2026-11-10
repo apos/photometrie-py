@@ -108,6 +108,11 @@ Alle 88 IAU-Sternbilder werden unterstützt. Beim ersten Start werden Sternposit
 
 ---
 
+## Entwicklung
+
+Git-Regeln, Datenschutz (das Repo ist öffentlich), Test- und **Dokumentationsrichtlinie** (Warum/Wie/Grenzen/Validierung/Quellen
+in jedem Docstring): [docs/entwicklung.md](docs/entwicklung.md). Farbkamera (Siril, TG/TB/TR, AAVSO): KONZEPT.md §11.
+
 ## Paketstruktur
 
 ```
@@ -159,6 +164,27 @@ Check-Stern: Soll V=8.903, Messung Mittel 8.904, Streuung 0.0101 mag
 Lomb-Scargle Periode: 5.384 d (Soll 5.366)
 chart.png und lightcurve.png geschrieben.
 ```
+
+---
+
+## Beispieldaten
+
+Die Pipeline wird an echten, öffentlichen Bildern geprüft. Sie liegen **nicht** im Repo; ein Skript lädt sie
+(`~/astro_testdata`, MD5-/Größenprüfung, Zertifikate werden geprüft):
+
+```bash
+python tools/download_testdata.py --list
+python tools/download_testdata.py lco-dcep hatp32
+```
+
+| Name | Inhalt | Quelle |
+|---|---|---|
+| `lco-dcep` | δ Cep (Cepheide), Filter V, 156 Bilder, 0,4-m-Teleskop (McDonald), 2018–2020, BANZAI-reduziert, 1,1 GB | Las Cumbres Observatory, öffentliches Archiv <https://archive.lco.global> (Programme FTPEPO2014A-004, LCOEPO2018B-001) |
+| `hatp32` | HAT-P-32 b Transit, Clear-Filter, 142 Bilder, MicroObservatory (CfA), 89 MB | <https://github.com/rzellem/EXOTIC_sampledata> (Beispielsatz des Programms EXOTIC) |
+
+Mit `lco-dcep` ist die Pipeline durchgelaufen: 98 von 156 Bildern brauchbar, Lomb-Scargle-Periode 5,363 d
+(Literatur 5,366 d). Auswahl, Aussortierung und Befunde: [docs/testdaten.md](docs/testdaten.md). Die Daten unterliegen
+den Bedingungen der jeweiligen Quelle; bei Veröffentlichungen Quelle nennen.
 
 ---
 
