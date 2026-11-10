@@ -1,0 +1,240 @@
+"""Stapelverarbeitung: Aperturphotometrie ueber viele Bilder, Qualitaetsflags, Ensemble-Lichtkurve.
+
+Ablauf (Notebook 04/05):
+``read_frame`` -> ``measure_frame`` je Bild -> ``run_batch`` (Tabelle, lang: eine Zeile je Bild und Stern)
+-> ``qc_frames`` (Bildflags) -> ``light_curve`` (Differenzphotometrie gegen die Comps, Fehler je Punkt).
+
+Die Positionen kommen aus der WCS jedes Bildes (z. B. LCO/BANZAI: je Bild geloest). Es wird nicht
+nachzentriert — bei gesaettigtem Ziel waere das ohnehin unzuverlaessig.
+"""
+from __future__ import annotations
+
+import concurrent.futures as cf
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from astropy.io import fits
+from astropy.utils.exceptions import AstropyWarning
+from astropy.wcs import WCS
+from photutils.aperture import ApertureStats, CircularAnnulus, CircularAperture
+
+from .config import CFG
+from .timeutil import bjd_tdb, mid_exposure
+
+# Bild-Flags (je Bild, in ``qc_frames`` gesetzt); Sterne tragen zusaetzlich ``star_flag``
+FRAME_FLAGS = ("NO_WCS", "NO_SIGNAL", "LOW_TRANSPARENCY", "BAD_SEEING")
+
+
+def read_frame(path) -> tuple[np.ndarray, "fits.Header", WCS | None]:
+    """Liest ein Bild (``.fits``, ``.fits.fz``): erste HDU mit 2D-Daten (LCO: ``SCI``); Rueckgabe Daten, Header, WCS."""
+    with fits.open(path) as hdul:
+        hdu = next((h for h in hdul if getattr(h, "data", None) is not None and h.data.ndim == 2), None)
+        if hdu is None:
+            raise ValueError(f"{path}: keine 2D-Bilddaten")
+        img = np.asarray(hdu.data, dtype=np.float32)
+        hdr = hdu.header.copy()
+        for k, v in hdul[0].header.items():          # Primaer-Header ergaenzen (Schluessel des Bild-HDU gewinnen)
+            if k not in hdr and k not in ("COMMENT", "HISTORY", ""):
+                hdr[k] = v
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", AstropyWarning)
+        w = WCS(hdr)
+    return img, hdr, (w if w.has_celestial else None)
+
+
+def scintillation_mag(aperture_m: float, airmass: float, height_m: float, exptime_s: float) -> float:
+    """Szintillationsrauschen in mag (Young 1967: sigma = 0.09 D^-2/3 X^1.75 exp(-h/8000 m) / sqrt(2 t), D in cm)."""
+    d_cm = aperture_m * 100.0
+    rel = 0.09 * d_cm ** (-2 / 3) * airmass ** 1.75 * np.exp(-height_m / 8000.0) / np.sqrt(2 * exptime_s)
+    return float(1.0857 * rel)
+
+
+def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> list[dict]:
+    """Aperturphotometrie fuer alle ``stars`` (Spalten ``id, ra, dec``) in einem Bild.
+
+    Fehler (ADU): CCD-Gleichung — Poisson des Signals + Himmel und Ausleserauschen ueber die Aperturflaeche,
+    korrigiert um die Unsicherheit des Himmelsrings. Gain/Ausleserauschen/Saettigung aus dem Header
+    (``GAIN``, ``RDNOISE``, ``SATURATE``), sonst aus ``cfg``.
+    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag.
+    """
+    cfg = cfg or CFG
+    hdr = hdr or {}
+    r_ap, r_in, r_out = cfg["ap_r"], cfg["ap_r_in"], cfg["ap_r_out"]
+    gain = float(hdr.get("GAIN") or cfg.get("gain_e_per_adu") or 1.0)
+    rn = float(hdr.get("RDNOISE") or cfg.get("readout_noise_e") or 0.0)
+    sat = float(hdr.get("SATURATE") or cfg.get("sat_adu"))
+    ny, nx = img.shape
+    xs, ys = wcs.world_to_pixel_values(stars["ra"].to_numpy(float), stars["dec"].to_numpy(float))
+    rows = []
+    for sid, x, y in zip(stars["id"], xs, ys):
+        row = dict(star_id=sid, x=float(x), y=float(y), flux=np.nan, flux_err=np.nan, sky=np.nan,
+                   peak=np.nan, n_sat=0, star_flag="")
+        if not (r_out < x < nx - 1 - r_out and r_out < y < ny - 1 - r_out):
+            row["star_flag"] = "EDGE"
+            rows.append(row)
+            continue
+        ap = CircularAperture((x, y), r=r_ap)
+        an = CircularAnnulus((x, y), r_in=r_in, r_out=r_out)
+        sky = float(ApertureStats(img, an, sigma_clip=None).median)
+        st = ApertureStats(img, ap, sigma_clip=None)    # ohne Clipping: sonst werden helle Sternkerne abgeschnitten
+        flux = float(st.sum) - sky * ap.area
+        n_ap, n_sky = ap.area, an.area
+        var_e = max(flux, 0.0) * gain + n_ap * (1 + n_ap / n_sky) * (max(sky, 0.0) * gain + rn ** 2)
+        mask = ap.to_mask(method="center")
+        cut = mask.cutout(img)
+        n_sat = int(np.sum((cut >= sat) & (mask.data > 0))) if cut is not None else 0
+        row.update(flux=flux, flux_err=float(np.sqrt(var_e) / gain), sky=sky, peak=float(st.max) - sky,
+                   n_sat=n_sat, star_flag="SAT" if n_sat else "")
+        rows.append(row)
+    return rows
+
+
+def _process_one(args):
+    path, stars, cfg = args
+    img, hdr, wcs = read_frame(path)
+    t = mid_exposure(hdr)
+    info = dict(file=Path(path).name, jd_mid=t.jd, exptime=float(hdr.get("EXPTIME", np.nan)),
+                airmass=float(hdr.get("AIRMASS", np.nan)), fwhm_arcsec=float(hdr.get("L1FWHM", np.nan)),
+                telescope=str(hdr.get("TELESCOP", "")), filter=str(hdr.get("FILTER", "")))
+    if wcs is None:
+        return [dict(info, star_id=s, star_flag="NO_WCS") for s in stars["id"]]
+    return [dict(info, **r) for r in measure_frame(img, wcs, stars, hdr, cfg)]
+
+
+def run_batch(paths, stars: pd.DataFrame, cfg=None, workers: int = 4, progress=None) -> pd.DataFrame:
+    """Photometrie fuer alle Bilder (Prozesspool). ``progress``: optionaler Iterator-Wrapper (z. B. ``tqdm``)."""
+    cfg = cfg or CFG
+    jobs = [(str(p), stars, cfg) for p in paths]
+    with cf.ProcessPoolExecutor(workers) as ex:
+        it = ex.map(_process_one, jobs)
+        results = list(progress(it, total=len(jobs)) if progress else it)
+    return pd.DataFrame([r for rows in results for r in rows])
+
+
+def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
+    """Setzt Bildflags (Spalte ``frame_flags``, Komma-getrennt; leer = brauchbar).
+
+    ``roles``: {star_id: 'target'|'comp'|'check'}.
+    - NO_WCS: keine WCS im Bild
+    - NO_SIGNAL: ein Comp mit Fluss <= 0 oder S/N < ``snr_min`` (leeres Bild, Wolken, Schliesser)
+    - LOW_TRANSPARENCY: Median(Comp-Fluss / Laufmedian des jeweiligen Comps) < ``transp_min``
+    - BAD_SEEING: ``fwhm_arcsec`` > ``fwhm_max_arcsec``
+    Die Schwellen stehen in ``cfg`` (Standard 10 / 0,6 / 4″) und sind erste Startwerte.
+    """
+    cfg = cfg or CFG
+    snr_min = cfg.get("snr_min", 10.0)
+    transp_min = cfg.get("transp_min", 0.6)
+    fwhm_max = cfg.get("fwhm_max_arcsec", 4.0)
+    df = df.copy()
+    df["role"] = df["star_id"].map(roles)
+    comps = df[df["role"] == "comp"].copy()
+    comps["snr"] = comps["flux"] / comps["flux_err"]
+    ref = comps[comps["snr"] > snr_min].groupby("star_id")["flux"].median()          # Lauf-Median je Comp
+    comps["rel"] = comps["flux"] / comps["star_id"].map(ref)
+    per = comps.groupby("file").agg(min_flux=("flux", "min"), min_snr=("snr", "min"), transp=("rel", "median"))
+    flags = {}
+    for f, g in df.groupby("file"):
+        fl = []
+        if (g["star_flag"] == "NO_WCS").any():
+            fl.append("NO_WCS")
+        if f in per.index:
+            p = per.loc[f]
+            if not (p["min_flux"] > 0 and p["min_snr"] >= snr_min):
+                fl.append("NO_SIGNAL")
+            elif p["transp"] < transp_min:
+                fl.append("LOW_TRANSPARENCY")
+        elif "NO_WCS" not in fl:
+            fl.append("NO_SIGNAL")
+        if g["fwhm_arcsec"].iloc[0] > fwhm_max:
+            fl.append("BAD_SEEING")
+        flags[f] = ",".join(fl)
+    df["frame_flags"] = df["file"].map(flags)
+    df["transparency"] = df["file"].map(per["transp"])
+    return df
+
+
+def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
+    """Magnitude des Ziels aus dem Nullpunkt-Ensemble der Comps (robust).
+
+    Nullpunkt je Comp ``zp_i = V_i + 2,5 log10 f_i``; Median (mit ``f_c_err``: gewichtetes Mittel) ueber die Comps, Ausreisser (> ``clip`` * 1,4826 MAD,
+    nur ab 4 Comps) werden verworfen. Fehler: Streuung der Nullpunkte / sqrt(n) (quadratisch) + Photonenfehler des
+    Ziels; Rueckgabe ``(mag, err, n_benutzt, zp_streuung)``.
+    """
+    f_c, v_c = np.asarray(f_c, float), np.asarray(v_c, float)
+    ok = f_c > 0
+    zp = v_c[ok] + 2.5 * np.log10(f_c[ok])
+    keep = np.ones(len(zp), bool)
+    if len(zp) >= 4:
+        med = np.median(zp)
+        mad = 1.4826 * np.median(np.abs(zp - med)) or 1e-9
+        keep = np.abs(zp - med) <= clip * max(mad, 0.005)
+    zp_k = zp[keep]
+    if f_c_err is not None:                       # Gewichtung mit 1/sigma^2 (Photonen-/Himmelsfehler je Comp)
+        sig = 1.0857 * np.asarray(f_c_err, float)[ok][keep] / f_c[ok][keep]
+        wgt = 1.0 / np.maximum(sig, 1e-4) ** 2
+        zp0 = float(np.sum(zp_k * wgt) / np.sum(wgt))
+    else:
+        zp0 = float(np.median(zp_k))
+    sd = float(np.std(zp_k, ddof=1)) if len(zp_k) > 1 else np.nan
+    mag = float(-2.5 * np.log10(f_t) + zp0)
+    var = (sd ** 2 / len(zp_k) if np.isfinite(sd) else 0.0)
+    if f_t_err is not None and f_t > 0:
+        var += (1.0857 * f_t_err / f_t) ** 2
+    return mag, float(np.sqrt(var)), int(len(zp_k)), sd
+
+
+def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site=None,
+                aperture_m: float | None = None) -> pd.DataFrame:
+    """Lichtkurve des Ziels (eine Zeile je brauchbarem Bild) mit BJD_TDB, Magnitude, Fehler, Check-Stern.
+
+    ``df``: Ergebnis von :func:`qc_frames`; nur Bilder ohne ``frame_flags`` werden benutzt (Flag ``SAT`` des Ziels
+    bleibt als Spalte ``target_sat``). Fehlerbudget: Photonen/Himmel/Ausleserauschen (``flux_err``), Szintillation
+    (wenn ``aperture_m`` und ``site`` gegeben), Streuung des Comp-Ensembles.
+    ``site``: :class:`~varphot.observer.Site` fuer BJD_TDB; ohne ``site`` bleibt ``bjd_tdb`` NaN.
+    """
+    cfg = cfg or CFG
+    roles = dict(zip(stars["id"], stars["role"]))
+    V = dict(zip(stars["id"], stars["V"]))
+    tgt = stars[stars["id"] == target_id].iloc[0]
+    out = []
+    for f, g in df[df["frame_flags"] == ""].groupby("file"):
+        g = g.set_index("star_id")
+        comp_ids = [i for i in g.index if roles.get(i) == "comp" and np.isfinite(g.loc[i, "flux"])]
+        if len(comp_ids) < 3 or not np.isfinite(g.loc[target_id, "flux"]) or g.loc[target_id, "flux"] <= 0:
+            continue
+        fc = g.loc[comp_ids, "flux"].to_numpy()
+        m, e, n, sd = ensemble_mag(g.loc[target_id, "flux"], fc, [V[i] for i in comp_ids],
+                                   f_c_err=g.loc[comp_ids, "flux_err"].to_numpy(), f_t_err=g.loc[target_id, "flux_err"])
+        row = dict(file=f, jd_mid=g["jd_mid"].iloc[0], mag=m, mag_err=e, n_comps=n, zp_scatter=sd,
+                   airmass=g["airmass"].iloc[0], fwhm_arcsec=g["fwhm_arcsec"].iloc[0],
+                   target_sat=bool(g.loc[target_id, "n_sat"] > 0), transparency=g["transparency"].iloc[0],
+                   sky=g.loc[target_id, "sky"])
+        if aperture_m and site is not None and np.isfinite(row["airmass"]):
+            row["scint_mag"] = scintillation_mag(aperture_m, row["airmass"], site.height_m, g["exptime"].iloc[0])
+            row["mag_err"] = float(np.hypot(row["mag_err"], row["scint_mag"]))       # Szintillation des Ziels quadratisch addiert
+        chk = [i for i in g.index if roles.get(i) == "check" and np.isfinite(g.loc[i, "flux"]) and g.loc[i, "flux"] > 0]
+        if chk:
+            mk, _, _, _ = ensemble_mag(g.loc[chk[0], "flux"], fc, [V[i] for i in comp_ids])
+            row["check_mag"] = mk
+            row["check_minus_cat"] = mk - V[chk[0]]
+        out.append(row)
+    if not out:
+        return pd.DataFrame(columns=["file", "jd_mid", "mag", "mag_err", "n_comps", "bjd_tdb"])
+    lc = pd.DataFrame(out).sort_values("jd_mid").reset_index(drop=True)
+    if len(lc):
+        from astropy.time import Time
+        lc["bjd_tdb"] = (bjd_tdb(Time(lc["jd_mid"].to_numpy(), format="jd", scale="utc"), tgt["ra"], tgt["dec"], site)
+                         if site is not None else np.nan)
+    return lc
+
+
+def stars_from_field_config(record: dict, extra_roles=("comp", "check")) -> pd.DataFrame:
+    """Sterntabelle (``id, role, ra, dec, V, V_err``) aus einer NB03-``field_config.json`` (Ziel + Comps/Check)."""
+    z = record["ziel"]
+    rows = [dict(id="target", role="target", ra=z["ra"], dec=z["dec"], V=z["V"], V_err=np.nan)]
+    for s in record["sterne"]:
+        if s["rolle"] in extra_roles:
+            rows.append(dict(id=s["label"], role=s["rolle"], ra=s["ra"], dec=s["dec"], V=s["V"], V_err=s["V_err"]))
+    return pd.DataFrame(rows)
