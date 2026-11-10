@@ -133,3 +133,15 @@ def test_transformed_light_curve_recovers_catalog_values_better_than_standardize
     with pytest.raises(ValueError, match="Gaia"):
         bad = stars.copy(); bad["source"] = "Gaia"
         transformed_light_curve(meas, bad, target, sol)
+
+
+def test_transformed_check_star_matches_catalog(field):
+    from varphot import transformed_with_check
+    cat, meas, truth, instr, frames = field
+    sol = fit_transform(cat, instr)
+    target, check = cat["id"].iloc[2], cat["id"].iloc[5]
+    stars = cat.copy(); stars["role"] = np.where(stars["id"] == target, "target", np.where(stars["id"] == check, "check", "comp"))
+    lc = transformed_with_check(meas, stars, target, sol, check_id=check)
+    assert "V_check" in lc and lc["V_check"].notna().all()
+    assert abs(lc["V_check"].median() - cat[cat["id"] == check].iloc[0]["V"]) < 0.03
+    assert "V_check" not in transformed_with_check(meas, stars, target, sol)

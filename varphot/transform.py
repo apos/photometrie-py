@@ -318,3 +318,16 @@ def transformed_light_curve(meas: dict[str, pd.DataFrame], stars: pd.DataFrame, 
         rows.append(row)
     cols = ["file", "jd_mid", "airmass", "B", "V", "R", "BV", "V_err", "n_comps"]
     return pd.DataFrame(rows, columns=cols).sort_values("jd_mid" if rows else "file").reset_index(drop=True)
+
+
+def transformed_with_check(meas: dict[str, pd.DataFrame], stars: pd.DataFrame, target_id, sol: TransformSolution, check_id=None, **kw) -> pd.DataFrame:
+    """Transformierte Lichtkurve des Ziels **und** des Check-Sterns (Spalten ``V_check``, ``B_check``) — dieselbe Rechnung (Handbuch §6.7: im Feld KMAG gehoert die transformierte Check-Magnitude).
+
+    Warum: Der Check-Stern ist die einzige Gegenprobe der Transformation: weicht sein transformierter Wert im Mittel vom Katalog ab, stimmt etwas nicht (Koeffizienten, Comps, Farbbereich). Wie: ``check_id`` wird wie ein Ziel
+    behandelt (Rolle ``check`` zaehlt nicht als Vergleichsstern), das Ergebnis per ``file`` angefuegt. Ohne ``check_id`` unveraendert :func:`transformed_light_curve`. Validierung: ``tests/test_transform.py``.
+    """
+    lc = transformed_light_curve(meas, stars, target_id, sol, **kw)
+    if check_id is None:
+        return lc
+    ck = transformed_light_curve(meas, stars, check_id, sol, **kw)[["file", "V", "B"]].rename(columns={"V": "V_check", "B": "B_check"})
+    return lc.merge(ck, on="file", how="left")

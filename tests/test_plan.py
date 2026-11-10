@@ -138,3 +138,10 @@ def test_check_field_stars_flags_the_limiting_comp_and_faint_star():
     assert not r.loc["c3", "ok_snr"] and r.loc["T", "ok_snr"]                        # der schwache Comp hat zu wenig S/N
     vmin = comp_v_min(t, 1.0, 1.0, 12287, 100)
     assert vmin is not None and vmin == pytest.approx(4.0 - 2.5 * np.log10((12287 - 100) / (8100 - 0)), abs=0.1)
+
+
+def test_field_of_view_from_setup():
+    from varphot.plan import field_of_view_deg
+    lo, sh = field_of_view_deg((6252, 4176), 3.76, 1645.0)      # QHY268M am C9.25 mit Reducer
+    assert (lo, sh) == (0.82, 0.55) or (abs(lo - 0.8185) < 0.01 and abs(sh - 0.5466) < 0.01)
+    assert field_of_view_deg((4176, 6252), 3.76, 1645.0) == (lo, sh)        # Reihenfolge egal: lange Seite zuerst

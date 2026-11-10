@@ -13,6 +13,7 @@ bei Bayer-Kameras **FWHM im Rohbild ≥ 8–10 Pixel** (§5.5.1).
 """
 from __future__ import annotations
 
+import math
 import datetime as dt
 import json
 import re
@@ -243,6 +244,17 @@ def night_altitudes(ra_deg: float, dec_deg: float, site, date: dt.date | None = 
     return df
 
 
+def field_of_view_deg(format_px, pixel_um: float, focal_mm: float) -> tuple[float, float]:
+    """Bildfeld (lange, kurze Seite) in Grad aus Pixelzahl, Pixelgroesse und Brennweite; ``FOV = 2·atan(Sensorkante / 2f)``.
+
+    Warum: NB03 braucht die Feldgroesse fuer die Comp-Suche; sie soll aus dem Aufbau kommen statt von Hand. Grenzen: ohne Verzeichnung und ohne Reducer-Unsicherheit — die wirkliche Brennweite
+    steht erst nach dem Plate Solve fest (NB02/NB03 mit Referenzbild ueberschreibt diesen Wert). Validierung: ``tests/test_plan.py``.
+    """
+    w, h = sorted((float(format_px[0]), float(format_px[1])), reverse=True)
+    f = lambda px: math.degrees(2 * math.atan(px * pixel_um / 1000.0 / (2 * focal_mm)))
+    return round(f(w), 3), round(f(h), 3)
+
+
 @dataclass
 class ObservingPlan:
     """Ergebnis der Planung (NB00); wird als JSON im Datenordner abgelegt (``plans/``)."""
@@ -270,6 +282,8 @@ class ObservingPlan:
     v_comp_min: float | None = None               # hellster zulaessiger Comp (V) bei der empfohlenen Belichtung (aus den Probebildern)
     field_checks: list = field(default_factory=list)   # je Katalogstern: id, Rolle, V, hellster Pixel, t_max, S/N
     moon: dict = field(default_factory=dict)      # Beleuchtung/Abstand im Beobachtungsfenster
+    focal_length_mm: float | None = None          # Brennweite des Aufbaus (mit Reducer), Eingabe in NB00
+    field_deg: list = field(default_factory=list) # Bildfeld [lange, kurze Seite] in Grad aus Sensor und Brennweite (leer = unbekannt)
     warnings: list = field(default_factory=list)
     created: str = ""
     notes: str = ""

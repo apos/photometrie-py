@@ -15,11 +15,12 @@ from .batch import (read_frame, measure_frame, run_batch, qc_frames, ensemble_ma
 from .periodfit import harmonic_fit
 from .camera import (bayer_planes, center_roi, pair_stats, gain_from_pair, ptc_fit, read_noise_e, full_well_e,
                      linearity_curve, dark_current_e_per_s, detect_saturation, exposure_from_header, iso_from_header, histogram_gaps, compression_verdict)
-from .plan import (ObservingPlan, METHODS, green_plane, star_metrics, fwhm_summary, recommend_exposure, aperture_from_fwhm,
+from .plan import (field_of_view_deg, ObservingPlan, METHODS, green_plane, star_metrics, fwhm_summary, recommend_exposure, aperture_from_fwhm,
                    night_altitudes, save_plan, load_plan, latest_plan)
 from .transform import (TransformSolution, linfit, catalog_from_vsp_table, instrumental_table, fit_extinction, fit_transform,
-                        transform_target, loo_validation, solution_path, transformed_light_curve)
-from .aavso import Observation, build_extended, validate_extended, notes_string, observations_from_lightcurve
+                        transform_target, loo_validation, solution_path, transformed_light_curve, transformed_with_check)
+from .aavso import Observation, build_extended, validate_extended, notes_string, observations_from_lightcurve, Finding, check_plausibility
+from .maturity import maturity, maturity_warnings
 from .camera_presets import PRESETS, CameraPreset, VendorValues, get_preset, preset_choices
 
 __all__ = [
@@ -38,7 +39,8 @@ __all__ = [
     "ObservingPlan", "METHODS", "green_plane", "star_metrics", "fwhm_summary", "recommend_exposure", "aperture_from_fwhm",
     "night_altitudes", "save_plan", "load_plan", "latest_plan",
     "TransformSolution", "linfit", "catalog_from_vsp_table", "instrumental_table", "fit_extinction", "fit_transform",
-    "transform_target", "loo_validation", "solution_path", "transformed_light_curve",
+    "transform_target", "loo_validation", "solution_path", "transformed_light_curve", "transformed_with_check",
     "Observation", "build_extended", "validate_extended", "notes_string", "observations_from_lightcurve",
+    "Finding", "check_plausibility", "maturity", "maturity_warnings", "field_of_view_deg",
     "PRESETS", "CameraPreset", "VendorValues", "get_preset", "preset_choices",
 ]

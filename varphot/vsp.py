@@ -137,7 +137,7 @@ def fetch_std_field(name: str, maglimit: float = 16.0, cache_dir=None, force=Fal
 
 
 def vsp_table(d: dict) -> Table:
-    """Wandelt die VSP-JSON-Antwort in eine Tabelle (auch fuer Offline-Fixtures)."""
+    """Wandelt die VSP-JSON-Antwort in eine Tabelle (auch fuer Offline-Fixtures); die Sequenz-ID steht in ``tabelle.meta["chartid"]``."""
     rows = []
     for p in d["photometry"]:
         c = SkyCoord(p["ra"], p["dec"], unit=(u.hourangle, u.deg))
@@ -149,6 +149,7 @@ def vsp_table(d: dict) -> Table:
                          Rc=g("Rc", 0), Ic=g("Ic", 0), comment=comment))
     t = Table(rows=rows)
     t["BV"] = t["B"] - t["V"]
+    t.meta["chartid"] = d.get("chartid")           # Sequenz-ID der AAVSO (Feld CHART im Extended Format); None bei Offline-Fixtures ohne ID
     return t
 
 

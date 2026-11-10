@@ -70,3 +70,78 @@ def test_lightcurve_to_observations_skips_nan_and_uses_check_mag():
 def test_format_row_replaces_delimiter_in_text():
     r = format_row(Observation("X", 2450000.5, 9.0, notes="a,b"), ",")
     assert r.endswith("a;b") and len(r.split(",")) == 15
+
+
+# ---------------------------------------------------------------- Plausibilitaet (Inhalt)
+from varphot.aavso import check_plausibility
+from varphot.maturity import maturity_warnings
+
+NOW = 2461000.0
+
+
+def _obs(n=20, mag0=3.8, **kw):
+    base = dict(star="DEL CEP", filt="V", trans=False, chart="X43370RNS", kname="C1", airmass=1.3)
+    base.update(kw)
+    e = base.pop("err", 0.01)
+    return [Observation(jd=2460900.0 + i * 0.005, mag=mag0 + 0.01 * (i % 3), kmag=7.5 + 0.005 * (i % 2), err=None if e is None else e + 0.0005 * (i % 4), **base) for i in range(n)]
+
+
+def _codes(f, level=None):
+    return {x.code for x in f if level is None or x.level == level}
+
+
+def test_plausible_file_has_no_findings():
+    assert check_plausibility(_obs(), obstype="CCD", expected_range=(3.3, 4.5), now_jd=NOW) == []
+
+
+def test_future_time_and_duplicates_and_old_time_are_errors():
+    f = check_plausibility(_obs(), now_jd=2460900.0)
+    assert "zeit_zukunft" in _codes(f, "ERROR")
+    o = _obs()
+    o.append(o[0])
+    assert "doppelt" in _codes(check_plausibility(o, now_jd=NOW), "ERROR")
+    assert "zeit_alt" in _codes(check_plausibility([Observation("X", 2400000.5 + 100 * i, 5.0, 0.01, chart="X43370RNS") for i in range(6)], now_jd=NOW), "ERROR")
+
+
+def test_wrong_star_range_is_error_but_few_outliers_only_warn():
+    assert "mag_bereich" in _codes(check_plausibility(_obs(mag0=9.0), expected_range=(3.3, 4.5), now_jd=NOW), "ERROR")
+    o = _obs()
+    o[0].mag = 6.0
+    f = check_plausibility(o, expected_range=(3.3, 4.5), now_jd=NOW)
+    assert "mag_bereich" in _codes(f, "WARN") and "mag_bereich" not in _codes(f, "ERROR")
+
+
+def test_errors_missing_negative_constant():
+    assert "fehler_fehlt" in _codes(check_plausibility(_obs(err=None), now_jd=NOW), "ERROR")
+    assert "fehler_negativ" in _codes(check_plausibility(_obs(err=-0.01), now_jd=NOW), "ERROR")
+    c = _obs(); [setattr(x, "err", 0.01) for x in c]
+    assert "fehler_konstant" in _codes(check_plausibility(c, now_jd=NOW), "WARN")
+
+
+def test_filter_trans_obstype_rules():
+    assert "filter_trans" in _codes(check_plausibility(_obs(filt="TG", trans=True), obstype="DSLR", now_jd=NOW), "ERROR")
+    assert "filter_trans" in _codes(check_plausibility(_obs(filt="V", trans=False), obstype="DSLR", now_jd=NOW), "ERROR")
+    assert "obstype" in _codes(check_plausibility(_obs(filt="TG"), obstype="CCD", now_jd=NOW), "WARN")
+    assert "koeffizienten" in _codes(check_plausibility(_obs(filt="V", trans=True, notes="na"), obstype="CCD", now_jd=NOW), "WARN")
+
+
+def test_chart_rules():
+    assert "chart_fehlt" in _codes(check_plausibility(_obs(chart=None), now_jd=NOW), "WARN")
+    assert "chart_gaia" in _codes(check_plausibility(_obs(chart="Gaia DR3 V-deriv"), now_jd=NOW), "WARN")
+    assert "chart_form" in _codes(check_plausibility(_obs(chart="abc"), now_jd=NOW), "WARN")
+
+
+def test_check_star_scatter_offset_and_jumps():
+    o = _obs()
+    for i, x in enumerate(o):
+        x.kmag = 7.5 + (0.2 if i % 2 else -0.2)
+    assert "check_streuung" in _codes(check_plausibility(o, now_jd=NOW), "WARN")
+    assert "check_offset" in _codes(check_plausibility(_obs(), kmag_expected=7.0, now_jd=NOW), "WARN")
+    o = _obs()
+    o[5].mag += 0.8
+    assert "sprung" in _codes(check_plausibility(o, now_jd=NOW), "WARN")
+
+
+def test_maturity_warns_only_for_unverified():
+    w = maturity_warnings(["aavso_format", "transform_lightcurve", "siril_cfa_script", "unbekannt"])
+    assert len(w) == 3 and not any("aavso_format" in x for x in w) and "[ungetestet] siril_cfa_script" in "\n".join(w)

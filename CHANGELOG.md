@@ -9,6 +9,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unveröffentlicht]
 
 ### Neu
+- **Inhaltsprüfung des AAVSO-Exports** (`check_plausibility`, NB06 Schritt 4b): `ERROR` blockiert die Datei, `WARN` steht als „Offene Punkte“ im Bericht; **Reifegrad-Tabelle** (`varphot/maturity.py`) nennt nicht an echten Daten geprüfte Funktionen; `OBSTYPE` bei Farbkamera/RGB-Filter wird abgefragt (`VARPHOT_OBSTYPE`, `VARPHOT_OBSTYPE_CONFIRMED`).
+- **Automatisiert:** Sequenz-ID (`CHART`) aus der VSP-Antwort (NB03 → NB06, vorher von Hand); Feldgröße aus Sensor und Brennweite (`field_of_view_deg`, NB00 → Plan → NB03); transformierter Check-Stern (`transformed_with_check`, KMAG in NB06, Warnung bei Abweichung > 0,05 mag).
 - **AAVSO-Export (NB06, `varphot/aavso.py`):** Extended Format v1.2 schreiben und gegen dessen Regeln prüfen (Pflichtparameter, 15 Felder, Feldlängen, Filtercodes, Ensemble-Regel, JD, Leerzeilen; Beispiele der Format-Seite als Tests). Datei nur bei fehlerfreier Prüfung; kein Upload.
   Testdaten (LCO) mit Code `TST01` und markiertem Dateinamen; Gaia-Comps werden gekennzeichnet; transformierter Export nur nach bestandenem NB08-Gütetest.
 - **Transformation in der Lichtkurve:** `transformed_light_curve()` (je Bild und Comp nach Handbuch Gl. 6.11–6.14, Median über die Comps) und NB05 Schritt 6 (optional, `VARPHOT_TRANSFORM_FILE`, Messtabellen der drei Kanäle).

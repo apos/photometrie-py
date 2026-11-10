@@ -181,3 +181,124 @@ def observations_from_lightcurve(lc, star: str, filt: str, trans: bool, mag_col:
                                airmass=None if airmass_col not in lc else float(r[airmass_col]),
                                group=None if group_col is None else int(r[group_col]), chart=chart, notes=notes))
     return out
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Plausibilitaetspruefung (Inhalt statt Format)
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@dataclass
+class Finding:
+    """Ergebnis einer Inhaltspruefung: ``level`` ``ERROR`` (nicht einreichen) oder ``WARN`` (bewusst entscheiden), ``code`` kurzer Schluessel, ``text`` Erklaerung."""
+    level: str
+    code: str
+    text: str
+
+    def __str__(self):
+        return f"[{self.level}] {self.code}: {self.text}"
+
+
+CHART_RE = re.compile(r"[A-Z]\d{5}[A-Z]{2,3}")        # Form der VSP-Sequenz-IDs, z. B. X43370RNS (beobachtet in der VSP-Antwort, nicht offiziell dokumentiert)
+
+
+def check_plausibility(observations: list[Observation], obstype: str = "CCD", expected_range: tuple[float, float] | None = None, now_jd: float | None = None,
+                       kmag_expected: float | None = None, kmag_scatter_max: float = 0.05, err_max: float = 0.08, jump_mag: float = 0.3, jump_minutes: float = 10.0,
+                       min_points: int = 5) -> list[Finding]:
+    """Prueft den **Inhalt** der Beobachtungen auf Widersprueche und Unplausibles (das Format prueft :func:`validate_extended`).
+
+    Warum: Eine formal fehlerfreie Datei kann falsche Daten tragen (falscher Filtercode zur Methode, vertauschter Stern, kaputte Zeit, Gaia-Comps unter AAVSO-Sequenz-ID). WebObs prueft nur wenig davon;
+    fremde Auswerter finden Fehler erst spaeter. Wie: feste Regeln ueber alle Zeilen. ``ERROR`` = nicht einreichen. ``WARN`` = pruefen, dann bewusst weitermachen.
+    Regeln: Zeit nicht in der Zukunft und nach 2000; keine doppelten (Stern, JD, Filter); Helligkeit endlich; bei ``expected_range`` (V-Bereich des Sterns, z. B. 3,3–4,5 fuer δ Cep): Werte ausserhalb ±0,5 mag
+    => ``WARN``, mehr als 25 % => ``ERROR`` (falscher Stern/Filter/Katalog); Fehlerangaben fehlen/negativ => ``ERROR``, sehr gross (``err_max``) oder alle identisch => ``WARN``; Luftmasse < 1 => ``ERROR``, > 3 => ``WARN``;
+    Filter/TRANS/OBSTYPE (DSLR-Handbuch §6.7: TG/TB/TR ohne Transformation, V/B/R nur mit TRANS=YES bei Farbkameras); CHART fehlt oder passt nicht zur Form einer AAVSO-Sequenz-ID (bei Gaia-Quelle ``WARN``);
+    TRANS=YES ohne Koeffizienten in NOTES; Check-Stern: Streuung > ``kmag_scatter_max`` und Abweichung vom Katalogwert ``kmag_expected`` > 0,05 mag; Spruenge > ``jump_mag`` innerhalb ``jump_minutes`` (Ausreisser);
+    weniger als ``min_points`` Zeilen. Grenzen: Schwellen sind Startwerte (nicht aus Daten kalibriert); es wird nichts gegen WebObs oder VSX abgeglichen. Validierung: ``tests/test_aavso.py``.
+    """
+    F: list[Finding] = []
+    add = lambda lvl, code, txt: F.append(Finding(lvl, code, txt))
+    n = len(observations)
+    if n == 0:
+        return [Finding("ERROR", "leer", "keine Beobachtungen")]
+    if n < min_points:
+        add("WARN", "wenige_punkte", f"nur {n} Beobachtungen (< {min_points})")
+    jd = [o.jd for o in observations]
+    if now_jd is None:
+        import datetime as _dt
+        now_jd = 2440587.5 + _dt.datetime.now(_dt.timezone.utc).timestamp() / 86400.0
+    if max(jd) > now_jd + 0.05:
+        add("ERROR", "zeit_zukunft", f"JD {max(jd):.4f} liegt in der Zukunft")
+    if min(jd) < 2451544.5:                                    # 2000-01-01
+        add("ERROR", "zeit_alt", f"JD {min(jd):.4f} vor dem Jahr 2000 (Einheit oder Zeitsystem falsch?)")
+    if max(jd) - min(jd) > 400:
+        add("WARN", "zeitraum", f"Zeitraum {max(jd) - min(jd):.0f} Tage in einer Datei")
+    seen = {}
+    for o in observations:
+        key = (o.star.upper(), round(o.jd, 5), o.filt.upper())
+        seen[key] = seen.get(key, 0) + 1
+    dup = sum(v - 1 for v in seen.values() if v > 1)
+    if dup:
+        add("ERROR", "doppelt", f"{dup} doppelte Zeilen (gleicher Stern, JD und Filter)")
+    mags = [o.mag for o in observations]
+    if any(not math.isfinite(m) for m in mags):
+        add("ERROR", "mag_nan", "Helligkeit nicht endlich")
+    else:
+        if expected_range:
+            lo, hi = expected_range
+            out = sum(1 for m in mags if m < lo - 0.5 or m > hi + 0.5)
+            if out / n > 0.25:
+                add("ERROR", "mag_bereich", f"{out} von {n} Werten ausserhalb {lo - 0.5:.1f}…{hi + 0.5:.1f} mag — falscher Stern, Filter oder Katalog?")
+            elif out:
+                add("WARN", "mag_bereich", f"{out} von {n} Werten ausserhalb {lo - 0.5:.1f}…{hi + 0.5:.1f} mag")
+        elif min(mags) < -2 or max(mags) > 20:
+            add("WARN", "mag_extrem", f"Helligkeiten {min(mags):.2f}…{max(mags):.2f} mag ungewoehnlich")
+    errs = [o.err for o in observations]
+    if any(e is None or not math.isfinite(e) for e in errs):
+        add("ERROR", "fehler_fehlt", "Fehlerangabe (MERR) fehlt bei manchen Zeilen — AAVSO erwartet sie; sonst bewusst 'na' begruenden")
+    else:
+        if any(e <= 0 for e in errs):
+            add("ERROR", "fehler_negativ", "Fehlerangabe <= 0")
+        if sorted(errs)[n // 2] > err_max:
+            add("WARN", "fehler_gross", f"mittlerer Fehler {sorted(errs)[n // 2]:.3f} mag > {err_max} mag")
+        if n >= 10 and len(set(round(e, 4) for e in errs)) == 1:
+            add("WARN", "fehler_konstant", "alle Fehlerangaben identisch (nicht je Messung berechnet?)")
+        if n >= 10 and sorted(errs)[n // 2] < 0.001:
+            add("WARN", "fehler_klein", "mittlerer Fehler < 0,001 mag (unrealistisch klein, Szintillation/Photonenrauschen)")
+    am = [o.airmass for o in observations if o.airmass is not None and math.isfinite(o.airmass)]
+    if am and min(am) < 1.0:
+        add("ERROR", "luftmasse", f"Luftmasse {min(am):.3f} < 1")
+    if am and max(am) > 3.0:
+        add("WARN", "luftmasse_hoch", f"Luftmasse bis {max(am):.2f} (> 3)")
+    ob = obstype.upper()
+    filts = {o.filt.upper() for o in observations}
+    for o in {(o.filt.upper(), o.trans) for o in observations}:
+        f, t = o
+        if f in ("TG", "TB", "TR") and t:
+            add("ERROR", "filter_trans", f"Filter {f} mit TRANS=YES (TG/TB/TR sind untransformiert; transformiert V/B/R melden)")
+        if f in ("V", "B", "R") and not t and ob == "DSLR":
+            add("ERROR", "filter_trans", f"OBSTYPE=DSLR mit Filter {f} und TRANS=NO — bei Farbkameras untransformiert als TG/TB/TR melden (DSLR-Handbuch §6.7)")
+    if ob == "CCD" and filts & {"TG", "TB", "TR"}:
+        add("WARN", "obstype", "TG/TB/TR mit OBSTYPE=CCD — Farbkameras/RGB-Filter laufen bei der AAVSO unter DSLR; vor dem Einreichen klaeren")
+    if any(o.trans and not (o.notes and "=" in o.notes) for o in observations):
+        add("WARN", "koeffizienten", "TRANS=YES ohne Koeffizienten in NOTES (Tbv, Tv_bv …)")
+    charts = {o.chart or "na" for o in observations}
+    for c in charts:
+        if c == "na":
+            add("WARN", "chart_fehlt", "CHART fehlt (Sequenz-ID der VSP eintragen)")
+        elif c.lower().startswith("gaia"):
+            add("WARN", "chart_gaia", f"CHART '{c}': Comps stammen nicht aus der AAVSO-Sequenz (Notbehelf, in NOTES kennzeichnen)")
+        elif not CHART_RE.fullmatch(c):
+            add("WARN", "chart_form", f"CHART '{c}' hat nicht die Form einer VSP-Sequenz-ID (z. B. X43370RNS)")
+    km = [o.kmag for o in observations if o.kmag is not None and math.isfinite(o.kmag)]
+    if any(o.kname for o in observations) and len(km) < n:
+        add("WARN", "check_fehlt", "Check-Stern benannt, aber KMAG fehlt in einigen/allen Zeilen")
+    if len(km) >= 5:
+        mean = sum(km) / len(km)
+        sd = (sum((x - mean) ** 2 for x in km) / (len(km) - 1)) ** 0.5
+        if sd > kmag_scatter_max:
+            add("WARN", "check_streuung", f"Check-Stern streut mit {sd:.3f} mag (> {kmag_scatter_max}) — Photometrie/Comps pruefen")
+        if kmag_expected is not None and abs(mean - kmag_expected) > 0.05:
+            add("WARN", "check_offset", f"Check-Stern im Mittel {mean:.3f} mag, Katalog {kmag_expected:.3f} (Differenz {mean - kmag_expected:+.3f})")
+    srt = sorted(observations, key=lambda o: o.jd)
+    jumps = sum(1 for a, b in zip(srt, srt[1:]) if (b.jd - a.jd) * 1440 <= jump_minutes and a.filt == b.filt and abs(b.mag - a.mag) > jump_mag)
+    if jumps:
+        add("WARN", "sprung", f"{jumps} Sprung/Spruenge > {jump_mag} mag innerhalb {jump_minutes:g} min (Ausreisser?)")
+    return F
