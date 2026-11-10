@@ -57,7 +57,9 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
     Fehler (ADU): CCD-Gleichung — Poisson des Signals + Himmel und Ausleserauschen ueber die Aperturflaeche,
     korrigiert um die Unsicherheit des Himmelsrings. Gain/Ausleserauschen/Saettigung aus dem Header
     (``GAIN``, ``RDNOISE``, ``SATURATE``), sonst aus ``cfg``.
-    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag.
+    Mit ``cfg["core_r"]`` (px) wird zusaetzlich der Fluss im Ring ``core_r`` .. ``ap_r`` gemessen
+    (``flux_ring``, ``flux_ring_err``) — fuer gesaettigte Sterne, deren Kern abgeschnitten ist.
+    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag (+ flux_ring).
     """
     cfg = cfg or CFG
     hdr = hdr or {}
@@ -70,7 +72,7 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
     rows = []
     for sid, x, y in zip(stars["id"], xs, ys):
         row = dict(star_id=sid, x=float(x), y=float(y), flux=np.nan, flux_err=np.nan, sky=np.nan,
-                   peak=np.nan, n_sat=0, star_flag="")
+                   peak=np.nan, n_sat=0, star_flag="", flux_ring=np.nan, flux_ring_err=np.nan)
         if not (r_out < x < nx - 1 - r_out and r_out < y < ny - 1 - r_out):
             row["star_flag"] = "EDGE"
             rows.append(row)
@@ -87,6 +89,12 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
         n_sat = int(np.sum((cut >= sat) & (mask.data > 0))) if cut is not None else 0
         row.update(flux=flux, flux_err=float(np.sqrt(var_e) / gain), sky=sky, peak=float(st.max) - sky,
                    n_sat=n_sat, star_flag="SAT" if n_sat else "")
+        core_r = cfg.get("core_r")
+        if core_r:                                    # Ring ohne Kern: fuer gesaettigte Sterne (siehe light_curve)
+            ring = CircularAnnulus((x, y), r_in=core_r, r_out=r_ap)
+            fr = float(ApertureStats(img, ring, sigma_clip=None).sum) - sky * ring.area
+            var_r = max(fr, 0.0) * gain + ring.area * (1 + ring.area / n_sky) * (max(sky, 0.0) * gain + rn ** 2)
+            row.update(flux_ring=fr, flux_ring_err=float(np.sqrt(var_r) / gain))
         rows.append(row)
     return rows
 
@@ -186,13 +194,19 @@ def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
 
 
 def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site=None,
-                aperture_m: float | None = None) -> pd.DataFrame:
+                aperture_m: float | None = None, core_correct: bool = False) -> pd.DataFrame:
     """Lichtkurve des Ziels (eine Zeile je brauchbarem Bild) mit BJD_TDB, Magnitude, Fehler, Check-Stern.
 
     ``df``: Ergebnis von :func:`qc_frames`; nur Bilder ohne ``frame_flags`` werden benutzt (Flag ``SAT`` des Ziels
     bleibt als Spalte ``target_sat``). Fehlerbudget: Photonen/Himmel/Ausleserauschen (``flux_err``), Szintillation
     (wenn ``aperture_m`` und ``site`` gegeben), Streuung des Comp-Ensembles.
     ``site``: :class:`~varphot.observer.Site` fuer BJD_TDB; ohne ``site`` bleibt ``bjd_tdb`` NaN.
+
+    ``core_correct``: Ist das Ziel gesaettigt (``n_sat`` > 0), wird statt des abgeschnittenen Gesamtflusses der Fluss im
+    Ring ausserhalb des Kerns (``core_r`` in ``measure_frame``) benutzt und mit dem Ringanteil der hellen, ungesaettigten
+    Comps dieses Bildes auf den Gesamtfluss hochgerechnet — der Anteil haengt vom Seeing ab und wird je Bild gemessen.
+    Das entfernt die Seeing-Abhaengigkeit des Sattigungsverlusts (LCO delta Cep: Streuung 0,13 -> 0,07 mag).
+    Spalte ``core_corrected`` markiert die so berechneten Punkte.
     """
     cfg = cfg or CFG
     roles = dict(zip(stars["id"], stars["role"]))
@@ -205,11 +219,17 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
         if len(comp_ids) < 3 or not np.isfinite(g.loc[target_id, "flux"]) or g.loc[target_id, "flux"] <= 0:
             continue
         fc = g.loc[comp_ids, "flux"].to_numpy()
-        m, e, n, sd = ensemble_mag(g.loc[target_id, "flux"], fc, [V[i] for i in comp_ids],
-                                   f_c_err=g.loc[comp_ids, "flux_err"].to_numpy(), f_t_err=g.loc[target_id, "flux_err"])
+        f_t, f_t_err, corrected = g.loc[target_id, "flux"], g.loc[target_id, "flux_err"], False
+        if core_correct and g.loc[target_id, "n_sat"] > 0 and np.isfinite(g.loc[target_id].get("flux_ring", np.nan)):
+            bright = [i for i in comp_ids if g.loc[i, "flux"] / g.loc[i, "flux_err"] > 50 and g.loc[i, "n_sat"] == 0]
+            if bright:
+                frac = float(np.median(g.loc[bright, "flux_ring"] / g.loc[bright, "flux"]))
+                f_t, f_t_err, corrected = g.loc[target_id, "flux_ring"] / frac, g.loc[target_id, "flux_ring_err"] / frac, True
+        m, e, n, sd = ensemble_mag(f_t, fc, [V[i] for i in comp_ids],
+                                   f_c_err=g.loc[comp_ids, "flux_err"].to_numpy(), f_t_err=f_t_err)
         row = dict(file=f, jd_mid=g["jd_mid"].iloc[0], mag=m, mag_err=e, n_comps=n, zp_scatter=sd,
                    airmass=g["airmass"].iloc[0], fwhm_arcsec=g["fwhm_arcsec"].iloc[0],
-                   target_sat=bool(g.loc[target_id, "n_sat"] > 0), transparency=g["transparency"].iloc[0],
+                   target_sat=bool(g.loc[target_id, "n_sat"] > 0), core_corrected=corrected, transparency=g["transparency"].iloc[0],
                    sky=g.loc[target_id, "sky"])
         if aperture_m and site is not None and np.isfinite(row["airmass"]):
             row["scint_mag"] = scintillation_mag(aperture_m, row["airmass"], site.height_m, g["exptime"].iloc[0])
