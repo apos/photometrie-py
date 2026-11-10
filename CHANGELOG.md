@@ -8,6 +8,24 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Neu (P0-3: erster echter Datensatz, LCO δ Cep, Filter V)
+- **Stapelphotometrie** (`varphot/batch.py`): `read_frame` (auch `.fits.fz`), `measure_frame`, `run_batch` (parallel),
+  `qc_frames` (Bildflags `NO_WCS`, `NO_SIGNAL`, `LOW_TRANSPARENCY`, `BAD_SEEING`), `ensemble_mag` (robust, gewichtet),
+  `light_curve` (BJD_TDB, Fehler, Check-Stern, Sättigungsmarkierung). Ersetzt die Platzhalter in NB04/NB05.
+- **Zeit** (`varphot/timeutil.py`): Belichtungsmitte, `bjd_tdb()` mit Standort, Luftmasse, Standort aus LCO-Header.
+- **Fehlerbudget** (P1): CCD-Gleichung (Photonen, Himmel, Ausleserauschen; Gain/RON aus dem Header) plus
+  Szintillation nach Young (`scintillation_mag`).
+- **`field_from_wcs()`**: Sensorfeld und Winkel direkt aus dem WCS eines Bildes; NB03 nimmt über `VARPHOT_FRAME` ein
+  Referenzbild, `VARPHOT_RULES` überschreibt Auswahlregeln (Kleinfeld-Optik).
+- **Ergebnis am LCO-Satz** (156 Bilder des Teleskops `0m4-11`, 98 brauchbar): erkennbare Cepheiden-Lichtkurve
+  (schneller Anstieg, langsamer Abfall), Lomb-Scargle 5,30 d (Literatur 5,366 d; Zeitbasis 56 d), Amplitude ~1,1 mag
+  (Literatur ~0,9). Streuung um die Kurve ~0,1 mag: das Ziel ist in 1,3 s fast gesättigt (V≈4 an einer 0,4-m-Optik).
+
+### Behoben
+- **Aperturphotometrie schnitt helle Sternkerne ab**: `photutils.ApertureStats` wendet standardmäßig Sigma-Clipping auch
+  auf die Aperturensumme an. Der Fluss heller Sterne war dadurch zu klein (Test: 205 statt 251). `aperture_flux()` und
+  die neue Stapelphotometrie rechnen jetzt ohne Clipping; Regressionstest `tests/test_photometry.py`.
+
 ### Neu
 - **Beobachter, Standort, Kamera** (`varphot/observer.py`, NB01 Abschnitt 0): Standort-Picker (Breite, Länge Ost +, Höhe;
   Testdaten-Standorte LCO McDonald und Whipple eingebaut), AAVSO-Beobachtercode und Kameradaten (Gain, Ausleserauschen,
