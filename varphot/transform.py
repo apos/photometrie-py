@@ -106,7 +106,7 @@ def _forbid_gaia(cat: pd.DataFrame) -> None:
     if "source" in cat and cat["source"].astype(str).str.contains("gaia", case=False).any():
         raise ValueError("Katalog enthaelt Gaia-abgeleitete Werte (Spalte 'source'): fuer die Transformation nur AAVSO-Standardfeld/-Sequenz oder Landolt/Stetson verwenden")
     if "id" in cat and cat["id"].astype(str).str.match(r"^g\d+$").any():
-        raise ValueError("Katalog enthaelt Sterne mit Gaia-Kennung (g1, g2 …) aus NB03: nicht als Standardsterne geeignet")
+        raise ValueError("Katalog enthaelt Sterne mit Gaia-Kennung (g1, g2 …) aus NB01: nicht als Standardsterne geeignet")
 
 
 def catalog_from_vsp_table(vsp, source: str = "AAVSO") -> pd.DataFrame:
@@ -123,7 +123,7 @@ def catalog_from_vsp_table(vsp, source: str = "AAVSO") -> pd.DataFrame:
 
 
 def instrumental_table(meas: dict[str, pd.DataFrame], star_ids=None, min_frames: int = 2) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Mittlere instrumentelle Magnituden je Stern und Kanal aus Messtabellen (NB04, lang: ``file, star_id, flux, airmass, frame_flags``).
+    """Mittlere instrumentelle Magnituden je Stern und Kanal aus Messtabellen (NB02, lang: ``file, star_id, flux, airmass, frame_flags``).
 
     Warum: Die Regression braucht je Stern *einen* Wert je Kanal; Aufnahmen schwanken im Pegel (Transparenz, Belichtung). Wie: ``m = −2,5·log10(flux)`` je Bild; je Bild wird der Median der
     Differenz zum Sternmittel abgezogen (entfernt gemeinsame Pegelspruenge, nicht die Farbabhaengigkeit); Mittel ueber die Bilder. Nur Bilder ohne ``frame_flags`` und Sterne mit mindestens

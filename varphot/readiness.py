@@ -58,9 +58,9 @@ def software_checks(ai: bool = True) -> list[Check]:
     cp = config_path()
     if cp.exists():
         obs, sites = load_config()
-        out.append(Check("Beobachter (observer.json)", bool(obs.site_name), f"Standort '{obs.site_name or '—'}', AAVSO-Code {obs.aavso_code or '— (nur zum Einreichen noetig)'}" + ("" if obs.site_name else " — NB01 Abschnitt 0 ausfuellen"), optional=True))
+        out.append(Check("Beobachter (observer.json)", bool(obs.site_name), f"Standort '{obs.site_name or '—'}', AAVSO-Code {obs.aavso_code or '— (nur zum Einreichen noetig)'}" + ("" if obs.site_name else " — NB00 Schritt 0b ausfuellen"), optional=True))
     else:
-        out.append(Check("Beobachter (observer.json)", False, f"{cp} fehlt — NB01 Abschnitt 0 ausfuellen (Standort, Kamera)", optional=True))
+        out.append(Check("Beobachter (observer.json)", False, f"{cp} fehlt — NB00 Schritt 0b ausfuellen (Standort, Kamera)", optional=True))
     if ai:
         try:
             from .aireview import detect_backends, preflight_lines

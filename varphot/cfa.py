@@ -2,7 +2,7 @@
 
 Autor: Axel Pospischil. Verfahren: Stand 2026-11 (KONZEPT.md §11.3/§11.4).
 
-Warum: Die Photometrie (NB04) arbeitet mit Einkanalbildern je Farbe. Siril kann trennen (``seqsplit_cfa``: vier Bilder je Aufnahme, Praefix ``CFA_``; ``seqextract_Green``: Praefix ``Green_`` — Siril-Dokumentation),
+Warum: Die Photometrie (NB02) arbeitet mit Einkanalbildern je Farbe. Siril kann trennen (``seqsplit_cfa``: vier Bilder je Aufnahme, Praefix ``CFA_``; ``seqextract_Green``: Praefix ``Green_`` — Siril-Dokumentation),
 die Dokumentation sagt aber nichts ueber die Reihenfolge der vier Dateien, die Behandlung der beiden Gruen-Ebenen und die Anpassung von WCS/Pixelskala. Diese Funktion macht es **deterministisch und testbar**:
 jede Ebene ist ``img[r::2, c::2]`` nach dem Bayer-Muster, ``G`` ist das Mittel beider Gruen-Ebenen (Handbuch §5.4: „extract both green channels, average them together“), und die WCS wird fuer die halbe Aufloesung angepasst.
 Siril bleibt fuer die Kalibrierung zustaendig (Dark/Flat im CFA-Bereich, ohne Debayern: ``tools/siril_calibrate_cfa.ssf``).

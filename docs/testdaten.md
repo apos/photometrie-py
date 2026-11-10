@@ -20,7 +20,7 @@ unterschiedlicher Pixelskala und Feldgröße (u. a. zwei Bilder 4096×4096 px vo
 zusammenhängende Zeitreihe; die übrigen 103 Bilder (769 MB) wurden aus dem Testsatz entfernt. Hinweis: Der `count` der
 Archiv-API ist unzuverlässig (meldete 24 statt 259) — das Skript blättert bis zur ersten kurzen Seite.
 
-### Ergebnis der Pipeline-Läufe (NB01–NB05, Stand 2026-11-10)
+### Ergebnis der Pipeline-Läufe (alte Notebooks NB01–NB05, Stand 2026-11-10; seit 0.6.0: 01_vorbereitung, 02_messung)
 
 **Bildqualität** (`qc_frames`, Schwellen: Comp-S/N ≥ 10, Transparenz ≥ 0,6, FWHM ≤ 4″):
 
@@ -43,7 +43,7 @@ Archiv-API ist unzuverlässig (meldete 24 statt 259) — das Skript blättert bi
 Befunde: Das Rauschen innerhalb einer Nacht (0,039 mag) entspricht dem Fehlerbudget; die Reststreuung kam **zwischen den
 Nächten** und korrelierte mit dem Seeing (r = −0,73): δ Cep ist in 86 der 98 Bilder gesättigt (Kern ~103 000 ADU),
 und der Sättigungsverlust hängt vom Seeing ab. Aperturgröße und Himmelsring (6–36 px) ändern die Streuung nicht. Siehe
-`varphot.batch.light_curve(core_correct=True)` und NB04 Schritt 4b. Der Kernradius wurde an diesen Daten gewählt.
+`varphot.batch.light_curve(core_correct=True)` und frühere NB04 Schritt 4b (jetzt Feld „Kernmaske“ in 02_messung). Der Kernradius wurde an diesen Daten gewählt.
 Der Check-Stern weicht um +0,15 mag vom Katalog ab (Gaia-abgeleitetes V roter Sterne ist unsicher).
 
 ## 2. `hatp32` — HAT-P-32 b Transit (Test ohne WCS, Clear-Filter)
@@ -55,7 +55,7 @@ Der Check-Stern weicht um +0,15 mag vom Katalog ab (Gaia-abgeleitetes V roter St
 | Umfang | 142 FITS, 89 MB, 650×500 px, 5,2″/px, Belichtung 60 s, Filter Clear, Nacht 2017-12-19/20 |
 | Besonderheiten | Header **ohne WCS**; Längenangabe `LONGITUD = 110.88` ohne Vorzeichen (West) — Standort darf nicht automatisch aus dem Header gelesen werden |
 
-Ergebnis: ASTAP löst Bild 1 in 0,2 s (`radius_deg=5`, `fov_deg=0.72`). Die Pipeline (NB04/05) lief mit diesem Satz noch
+Ergebnis: ASTAP löst Bild 1 in 0,2 s (`radius_deg=5`, `fov_deg=0.72`). Die Pipeline (frühere NB04/05) lief mit diesem Satz noch
 nicht; er soll Transit, Clear-Filter und grobe Pixelskala abdecken.
 
 ## 3. Lizenzen und Nutzungsbedingungen (Stand 2026-11-10, im Wortlaut geprüft soweit zugänglich)

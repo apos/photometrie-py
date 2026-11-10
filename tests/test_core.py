@@ -297,3 +297,18 @@ def test_ensemble_mag_degenerate_inputs():
     assert np.isnan(ensemble_mag(1e4, [1e4, 2e4], [np.nan, np.nan])[0])               # V der Comps unbekannt
     m, e, n, sd = ensemble_mag(1e4, [1e4, 1e4, 1e4, 1e4, 1e4], [9.0, 9.0, 9.0, 9.0, 12.0])    # Ausreisser (V=12) fliegt ab 4 Comps raus
     assert n == 4 and m == pytest.approx(9.0, abs=0.01)
+
+
+def test_solve_image_never_deletes_compressed_original(tmp_path):
+    """ASTAP loescht ``.fits.fz``-Eingaben nach dem Entpacken (beobachtet) — solve_image muss ueber eine Kopie loesen."""
+    from varphot.astrometry import solve_image
+    src = tmp_path / "bild.fits.fz"
+    fits.HDUList([fits.PrimaryHDU(), fits.CompImageHDU(np.zeros((40, 50), np.float32), name="SCI")]).writeto(src)
+    wcs_cards = ("SIMPLE  =                    T".ljust(80) + "CTYPE1  = 'RA---TAN'".ljust(80) + "CTYPE2  = 'DEC--TAN'".ljust(80) + "CRVAL1  =                 30.0".ljust(80) + "CRVAL2  =                 40.0".ljust(80)
+                 + "CRPIX1  =                 25.0".ljust(80) + "CRPIX2  =                 20.0".ljust(80) + "CDELT1  =           -0.0002778".ljust(80) + "CDELT2  =            0.0002778".ljust(80) + "END".ljust(80))
+    exe = tmp_path / "astap"
+    exe.write_text(f"#!/bin/sh\nrm -f \"$2\"\necho 'Solution found'\nprintf '%s' \"{wcs_cards}\" > \"${{2%.*}}.wcs\"\n")        # wie ASTAP: Eingabe loeschen
+    exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
+    r = solve_image(src, astap=str(exe))
+    assert src.exists() and r.source == "ASTAP" and any("Kopie" in n for n in r.notes)
+    assert (tmp_path / "bild.fits.wcs").exists()                                       # Ergebnis liegt neben dem Original
