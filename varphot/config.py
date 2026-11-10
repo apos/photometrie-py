@@ -6,6 +6,10 @@ CFG = {
     "nx": 1600,
     "ny": 1100,
     "scale_arcsec": 1.44,      # Bogensekunden/Pixel (Apo 80/540 + QHY268M)
+    # Bildqualitaet (qc_frames; Startwerte)
+    "snr_min": 10.0,           # jeder Comp mindestens S/N 10, sonst NO_SIGNAL
+    "transp_min": 0.6,         # Comp-Fluss relativ zum Laufmedian, sonst LOW_TRANSPARENCY (Wolken)
+    "fwhm_max_arcsec": 4.0,    # schlechteres Seeing -> BAD_SEEING
     # Detektion
     "detect_fwhm": 4.5,
     "detect_nsigma": 8.0,

@@ -140,3 +140,26 @@ def polyline_in_window(x, y, half: float, samples: int = 400) -> bool:
         if np.any((np.abs(px) <= half) & (np.abs(py) <= half)):
             return True
     return False
+
+
+def field_from_wcs(wcs: WCS, shape) -> dict:
+    """Sensorfeld aus WCS und Bildform ``(ny, nx)``: Mitte, Kantenlaengen und Winkel der langen Seite.
+
+    Rueckgabe: ``ra0, dec0`` (Bildmitte, Grad), ``field_deg`` = (lange, kurze Seite), ``pa_deg`` = Richtung der
+    langen Seite von Osten nach Norden gezaehlt (wie ``vsp.in_field``: 0 = lange Seite West-Ost, 90 = Nord-Sued).
+    """
+    ny, nx = shape
+    cx, cy = (nx - 1) / 2, (ny - 1) / 2
+    ra0, dec0 = (float(v) for v in wcs.pixel_to_world_values(cx, cy))
+
+    def tangent(px, py):
+        x, y = gnomonic(*wcs.pixel_to_world_values(px, py), ra0, dec0)
+        return -x, y                                  # (xi nach Osten, eta nach Norden)
+
+    xe, ye = tangent(nx - 0.5, cy), tangent(-0.5, cy)  # Mitte der rechten / linken Bildkante (Pixelrand)
+    xn, yn = tangent(cx, ny - 0.5), tangent(cx, -0.5)  # Mitte der oberen / unteren Bildkante
+    len_x = float(np.hypot(xe[0] - ye[0], xe[1] - ye[1]))
+    len_y = float(np.hypot(xn[0] - yn[0], xn[1] - yn[1]))
+    (a, b, la, sh) = (xe, ye, len_x, len_y) if len_x >= len_y else (xn, yn, len_y, len_x)
+    pa = float(np.degrees(np.arctan2(a[1] - b[1], a[0] - b[0])) % 180)
+    return dict(ra0=ra0, dec0=dec0, field_deg=(la, sh), pa_deg=pa)

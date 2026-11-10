@@ -246,11 +246,11 @@ Abhängigkeiten: **P0 blockiert P1; P1 blockiert P2.**
 |---|---|---|---|
 | P0 | S | Testbild plate-solven, Sternkarte über echtes FITS legen — **erledigt 2026-11-10** (M16-Testbild, NB02) | Mac + ASTAP + Testbilder |
 | P0 | S | Comp-Auswahl für Delta Cephei mit VSP-Daten (Gaia/AAVSO) prüfen — **erledigt 2026-11-10** (`varphot/vsp.py`, NB03: 4 Comps rotationssicher, 7–8 bei bekanntem Kamerawinkel) | Netz + P0 oben |
-| P0 | M | Notebooks 01–06 mit erstem echten Datensatz durchlaufen | P0 Plate Solve |
-| P1 | M | BJD_TDB-Umrechnung mit Standort (Beobachterkoordinaten) | P0 |
-| P1 | M | Vollständiger Photometrie-Fehler (Poisson + RON + Szintillation) | P0 |
+| P0 | M | Notebooks 01–06 mit erstem echten Datensatz durchlaufen — **NB01–05 erledigt 2026-11-10** (LCO δ Cep V, 0m4-11, 98 brauchbare Bilder, Lichtkurve + LS-Periode 5,30 d; NB06 offen, Ziel gesättigt) | P0 Plate Solve |
+| P1 | M | BJD_TDB-Umrechnung mit Standort (Beobachterkoordinaten) — **erledigt 2026-11-10** (`varphot/timeutil.py`, Standort aus Header oder NB01) | P0 |
+| P1 | M | Vollständiger Photometrie-Fehler (Poisson + RON + Szintillation) — **erledigt 2026-11-10** (CCD-Gleichung + Young-Szintillation; Gain/RON aus Header) | P0 |
 | P1 | S | Pro-Ziel-YAML-Config laden (`config/delta_cep.yaml`) | P0 |
-| P1 | M | Unit-Tests für `crossmatch` und `diff_mag` | P0 |
+| P1 | M | Unit-Tests für `crossmatch` und `diff_mag` — `diff_mag` + `ensemble_mag` getestet 2026-11-10; `crossmatch` offen | P0 |
 | P1 | L | Registrierung per `astroalign` mit echten Bildern verifizieren | P0 |
 | P2 | M | AAVSO Extended Format validieren und einreichen | P1 |
 | P2 | L | Transformation auf Johnson B/V mit Standardfeld | P1 |
