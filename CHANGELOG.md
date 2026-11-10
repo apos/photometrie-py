@@ -11,8 +11,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Neu
 - **Beobachter, Standort, Kamera** (`varphot/observer.py`, NB01 Abschnitt 0): Standort-Picker (Breite, Länge Ost +, Höhe;
   Testdaten-Standorte LCO McDonald und Whipple eingebaut), AAVSO-Beobachtercode und Kameradaten (Gain, Ausleserauschen,
-  Dunkelstrom, Linearität = AAVSO „Detector Details"). Gespeichert lokal in `~/.config/varphot/observer.json`
-  (Rechte 0600, **nicht** im öffentlichen Repo), in jedem Notebook vorbelegt; `session_config.json` enthält sie für NB02+.
+  Dunkelstrom, Linearität = AAVSO „Detector Details"). Gespeichert in `PHOTOMETRIE_PY_DATA/observer.json` neben dem Repo (Nextcloud;
+  Fallback `~/.config/varphot/`, Überschreiben mit `VARPHOT_CONFIG`; Rechte 0600, **nicht** im öffentlichen Repo), in jedem Notebook vorbelegt; `session_config.json` enthält sie für NB02+.
   Voraussetzung für BJD_TDB und Luftmasse (P1). 9 Tests.
 
 ---
