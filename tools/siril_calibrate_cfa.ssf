@@ -1,0 +1,17 @@
+# Siril-Skript: rohe Bayer-Bilder im CFA-Bereich kalibrieren (Dark/Flat), OHNE zu debayern.
+# Danach: python tools/split_cfa.py <ordner>/process <ordner>/kanaele   (R, G, B trennen, WCS anpassen)
+#
+# Aufruf:  siril -d <Arbeitsordner> -s tools/siril_calibrate_cfa.ssf
+# Erwartet im Arbeitsordner:  lights/ (RAW oder FITS), masters/dark_master.fit, masters/flat_master.fit (vorher mit Siril erzeugt)
+#
+# Stand: nach der Siril-Befehlsreferenz (Syntax: convertraw basename [-debayer] [-fitseq] [-ser] [-start=index] [-out=];
+#   link basename [-date] [-start=index] [-out=];
+#   calibrate sequencename [-bias=] [-dark=] [-flat=] [-cfa] [-equalize_cfa] [-debayer] [-prefix=] — Ausgabepraefix "pp_").
+#   NICHT getestet: keine RAW-/FITS-Beispieldateien der Kameras vorhanden. Nach dem ersten Lauf pruefen:
+#   Kopfzeilen EXPTIME/ISO/BAYERPAT, Bildgroesse, Maximalwerte (NB07 leitet die Bittiefe aus dem Maximalwert ab).
+requires 1.2.0
+cd lights
+convertraw light -out=../process
+cd ../process
+calibrate light -dark=../masters/dark_master -flat=../masters/flat_master -cfa -equalize_cfa
+close
