@@ -12,6 +12,7 @@ from .observer import Observer, Site, Camera
 from .timeutil import mid_exposure, bjd_tdb, airmass, site_from_header
 from .batch import (read_frame, measure_frame, run_batch, qc_frames, ensemble_mag, light_curve,
                     stars_from_field_config, scintillation_mag)
+from .periodfit import harmonic_fit
 
 __all__ = [
     "CFG",
@@ -23,5 +24,5 @@ __all__ = [
     "Observer", "Site", "Camera",
     "mid_exposure", "bjd_tdb", "airmass", "site_from_header", "field_from_wcs",
     "read_frame", "measure_frame", "run_batch", "qc_frames", "ensemble_mag", "light_curve",
-    "stars_from_field_config", "scintillation_mag",
+    "stars_from_field_config", "scintillation_mag", "harmonic_fit",
 ]

@@ -6,7 +6,7 @@ from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS
 
-from varphot import (bjd_tdb, diff_mag, ensemble_mag, field_from_wcs, light_curve, mid_exposure, qc_frames,
+from varphot import (bjd_tdb, diff_mag, ensemble_mag, field_from_wcs, light_curve, measure_frame, mid_exposure, qc_frames,
                      read_frame, run_batch, scintillation_mag, site_from_header)
 from varphot.observer import Site
 
@@ -172,3 +172,35 @@ def test_weighted_ensemble_prefers_precise_comps():
     m_t, _, _, _ = ensemble_mag(1e5, f_c, v_c)
     assert abs(m_w - m_t) < 0.01                                    # gewichtet: schwacher Comp zaehlt kaum
     assert abs(m_u - m_t) < 0.1
+
+
+def _sat_frame(w, fwhm, flux, sat=60000.0, nx=300, ny=200):
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    s = fwhm / 2.355
+    img = 20 + RNG.normal(0, 1.0, (ny, nx))
+    for ra, dec, f in flux:
+        x, y = w.world_to_pixel_values(ra, dec)
+        img += f / (2 * np.pi * s ** 2) * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * s ** 2))
+    return np.minimum(img, sat)
+
+
+def test_core_correction_removes_seeing_dependence():
+    """Ziel gesaettigt: Gesamtfluss haengt vom Seeing ab, der Ring ausserhalb des Kerns (hochgerechnet) nicht."""
+    w = make_wcs()
+    pos = [(337.29, 58.41), (337.30, 58.42), (337.28, 58.40), (337.31, 58.40)]
+    stars = pd.DataFrame({"id": ["target", "c1", "c2", "c3"], "role": ["target", "comp", "comp", "comp"],
+                          "ra": [p[0] for p in pos], "dec": [p[1] for p in pos], "V": [4.0, 9.0, 9.5, 10.0]})
+    fl = [4e6, 1.5e4, 1e4, 6e3]
+    cfg = {"ap_r": 10, "ap_r_in": 16, "ap_r_out": 24, "sat_adu": 60000, "core_r": 3.0, "snr_min": 5}
+    mags = {}
+    for fwhm in (2.5, 4.0):
+        img = _sat_frame(w, fwhm, [(a, d, f) for (a, d), f in zip(pos, fl)])
+        rows = measure_frame(img, w, stars, {"GAIN": 1.0, "RDNOISE": 3.0, "SATURATE": 60000.0}, cfg)
+        r = {x["star_id"]: x for x in rows}
+        assert r["target"]["n_sat"] > 0 and r["c1"]["n_sat"] == 0
+        frac = np.median([r[c]["flux_ring"] / r[c]["flux"] for c in ("c1", "c2")])
+        mags[fwhm] = (r["target"]["flux"], r["target"]["flux_ring"] / frac)
+    raw = abs(mags[2.5][0] / mags[4.0][0] - 1)
+    cor = abs(mags[2.5][1] / mags[4.0][1] - 1)
+    assert raw > 0.02                                  # ohne Korrektur: Seeing-abhaengiger Verlust
+    assert cor < raw / 3                               # mit Kernmaske klar kleiner

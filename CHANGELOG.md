@@ -17,9 +17,16 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Szintillation nach Young (`scintillation_mag`).
 - **`field_from_wcs()`**: Sensorfeld und Winkel direkt aus dem WCS eines Bildes; NB03 nimmt über `VARPHOT_FRAME` ein
   Referenzbild, `VARPHOT_RULES` überschreibt Auswahlregeln (Kleinfeld-Optik).
-- **Ergebnis am LCO-Satz** (156 Bilder des Teleskops `0m4-11`, 98 brauchbar): erkennbare Cepheiden-Lichtkurve
-  (schneller Anstieg, langsamer Abfall), Lomb-Scargle 5,30 d (Literatur 5,366 d; Zeitbasis 56 d), Amplitude ~1,1 mag
-  (Literatur ~0,9). Streuung um die Kurve ~0,1 mag: das Ziel ist in 1,3 s fast gesättigt (V≈4 an einer 0,4-m-Optik).
+- **Gesättigtes Ziel: Kernmaske** (`core_r`, `light_curve(core_correct=True)`): Der Sättigungsverlust hängt vom Seeing
+  ab (Korrelation Nachtresiduum–FWHM −0,73) und verfälschte die Lichtkurve von Nacht zu Nacht. Jetzt wird nur der Ring
+  außerhalb des Kerns gemessen und mit dem Ringanteil heller, ungesättigter Comps desselben Bildes hochgerechnet.
+  NB04 Schritt 4b vergleicht mehrere Kernradien (Residuum um eine Fourier-Reihe, Korrelation mit dem Seeing).
+- **`harmonic_fit()`** (`varphot/periodfit.py`): Fourier-Reihe mit Periodensuche, liefert Periode, Residuum, Amplitude.
+- **Ergebnis am LCO-Satz** (156 Bilder des Teleskops `0m4-11`, 98 brauchbar, 86 mit gesättigtem Ziel):
+  Cepheiden-Lichtkurve mit Lomb-Scargle **5,363 d** (Literatur 5,366 d), Spannweite 0,93 mag, Fourier-Residuum **0,068 mag**
+  (vorher 0,129 mag, Periode 5,30 d). Die Modellamplitude (3 Harmonische) ist mit 0,81 mag etwas kleiner als in der
+  Literatur (~0,88); sie wächst mit dem Kernradius (0,70 → 0,99 mag), der Radius 1,5 px ist auf kleinstes Residuum
+  gewählt, nicht auf die Amplitude. Aperturgröße und Himmelsring ändern die Streuung nicht (0,125–0,138 mag).
 
 ### Behoben
 - **Aperturphotometrie schnitt helle Sternkerne ab**: `photutils.ApertureStats` wendet standardmäßig Sigma-Clipping auch
