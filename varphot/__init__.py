@@ -1,4 +1,5 @@
 """varphot — differentielle Photometrie für Veränderliche."""
+__version__ = "0.1.0"
 from .config import CFG
 from .detect import detect
 from .catalog import crossmatch, select_comps
