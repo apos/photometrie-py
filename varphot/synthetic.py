@@ -83,3 +83,34 @@ def bayer_frame(shape=(400, 600), signal_e=10000.0, gain=2.0, read_noise_e=3.0, 
         q[r::2, c::2] = (qe or {}).get(name, 1.0)
     e = rng.poisson((signal_e * flat * q + dark_e).clip(0)).astype(float) + rng.normal(0, read_noise_e, (ny, nx))
     return np.clip(np.round(e / gain + offset), 0, max_adu)
+
+
+TRUTH_TRANSFORM = dict(Tb_bv=0.25, Tv_bv=-0.08, Tr_bv=0.40, k=dict(b=0.30, g=0.18, r=0.10))
+
+
+def standard_field(n_stars=24, truth=None, n_frames=8, noise_mag=0.01, rng=None, bv_range=(0.3, 1.4)):
+    """Synthetisches Standardfeld (Test und Demo fuer NB08): Katalog ``id, B, V, R`` und Messtabellen je Kanal (``b``, ``g``, ``r``) mit bekannten Koeffizienten.
+
+    Instrumentell gilt ``b = B − Tb·(B−V) + ZP_b`` usw. (Gl. 6.16–6.18 des AAVSO-Handbuchs), je Bild kommen Extinktion ``k·X`` (Luftmasse 1,1–1,9), ein zufaelliger Transparenzsprung und
+    Messrauschen dazu. Ergebnis ``(cat, meas, truth)``; die erwartete Farbtransformation folgt aus ``1/Tbv = 1 − Tb + Tv``.
+    """
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    t = {**TRUTH_TRANSFORM, **(truth or {})}
+    bv = rng.uniform(*bv_range, n_stars)
+    V = rng.uniform(9.0, 12.5, n_stars)
+    cat = pd.DataFrame(dict(id=[f"S{i:02d}" for i in range(n_stars)], B=V + bv, V=V, R=V - (0.45 * bv + 0.02)))
+    inst = {"b": cat["B"] - t["Tb_bv"] * bv - 20.1, "g": cat["V"] - t["Tv_bv"] * bv - 20.4, "r": cat["R"] - t["Tr_bv"] * bv - 20.0}
+    X = np.linspace(1.1, 1.9, n_frames)
+    meas = {}
+    for ch, kk in (("b", "b"), ("g", "g"), ("r", "r")):
+        rows = []
+        for j, x in enumerate(X):
+            off = t["k"][kk] * x + rng.normal(0, 0.03)                         # Extinktion + Transparenz
+            m = inst[ch].to_numpy() + off + rng.normal(0, noise_mag, n_stars)
+            flux = 10 ** (-0.4 * m)
+            rows += [dict(file=f"f{j:02d}", jd_mid=j, airmass=x, star_id=cat["id"][i], flux=flux[i], flux_err=flux[i] * noise_mag / 1.0857,
+                          frame_flags="", star_flag="") for i in range(n_stars)]
+        meas[ch] = pd.DataFrame(rows)
+    truth_out = dict(t, Tbv=1.0 / (1 - t["Tb_bv"] + t["Tv_bv"]))
+    return cat, meas, truth_out

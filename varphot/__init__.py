@@ -17,6 +17,8 @@ from .camera import (bayer_planes, center_roi, pair_stats, gain_from_pair, ptc_f
                      linearity_curve, dark_current_e_per_s, detect_saturation, exposure_from_header, iso_from_header, histogram_gaps, compression_verdict)
 from .plan import (ObservingPlan, METHODS, green_plane, star_metrics, fwhm_summary, recommend_exposure, aperture_from_fwhm,
                    night_altitudes, save_plan, load_plan, latest_plan)
+from .transform import (TransformSolution, linfit, catalog_from_vsp_table, instrumental_table, fit_extinction, fit_transform,
+                        transform_target, loo_validation, solution_path)
 from .camera_presets import PRESETS, CameraPreset, VendorValues, get_preset, preset_choices
 
 __all__ = [
@@ -34,5 +36,7 @@ __all__ = [
     "linearity_curve", "dark_current_e_per_s", "detect_saturation", "exposure_from_header", "iso_from_header", "histogram_gaps", "compression_verdict",
     "ObservingPlan", "METHODS", "green_plane", "star_metrics", "fwhm_summary", "recommend_exposure", "aperture_from_fwhm",
     "night_altitudes", "save_plan", "load_plan", "latest_plan",
+    "TransformSolution", "linfit", "catalog_from_vsp_table", "instrumental_table", "fit_extinction", "fit_transform",
+    "transform_target", "loo_validation", "solution_path",
     "PRESETS", "CameraPreset", "VendorValues", "get_preset", "preset_choices",
 ]
