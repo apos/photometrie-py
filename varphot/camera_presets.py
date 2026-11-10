@@ -80,6 +80,7 @@ PRESETS: dict[str, CameraPreset] = {
                "5-Achsen-Bildstabilisierung (Sensor-Shift, G) fuer Photometrie ausschalten (auch Objektivstabilisierung) — Annahme (E), pruefen",
                "RAW-Bittiefe nicht angegeben (G: 'not stated'); ein Blog nennt 12 Bit im elektronischen Modus (F, unbestaetigt) -> NB07 leitet sie aus dem Maximalwert ab",
                "Pixelabstand 5,93 µm abgeleitet aus 35,6 mm / 6000 px (E; Sensorbreite aus einem Testbericht), nicht amtlich",
+               "Kamera im Originalzustand (nicht astro-modifiziert), vom Nutzer bestaetigt 2026-11-10 -> werkseitiger IR-Sperrfilter anzunehmen (E)",
                "Bayer-Muster RGGB ist die uebliche Annahme (E): im konvertierten FITS (BAYERPAT) bzw. an den Ebenen pruefen",
                "Eingabe: RAW (RW2) -> Siril `convertraw` ohne -debayer -> FITS (CFA bleibt); Kopfzeilen (EXPTIME, ISO) nach der Umwandlung pruefen",
                "Darks: klassisch, nicht belichtungsskaliert (AAVSO-Handbuch §4.4.2; fuer Canon/Nikon belegt, hier testen)"],

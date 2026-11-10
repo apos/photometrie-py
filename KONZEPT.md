@@ -442,7 +442,7 @@ Prüfstatus: G = Panasonic-Spezifikation gelesen (<https://help.na.panasonic.com
 | ISO | 100–51 200 (erweitert 50–204 800); Dual Native ISO 100/640 (Standard-Aufnahme) | G / F | **je ISO ein eigenes Profil** (mindestens ISO 100 und 640) |
 | Stabilisierung | 5-Achsen-Sensor-Shift, Dual I.S.2 | G | für Photometrie aus (Annahme E) — auch Objektivstabilisierung |
 | Bayer-Muster | RGGB (übliche Annahme) | E | an den Ebenen bzw. `BAYERPAT` prüfen |
-| IR-Sperrfilter | nicht in der Spezifikation genannt | ? | unmodifiziert ist ein Sperrfilter vor dem Sensor üblich (E); **bei einer „astro-modifizierten“ Kamera (Filter entfernt) ist Photometrie laut AAVSO-Forum kaum möglich** — klären, ob die Kamera modifiziert ist |
+| IR-Sperrfilter | nicht in der Spezifikation genannt; **Kamera im Originalzustand (nicht astro-modifiziert), vom Nutzer bestätigt 2026-11-10** | G (Nutzer) | Werkseitiger Sperrfilter vor dem Sensor ist anzunehmen (E); die Kanalbänder bleiben dadurch auf das sichtbare Licht begrenzt, Transformation nach §11.5 ist sinnvoll möglich |
 | Gain, Rauschen, Full Well | keine Herstellerangaben gefunden | ? | messen (NB07) |
 
 **Einordnung AAVSO (G, DSLR-Handbuch v1.4, Kap. 1–6):** Spiegellose Kameras laufen dort unter „DSLR / Mirrorless Cameras“; Auswertung wie in §11.2–11.5 (Grünkanal `TG`, ggf. Transformation, `OBSTYPE=DSLR`).
