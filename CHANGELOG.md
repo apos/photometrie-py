@@ -9,6 +9,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unveröffentlicht]
 
 ### Neu
+- **NB07 Schritt 3b: RAW-Kompression prüfen** (`histogram_gaps`, `compression_verdict`): zählt je Flat-Aufnahme und Farbebene fehlende ganzzahlige ADU-Werte im Kern der Verteilung (Median ± 2σ, nur wo sie bei dem Rauschen vorkommen
+  müssten) und den gemeinsamen Teiler der besetzten Werte; Verdacht bei mindestens zwei Pegeln mit > 5 % Lücken oder Teiler > 1 (Startwert). Erkennt verlustbehaftete („companded“) und skalierte (14 → 16 Bit) RAW-Daten, vor der Gain-Messung.
+  Demo mit `VARPHOT_NB07_DEMO_COMPRESS=1`. Test mit sauberen, komprimierten und skalierten synthetischen Daten. Nicht gegen echte Kameradaten geprüft.
+
+### Neu
 - **Kamera-Auswahl** (`varphot/camera_presets.py`): Vorlagen für **Player One Ares-C Pro** (Herstellerdaten aus dem Handbuch gelesen) und **Panasonic Lumix S9** (Vollformat; Panasonic-Spezifikation gelesen: nur elektronischer Verschluss,
   6000×4000, RAW-Bittiefe nicht angegeben) sowie „Eigene Kamera“, jeweils mit Prüfstatus je Angabe. **NB07** wählt Kamera und Einstellung (Dropdown oder `VARPHOT_CAMERA`/`VARPHOT_CAMERA_SETTING`); die Bittiefe wird bei Unbekannten aus dem Maximalwert abgeleitet
   (`detect_saturation`: mehrere Bilder am Anschlag = gesättigt, sonst Abbruch statt falscher Wert); RAW-Ordner werden erkannt und auf die Siril-Wandlung (`tools/siril_convert_raw.ssf`, ungetestet) verwiesen.
