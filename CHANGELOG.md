@@ -8,6 +8,17 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Neu
+- **Testdaten-Download** (`varphot/testdata.py`, `tools/download_testdata.py`): `lco-dcep` (LCO-Archiv, MD5-geprüft) und `hatp32`
+  (EXOTIC-Beispielsatz), Standardziel `~/astro_testdata`. Quellen, Auswahl und Ergebnisse: `docs/testdaten.md`, README.
+  Aus dem Testsatz entfernt: 103 Bilder anderer Teleskope (769 MB; nicht re-downloadbar nötig, Skript lädt nur `elp0m411`).
+- **Entwicklungsrichtlinien** (`docs/entwicklung.md`): Git, Datenschutz, Tests und Docstring-Standard (Warum, Wie, Grenzen,
+  Validierung, Quellen mit Prüfstatus). Kernfunktionen entsprechend dokumentiert (`light_curve`/Kernkorrektur, `harmonic_fit`,
+  `measure_frame`, `qc_frames`, `ensemble_mag`, `scintillation_mag`, BJD/Zeit, `aperture_flux`, `detect`, `check_wcs`, `field_from_wcs`).
+- **KONZEPT §11 Farbkamera** (One-Shot-Color, Player One Ares-C): AAVSO-Extended-Format (`TG`/`TB`/`TR`, `TRANS`, CMOS → `CCD`),
+  Rolle von Siril (CFA-Kalibrierung, Kanaltrennung), Transformationsverfahren, Beispieldaten und Prüfstatus der Quellen.
+  Nur Konzept, nichts implementiert.
+
 ### Neu (P0-3: erster echter Datensatz, LCO δ Cep, Filter V)
 - **Stapelphotometrie** (`varphot/batch.py`): `read_frame` (auch `.fits.fz`), `measure_frame`, `run_batch` (parallel),
   `qc_frames` (Bildflags `NO_WCS`, `NO_SIGNAL`, `LOW_TRANSPARENCY`, `BAD_SEEING`), `ensemble_mag` (robust, gewichtet),

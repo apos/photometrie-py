@@ -1,11 +1,12 @@
 """Stapelverarbeitung: Aperturphotometrie ueber viele Bilder, Qualitaetsflags, Ensemble-Lichtkurve.
 
-Ablauf (Notebook 04/05):
-``read_frame`` -> ``measure_frame`` je Bild -> ``run_batch`` (Tabelle, lang: eine Zeile je Bild und Stern)
--> ``qc_frames`` (Bildflags) -> ``light_curve`` (Differenzphotometrie gegen die Comps, Fehler je Punkt).
+Autor: Axel Pospischil. Verfahren: Stand 2026-11 (validiert an LCO delta Cep V, siehe docs/testdaten.md).
 
-Die Positionen kommen aus der WCS jedes Bildes (z. B. LCO/BANZAI: je Bild geloest). Es wird nicht
-nachzentriert — bei gesaettigtem Ziel waere das ohnehin unzuverlaessig.
+Ablauf (Notebook 04/05): ``read_frame`` -> ``measure_frame`` je Bild -> ``run_batch`` (Tabelle, lang: eine Zeile je Bild
+und Stern) -> ``qc_frames`` (Bildflags) -> ``light_curve`` (Differenzphotometrie gegen die Comps, Fehler je Punkt).
+
+Die Positionen kommen aus der WCS jedes Bildes (z. B. LCO/BANZAI: je Bild geloest). Es wird nicht nachzentriert —
+bei gesaettigtem Ziel waere das ohnehin unzuverlaessig. Konzept: KONZEPT.md §4 (Datenfluss), §5.2 (QC), §5.4 (Fehler).
 """
 from __future__ import annotations
 
@@ -45,7 +46,24 @@ def read_frame(path) -> tuple[np.ndarray, "fits.Header", WCS | None]:
 
 
 def scintillation_mag(aperture_m: float, airmass: float, height_m: float, exptime_s: float) -> float:
-    """Szintillationsrauschen in mag (Young 1967: sigma = 0.09 D^-2/3 X^1.75 exp(-h/8000 m) / sqrt(2 t), D in cm)."""
+    """Szintillationsrauschen eines Sterns in mag (Young-Naeherung).
+
+    Warum: Bei kurzen Belichtungen an kleinen Teleskopen dominiert die Szintillation das Rauschen heller Sterne; sie
+    muss im Fehlerbudget stehen, sonst sind die Fehlerbalken zu klein.
+
+    Wie: ``sigma = 0,09 * D^(-2/3) * X^(1,75) * exp(-h/h0) / sqrt(2 t)`` als relativer Fluss (``D`` Teleskopoeffnung in cm,
+    ``X`` Luftmasse, ``h`` Hoehe, ``h0`` = 8000 m, ``t`` Belichtung in s); Umrechnung in mag mit 1,0857.
+
+    Parameter: ``aperture_m`` [m], ``airmass``, ``height_m`` [m], ``exptime_s`` [s]. Rueckgabe: mag (1 sigma).
+
+    Grenzen: Die Young-Naeherung unterschaetzt laut Osborn et al. (2015) die mediane Szintillation an mehreren
+    Observatorien; die genaue Abweichung hier nicht geprueft. Sie gilt fuer einen Stern, nicht fuer das Ensemble. Am LCO-Satz
+    (0,4 m, 1,3 s) ergibt sie ~0,006 mag, die gemessene Comp-Streuung ist groesser (0,03 mag, Ursache nicht abschliessend geklaert).
+
+    Quellen: Young, A. T. 1967, AJ 72, 747, doi:10.1086/110303 (geprueft, Zitat); Osborn, J. et al. 2015, MNRAS 452, 1707,
+    doi:10.1093/mnras/stv1400 (geprueft, Zitat; verbesserte Formel mit Turbulenzprofilen). Der Zahlenfaktor 0,09 und
+    h0 = 8000 m stammen aus dem Gedaechtnis und sind nicht gegen Young (1967) geprueft.
+    """
     d_cm = aperture_m * 100.0
     rel = 0.09 * d_cm ** (-2 / 3) * airmass ** 1.75 * np.exp(-height_m / 8000.0) / np.sqrt(2 * exptime_s)
     return float(1.0857 * rel)
@@ -54,12 +72,26 @@ def scintillation_mag(aperture_m: float, airmass: float, height_m: float, exptim
 def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> list[dict]:
     """Aperturphotometrie fuer alle ``stars`` (Spalten ``id, ra, dec``) in einem Bild.
 
-    Fehler (ADU): CCD-Gleichung — Poisson des Signals + Himmel und Ausleserauschen ueber die Aperturflaeche,
-    korrigiert um die Unsicherheit des Himmelsrings. Gain/Ausleserauschen/Saettigung aus dem Header
-    (``GAIN``, ``RDNOISE``, ``SATURATE``), sonst aus ``cfg``.
-    Mit ``cfg["core_r"]`` (px) wird zusaetzlich der Fluss im Ring ``core_r`` .. ``ap_r`` gemessen
-    (``flux_ring``, ``flux_ring_err``) — fuer gesaettigte Sterne, deren Kern abgeschnitten ist.
-    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag (+ flux_ring).
+    Warum: Die Differenzphotometrie braucht je Bild und Stern einen Fluss mit Fehler und Qualitaetsangaben; die Positionen
+    kommen aus der WCS, damit Ziel und Comps ohne Registrierung der Bilder gefunden werden.
+
+    Wie: Kreisapertur ``ap_r`` und Himmelsring ``ap_r_in``..``ap_r_out`` (Median, ohne Clipping). ``flux = Summe - Himmel *
+    Flaeche``. Fehler (ADU) nach der CCD-Gleichung: ``var = F*g + n_ap*(1 + n_ap/n_sky)*(S*g + RN^2)`` (Signal-Poisson plus
+    Himmel und Ausleserauschen ueber die Aperturflaeche, korrigiert um die Unsicherheit des Himmelsrings; Dunkelstrom
+    vernachlaessigt); Gain ``g``, Ausleserauschen ``RN`` und ``SATURATE`` aus dem Header (``GAIN``, ``RDNOISE``), sonst
+    aus ``cfg``. ``n_sat`` zaehlt Pixel >= ``SATURATE`` in der Apertur (Flag ``SAT``), Sterne am Rand erhalten ``EDGE``.
+    Mit ``cfg["core_r"]`` (px) wird zusaetzlich der Ring ``core_r``..``ap_r`` gemessen (``flux_ring``, ``flux_ring_err``) —
+    Grundlage der Kernkorrektur gesaettigter Sterne in :func:`light_curve`.
+
+    Grenzen: Keine Nachzentrierung, keine PSF-Anpassung; Nachbarsterne in der Apertur werden nicht abgezogen (Auswahl
+    der Comps prueft das vorher). Sigma-Clipping auf der Summe ist bewusst aus: ``photutils.ApertureStats`` clippt standardmaessig
+    auch die Summe und schnitt helle Sternkerne ab (Fluss 205 statt 251 im Test; Regressionstest ``test_photometry.py``).
+
+    Validierung: ``tests/test_batch.py`` (Fluss vs. Eingabe, 5 %); LCO delta Cep.
+
+    Quellen: CCD-Gleichung nach Howell, S. B. 2006, Handbook of CCD Astronomy, 2. Aufl., Cambridge UP (aus dem Gedaechtnis,
+    nicht geprueft); Merline, W. J. & Howell, S. B. 1995, Exp. Astron. 6, 163 (aus dem Gedaechtnis, nicht geprueft).
+    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag (+ flux_ring, flux_ring_err).
     """
     cfg = cfg or CFG
     hdr = hdr or {}
@@ -124,12 +156,18 @@ def run_batch(paths, stars: pd.DataFrame, cfg=None, workers: int = 4, progress=N
 def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
     """Setzt Bildflags (Spalte ``frame_flags``, Komma-getrennt; leer = brauchbar).
 
-    ``roles``: {star_id: 'target'|'comp'|'check'}.
-    - NO_WCS: keine WCS im Bild
-    - NO_SIGNAL: ein Comp mit Fluss <= 0 oder S/N < ``snr_min`` (leeres Bild, Wolken, Schliesser)
-    - LOW_TRANSPARENCY: Median(Comp-Fluss / Laufmedian des jeweiligen Comps) < ``transp_min``
-    - BAD_SEEING: ``fwhm_arcsec`` > ``fwhm_max_arcsec``
-    Die Schwellen stehen in ``cfg`` (Standard 10 / 0,6 / 4″) und sind erste Startwerte.
+    Warum: Echte Zeitreihen enthalten leere Bilder, Wolken und Fehlfokus. Ohne Aussortieren verfaelschen sie die Lichtkurve;
+    am LCO-Satz waren 58 von 156 Bildern unbrauchbar (docs/testdaten.md).
+
+    Wie: ``roles``: {star_id: 'target'|'comp'|'check'}. Flags je Bild:
+    ``NO_WCS`` (keine WCS); ``NO_SIGNAL`` (ein Comp mit Fluss <= 0 oder S/N < ``snr_min``); ``LOW_TRANSPARENCY``
+    (Median ueber die Comps von Fluss / Laufmedian des jeweiligen Comps < ``transp_min``: dünne Wolken); ``BAD_SEEING``
+    (``fwhm_arcsec`` > ``fwhm_max_arcsec``). Spalte ``transparency`` ist der genannte Median.
+
+    Grenzen: Die Schwellen (10 / 0,6 / 4″, ``CFG``) sind Startwerte ohne Herleitung. Der Laufmedian setzt voraus, dass die
+    Mehrheit der Bilder brauchbar ist. ``BAD_SEEING`` liest den Header-FWHM (LCO: ``L1FWHM``); ohne ihn wird nicht geflaggt.
+
+    Quellen: eigene Methode (Transparenz ueber den Comp-Fluss ist gaengige Praxis, keine Einzelquelle).
     """
     cfg = cfg or CFG
     snr_min = cfg.get("snr_min", 10.0)
@@ -164,11 +202,24 @@ def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
 
 
 def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
-    """Magnitude des Ziels aus dem Nullpunkt-Ensemble der Comps (robust).
+    """Magnitude des Ziels aus dem Nullpunkt-Ensemble der Comps (robust, optional gewichtet).
 
-    Nullpunkt je Comp ``zp_i = V_i + 2,5 log10 f_i``; Median (mit ``f_c_err``: gewichtetes Mittel) ueber die Comps, Ausreisser (> ``clip`` * 1,4826 MAD,
-    nur ab 4 Comps) werden verworfen. Fehler: Streuung der Nullpunkte / sqrt(n) (quadratisch) + Photonenfehler des
-    Ziels; Rueckgabe ``(mag, err, n_benutzt, zp_streuung)``.
+    Warum: Ein einzelner Comp bringt dessen Rauschen und Katalogfehler in die Lichtkurve; ein Ensemble mittelt beides und
+    faengt das Ausfallen eines Sterns ab.
+
+    Wie: Nullpunkt je Comp ``zp_i = V_i + 2,5 log10 f_i``. Ausreisser (> ``clip`` * 1,4826 MAD, mindestens 0,005 mag) werden
+    ab 4 Comps verworfen. Nullpunkt = Median, mit ``f_c_err`` das mit ``1/sigma^2`` gewichtete Mittel (``sigma_i = 1,0857
+    err_i/f_i``). ``mag = -2,5 log10 f_t + zp``. Fehler: ``sd(zp)^2/n`` plus Photonenfehler des Ziels, quadratisch.
+
+    Rueckgabe: ``(mag, err, n_benutzt, zp_streuung)``.
+
+    Grenzen: ``zp_streuung`` enthaelt die Katalogfehler der Comp-V (bei Gaia-abgeleitetem V roter Sterne gross) und ist kein
+    reines Rauschmass. Keine Farbterm-Korrektur (siehe KONZEPT.md §11). Kein Ausfall-Ersatz bei < 3 Comps (Aufrufer prueft).
+
+    Validierung: ``tests/test_batch.py`` (Ausreisser, Gewichtung, Fehlerterm).
+
+    Quellen: Idee der Ensemble-Photometrie nach Honeycutt, R. K. 1992, PASP 104, 435, doi:10.1086/133015 (geprueft, Zitat);
+    dies ist eine vereinfachte Variante (Median/gewichtetes Mittel statt der vollen Matrixloesung von Honeycutt).
     """
     f_c, v_c = np.asarray(f_c, float), np.asarray(v_c, float)
     ok = f_c > 0
@@ -197,16 +248,37 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
                 aperture_m: float | None = None, core_correct: bool = False) -> pd.DataFrame:
     """Lichtkurve des Ziels (eine Zeile je brauchbarem Bild) mit BJD_TDB, Magnitude, Fehler, Check-Stern.
 
-    ``df``: Ergebnis von :func:`qc_frames`; nur Bilder ohne ``frame_flags`` werden benutzt (Flag ``SAT`` des Ziels
-    bleibt als Spalte ``target_sat``). Fehlerbudget: Photonen/Himmel/Ausleserauschen (``flux_err``), Szintillation
-    (wenn ``aperture_m`` und ``site`` gegeben), Streuung des Comp-Ensembles.
-    ``site``: :class:`~varphot.observer.Site` fuer BJD_TDB; ohne ``site`` bleibt ``bjd_tdb`` NaN.
+    Warum: Fasst Messtabelle (:func:`run_batch`), Bildflags (:func:`qc_frames`) und Ensemble (:func:`ensemble_mag`) zur
+    Zeitreihe zusammen, die Notebook 05 auswertet und der AAVSO-Export braucht.
 
-    ``core_correct``: Ist das Ziel gesaettigt (``n_sat`` > 0), wird statt des abgeschnittenen Gesamtflusses der Fluss im
-    Ring ausserhalb des Kerns (``core_r`` in ``measure_frame``) benutzt und mit dem Ringanteil der hellen, ungesaettigten
-    Comps dieses Bildes auf den Gesamtfluss hochgerechnet — der Anteil haengt vom Seeing ab und wird je Bild gemessen.
-    Das entfernt die Seeing-Abhaengigkeit des Sattigungsverlusts (LCO delta Cep: Streuung 0,13 -> 0,07 mag).
-    Spalte ``core_corrected`` markiert die so berechneten Punkte.
+    Wie: ``df`` = Ergebnis von :func:`qc_frames`; nur Bilder ohne ``frame_flags`` zaehlen. Ziel-Magnitude per
+    :func:`ensemble_mag` (gewichtet, Ausreisser-Verwurf), Check-Stern aus demselben Ensemble (geht nicht in den Nullpunkt
+    ein). Fehler: Photonen/Himmel/Ausleserauschen (``flux_err``) und Ensemble-Streuung; mit ``aperture_m`` und ``site`` wird die
+    Szintillation des Ziels (:func:`scintillation_mag`) quadratisch addiert und als ``scint_mag`` ausgewiesen. BJD_TDB aus
+    ``site`` (:func:`varphot.timeutil.bjd_tdb`); ohne ``site`` bleibt ``bjd_tdb`` NaN.
+
+    **Kernkorrektur** (``core_correct=True``): Ist das Ziel gesaettigt (``n_sat`` > 0), wird statt des abgeschnittenen
+    Gesamtflusses der Fluss im Ring ausserhalb des Kerns (``core_r`` in :func:`measure_frame`) benutzt und mit dem Ringanteil
+    ``flux_ring/flux`` heller, ungesaettigter Comps (S/N > 50) *desselben Bildes* auf den Gesamtfluss hochgerechnet:
+    ``f_ziel = flux_ring_ziel / median(flux_ring_c / flux_c)``. Spalte ``core_corrected`` markiert diese Punkte.
+    Warum das noetig ist: Der Saettigungsverlust haengt vom Seeing ab (schaerferes Bild = mehr Fluss im abgeschnittenen Kern);
+    an LCO delta Cep korrelierte das Nachtresiduum mit dem FWHM (r = -0,73) und erzeugte 0,13 mag Reststreuung zwischen den
+    Naechten. Der Ringanteil der Comps misst die aktuelle PSF je Bild und hebt diese Abhaengigkeit auf.
+
+    Validierung: LCO delta Cep (98 Bilder, 86 gesaettigt): Fourier-Residuum 0,129 -> 0,068 mag, Korrelation mit FWHM
+    -0,69 -> -0,07, Lomb-Scargle 5,30 -> 5,363 d (Literatur 5,366 d); ``tests/test_batch.py::test_core_correction_...``.
+
+    Grenzen: Der Kernradius (``core_r`` = 1,5 px) wurde an diesem Datensatz auf kleinstes Residuum gewaehlt, nicht auf die
+    Amplitude; die Modellamplitude waechst mit dem Radius (0,75 bei 1,0 px bis 0,99 bei 2,5 px, Literatur ~0,88), der Radius
+    ist also nicht allgemeingueltig (NB04 Schritt 4b prueft mehrere). Bleeding reicht bis ~8 px, die Maske deckt es nicht
+    ab. Die Ringmethode setzt voraus, dass Comps und Ziel dieselbe PSF haben (gleiches Bildfeld, aehnliche Position).
+    Bei defokussiertem, ungesaettigtem Ziel entfaellt die Korrektur.
+
+    Quellen: *eigene Methode*; verwandt sind Photometrie aus den ungesaettigten PSF-Fluegeln bzw. mit maskiertem Kern
+    (vgl. STScI ACS-Notebook zu Saettigungsspuren
+    https://spacetelescope.github.io/hst_notebooks/notebooks/ACS/acs_saturation_trails/acs_saturation_trails.html; DECaPS2,
+    arXiv:2206.11909, zur Verfaelschung durch fast gesaettigte Sterne — beide nur als Hinweis gelesen, kein Rezept uebernommen).
+    Honeycutt 1992 (Ensemble) siehe :func:`ensemble_mag`.
     """
     cfg = cfg or CFG
     roles = dict(zip(stars["id"], stars["role"]))

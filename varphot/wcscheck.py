@@ -66,12 +66,16 @@ class WCSCheck:
 
 def check_wcs(wcs, xy_detected, gaia: Table, epoch: float, shape, match_arcsec: float = 2.5,
               edge_px: float = 50.0, clip_sigma: float = 3.0) -> WCSCheck:
-    """Vergleicht erkannte Sterne (Pixel 0-basiert, ``xy_detected`` = (x, y)-Arrays) mit Gaia.
+    """Vergleicht erkannte Sterne (Pixel 0-basiert, ``xy_detected`` = (x, y)-Arrays) mit Gaia DR3.
 
-    Gegenseitig naechste Nachbarn innerhalb ``match_arcsec``; Ausreisser (> ``clip_sigma`` robuste Sigma)
-    werden iterativ entfernt. Urteil in Pixeln der Bildskala (Startwerte, willkuerlich gesetzt): Gesamtversatz
-    <= 0,5 px, Streuung <= 0,7 px, schlechteste Bildzelle <= 1 px -> "OK", sonst Warnung mit Grund. Der lineare
-    Trend (Skalen-/Rotationsfehler) wird zusaetzlich ausgewiesen.
+    Warum: Ein Plate Solve kann plausibel aussehen und trotzdem um Pixel danebenliegen; die Photometrie verfehlt dann die Sterne.
+    Gaia ist die unabhaengige Referenz. Wie: Gaia-Positionen mit Eigenbewegung auf die Aufnahmeepoche; gegenseitig naechste
+    Nachbarn innerhalb ``match_arcsec``; Ausreisser (> ``clip_sigma`` robuste Sigma, MAD) werden iterativ entfernt. Ausgewiesen
+    werden Versatz, Streuung, Wiederfindungsrate, linearer Trend (Skalen-/Rotationsfehler) und die schlechteste Zelle eines
+    8x6-Gitters. Urteil in Pixeln der Bildskala: Versatz <= 0,5 px, Streuung <= 0,7 px, schlechteste Zelle <= 1 px -> "OK".
+    Grenzen: Die Schwellen sind Startwerte ohne Herleitung. Validierung: M16-Testbild (2636 Treffer, Versatz 0,08″, Streuung
+    0,27″, schlechteste Zelle 0,60″ -> OK). Quelle: Gaia Collaboration (Vallenari et al.) 2023, A&A 674, A1 (Gaia DR3,
+    aus dem Gedaechtnis, nicht geprueft).
     """
     x, y = (np.asarray(a, float) for a in xy_detected)
     ny, nx = shape[-2:]

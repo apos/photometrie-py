@@ -6,12 +6,13 @@ from photutils.detection import DAOStarFinder
 
 
 def detect(img, fwhm=4.5, nsigma=8.0, background="global", box_size=128):
-    """Gibt (sources, median, std) zurück; sources ist None wenn nichts gefunden.
+    """Sternerkennung mit DAOStarFinder; gibt (sources, median, std) zurueck (``sources`` ist None, wenn nichts gefunden).
 
-    ``background="global"``: ein Himmelswert für das ganze Bild (Standard, schnell; gut für
-    leere Sternfelder).  ``background="2d"``: ortsabhängiger Hintergrund (``Background2D``,
-    ``box_size`` px) — nötig bei Nebeln und Gradienten, sonst erkennt der Finder Nebelknoten.
-    ``median``/``std`` sind in beiden Fällen Median bzw. Rauschen des Hintergrunds.
+    Warum/Wie: Schwelle ``nsigma`` mal Hintergrundrauschen auf dem himmelsubtrahierten Bild. ``background="global"``: ein
+    Himmelswert (schnell, leere Sternfelder). ``"2d"``: ortsabhaengiger Hintergrund (``Background2D``, ``box_size`` px) und
+    Quellen nur, wenn ihr Peak auch ueber ``nsigma`` mal dem LOKALEN Rauschen liegt — noetig bei Nebeln und Gradienten.
+    Grenzen: ``fwhm`` muss grob zum Seeing passen; sehr helle/gesaettigte Sterne werden zerlegt. Quelle: Stetson, P. B. 1987,
+    PASP 99, 191 (DAOPHOT, aus dem Gedaechtnis, nicht geprueft), Implementierung ``photutils.DAOStarFinder``.
     """
     img = np.asarray(img, dtype=float)
     if background == "2d":
