@@ -166,6 +166,50 @@ def plot_comp_field(res, target, field_deg=(2.49, 1.67), pa_deg=None, margin_deg
     return fig
 
 
+def plot_wcs_check(chk, shape, bins=(8, 6), outfile=None):
+    """Drei Felder zur Gaia-Gegenprüfung der WCS: Residuen-Vektorkarte (je Zelle Median), Streudiagramm
+    der Residuen (Kreis = 1 Pixel) und Betrag über G. ``chk`` ist ein :class:`varphot.WCSCheck`."""
+    ny, nx = shape[-2:]
+    bx, by = bins
+    scale = chk.pixel_scale_arcsec
+    fig, axs = plt.subplots(1, 3, figsize=(17, 5.4), gridspec_kw=dict(width_ratios=[1.35, 1, 1]))
+    ax = axs[0]
+    X, Y, U, W = [], [], [], []
+    for i in range(bx):
+        for j in range(by):
+            m = (chk.x >= i * nx / bx) & (chk.x < (i + 1) * nx / bx) & (chk.y >= j * ny / by) & (chk.y < (j + 1) * ny / by)
+            if m.sum() >= 5:
+                X.append((i + .5) * nx / bx); Y.append((j + .5) * ny / by)
+                U.append(np.median(chk.dra[m])); W.append(np.median(chk.ddec[m]))
+    q = ax.quiver(X, Y, U, W, angles="xy", scale_units="xy", scale=1 / (0.35 * nx / bx), width=0.004, color="k")
+    ax.quiverkey(q, 0.9, 0.05, 1.0, "1″", labelpos="E", coordinates="axes")
+    ax.set_xlim(0, nx); ax.set_ylim(0, ny); ax.set_aspect("equal")
+    ax.set_title("mediane Residuen je Zelle (erkannt − Gaia): E → rechts, N → oben", fontsize=10)
+    ax.set_xlabel("x [px]"); ax.set_ylabel("y [px]")
+
+    ax = axs[1]
+    ax.scatter(chk.dra, chk.ddec, s=3, alpha=0.4, c="tab:blue")
+    ax.add_patch(plt.Circle((0, 0), scale, fill=False, ec="red", lw=1.2, label=f"1 px = {scale:.2f}″"))
+    ax.plot(chk.median_dra_arcsec, chk.median_ddec_arcsec, "r+", ms=14, mew=2, label="Median")
+    lim = 3 * max(chk.rms_arcsec, 0.2) + abs(chk.median_dra_arcsec) + abs(chk.median_ddec_arcsec)
+    ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
+    ax.set_xlabel("ΔRA·cosδ [″]"); ax.set_ylabel("ΔDec [″]")
+    ax.set_title(f"{chk.n_match} Treffer: Versatz {chk.offset_arcsec:.2f}″, Streuung {chk.rms_arcsec:.2f}″, "
+                 f"schlechteste Zelle {chk.worst_cell_arcsec:.2f}″", fontsize=10)
+
+    ax = axs[2]
+    ax.scatter(chk.G, np.hypot(chk.dra, chk.ddec), s=3, alpha=0.4, c="tab:blue")
+    ax.axhline(scale, c="red", lw=1, ls="--", label="1 px")
+    ax.set_xlabel("Gaia G [mag]"); ax.set_ylabel("|Residuum| [″]"); ax.legend(fontsize=8); ax.grid(alpha=0.3)
+    ax.set_title("Residuum über Helligkeit (helle Sterne: Sättigung/Zentroid)", fontsize=10)
+    fig.suptitle(chk.verdict, fontsize=11, color="darkgreen" if chk.verdict == "OK" else "darkred")
+    fig.tight_layout()
+    if outfile:
+        fig.savefig(outfile, dpi=110, bbox_inches="tight")
+        plt.close(fig)
+    return fig
+
+
 def plot_lightcurve(lc, period, outfile="lightcurve.png"):
     """Vier-Panel-Lichtkurve: Rohkurve, Check, Phase, Periodogramm."""
     from astropy.timeseries import LombScargle

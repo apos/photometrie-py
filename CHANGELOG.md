@@ -20,10 +20,16 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Begründung für jeden verworfenen Stern; `plot_comp_field()`; NB03 komplett neu.
 - **Gaia-Feldsterne als Ensemble-Ergänzung** (`fill_with_gaia()`, NB03 Schritt 3b): Delta Cep 4 → 8 Comps + 1 Check bei
   rotationssicherem Feld; V aus G und BP−RP (abgeleitet, Fehler 0,05 mag), Nachbarprüfung per ESA-TAP.
+- **WCS-Gegenprüfung gegen Gaia DR3** (`varphot/wcscheck.py`, NB02 Schritt 7): `check_wcs()` kreuzt erkannte Sterne mit
+  Gaia (Eigenbewegung auf die Aufnahmeepoche), weist Versatz, Streuung, Wiederfindung und schlechteste Bildzelle aus;
+  `plot_wcs_check()`. M16-Testbild: 2636 Treffer, Versatz 0,08″, Streuung 0,27″ (0,32 px), schlechteste Zelle 0,60″ → OK.
+- **Gaia-TAP mit Ausfall-Umschaltung**: ESA-TAP, bei Timeout/503 der ARI-Spiegel (identische Daten, geprüft).
 - `pyproject.toml` (`pip install -e .`), Tests (`tests/`, pytest).
 - **PSF-Photometrie (in Arbeit)**: `build_psf()`, `psf_flux()` — bekannter Fehler, siehe unten.
 
 ### Behoben
+- `solve_image()` nutzte ASTAPs Standard von 500 Sternen: am 2,1°-Feld blieb ein Rotationsfehler von ~1,2″ am Rand
+  (Gaia-Prüfung). Jetzt `max_stars=5000` (→ 0,85″ Trend, schlechteste Zelle 0,60″).
 - Sternbildkarte (NB02 Schritt 5) zeigte bei Zielen auf der Gegenseite des Himmels gespiegelte Sternbilder
   (Orion im Feld von M16): `gnomonic()` liefert für die abgewandte Halbkugel NaN.
 - NB02 behauptete, ASTAP schreibe die WCS in den FITS-Header (stimmt nicht, s. o.).

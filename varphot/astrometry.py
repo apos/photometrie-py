@@ -41,11 +41,13 @@ def read_wcs_sidecar(path: Path) -> fits.Header:
 
 
 def solve_image(image: str | Path, astap: str = ASTAP_DEFAULT, radius_deg: float = 10.0,
-                fov_deg: float | None = None, timeout: int = 300) -> SolveResult:
+                fov_deg: float | None = None, timeout: int = 300, max_stars: int = 5000) -> SolveResult:
     """Loest ``image`` mit ASTAP; faellt bei Misserfolg auf eine WCS im FITS-Header zurueck.
 
     ``radius_deg``: Suchradius um die Naeherungsposition aus dem Header (RA/DEC bzw. OBJCTRA).
     ``fov_deg``: Feldhoehe in Grad; ``None`` = ASTAP bestimmt sie aus dem Header.
+    ``max_stars``: Zahl der Sterne, die ASTAP fuer die Loesung nutzt (``-s``; ASTAP-Standard 500). Am M16-Bild
+    (2,1 Grad) blieb mit 500 Sternen ein Rotationsfehler von ~1,2" am Bildrand, mit 5000 ~0,8" (Gaia-Pruefung).
     Bei gescheiterter Loesung wird NIE eine WCS erfunden: entweder Header-WCS (mit Hinweis) oder
     ``wcs=None``.
     """
@@ -61,7 +63,7 @@ def solve_image(image: str | Path, astap: str = ASTAP_DEFAULT, radius_deg: float
 
     sidecar = image.with_suffix(".wcs")
     sidecar.unlink(missing_ok=True)          # keine alte Loesung mit neuer verwechseln
-    cmd = [astap, "-f", str(image), "-r", str(radius_deg), "-wcs"]
+    cmd = [astap, "-f", str(image), "-r", str(radius_deg), "-s", str(int(max_stars)), "-wcs"]
     if fov_deg:
         cmd += ["-fov", str(fov_deg)]
     run = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
