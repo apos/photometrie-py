@@ -40,6 +40,11 @@ VSP_CFG = {
     "comp_ruwe_max": 1.4,
     "vg_tol": 0.30,                  # max. Abweichung VSP-V gegen Gaia-V (aus G und BP-RP) [mag]
     "comp_n": 8,
+    # Gaia-Feldsterne als Ergaenzung (fill_with_gaia)
+    "gaia_v_err": 0.05,              # angesetzter V-Fehler fuer Gaia-abgeleitete V (Polynom sigma ~0,04 + Photometrie)
+    "gaia_bprp_tol": 0.45,           # max. |BP-RP(Stern) - BP-RP(Ziel)| (entspricht etwa 0,4 mag in B-V)
+    "gaia_min_sep_deg": 0.05,        # Abstand zum (defokussierten) Ziel
+    "gaia_max_checks": 30,           # max. Nachbarabfragen (je ~3 s, danach im Cache)
 }
 
 
@@ -137,6 +142,24 @@ def v_from_gaia(g, bp_rp):
     return np.asarray(g, float) - (-0.02704 + 0.01424 * c - 0.2156 * c ** 2 + 0.01426 * c ** 3)
 
 
+def _tap_json(query: str, timeout: int = 90, tries: int = 3) -> list[dict]:
+    """ADQL-Abfrage am ESA-Gaia-TAP (JSON) mit Wiederholung bei Timeout (der Dienst antwortet zeitweise langsam)."""
+    import time
+    last = None
+    for k in range(tries):
+        try:
+            r = requests.post(GAIA_TAP, data=dict(REQUEST="doQuery", LANG="ADQL", FORMAT="json", QUERY=query),
+                              timeout=timeout)
+            r.raise_for_status()
+            j = r.json()
+            names = [c["name"] for c in j["metadata"]]
+            return [dict(zip(names, row)) for row in j["data"]]
+        except (requests.Timeout, requests.ConnectionError) as e:
+            last = e
+            time.sleep(2 * (k + 1))
+    raise RuntimeError(f"Gaia-TAP nach {tries} Versuchen nicht erreichbar: {last}")
+
+
 def gaia_cone(ra: float, dec: float, radius_arcsec: float = 40.0, gmax: float = 18.0,
               cache_dir=None, force=False) -> Table:
     """Gaia-DR3-Quellen (ESA-TAP) im Kegel um (ra, dec) [Grad]; Ergebnis wird zwischengespeichert."""
@@ -145,12 +168,7 @@ def gaia_cone(ra: float, dec: float, radius_arcsec: float = 40.0, gmax: float = 
          f"CIRCLE('ICRS',{ra:.6f},{dec:.6f},{radius_arcsec / 3600:.6f})) AND phot_g_mean_mag<{gmax:g}")
 
     def fetch():
-        r = requests.post(GAIA_TAP, data=dict(REQUEST="doQuery", LANG="ADQL", FORMAT="json", QUERY=q),
-                          timeout=90)
-        r.raise_for_status()
-        j = r.json()
-        names = [c["name"] for c in j["metadata"]]
-        return [dict(zip(names, row)) for row in j["data"]]
+        return _tap_json(q, 90)
 
     rows = _cached_json(cache_dir, f"gaia_{ra:.5f}_{dec:.5f}_{radius_arcsec:g}_{gmax:g}", fetch, force)
     t = Table(rows=[{k: (np.nan if v is None else v) for k, v in r.items()} for r in rows]) if rows else \
@@ -268,6 +286,97 @@ def select_comps_catalog(vsp: Table, target: dict, cfg: dict | None = None, use_
     for rank, i in enumerate(idx):
         role[i] = "comp" if rank < cfg["comp_n"] else ("check" if rank == cfg["comp_n"] else "reserve")
     out["role"], out["score"] = role, score
+    out["source"] = "VSP"
+    return out
+
+
+def bprp_from_bv(bv):
+    """Grobe Naeherung BP-RP ~ 0,04 + 1,2*(B-V) (Anpassung an 9 VSP-Sterne um del Cep, 2026-11-10;
+    gilt nur fuer die Auswahl der Farbnaehe, nicht fuer Photometrie)."""
+    return 0.04 + 1.2 * np.asarray(bv, float)
+
+
+def _gaia_candidates_raw(ra, dec, radius_deg, g_lo, g_hi, cache_dir=None, force=False) -> Table:
+    """Gaia-DR3-Kandidaten im Kegel (ESA-TAP): serverseitig RUWE < 1,4, Einzelstern, mit BP-RP, G im Bereich."""
+    q = ("SELECT source_id, ra, dec, phot_g_mean_mag AS G, bp_rp, phot_variable_flag AS varflag, ruwe, "
+         "non_single_star AS nss FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),"
+         f"CIRCLE('ICRS',{ra:.6f},{dec:.6f},{radius_deg:.4f})) AND phot_g_mean_mag BETWEEN {g_lo:g} AND {g_hi:g} "
+         "AND ruwe<1.4 AND non_single_star=0 AND bp_rp IS NOT NULL")
+
+    def fetch():
+        return _tap_json(q, 180)
+
+    rows = _cached_json(cache_dir, f"gaiafield_{ra:.5f}_{dec:.5f}_{radius_deg:g}_{g_lo:g}_{g_hi:g}", fetch, force)
+    names = ["source_id", "ra", "dec", "G", "bp_rp", "varflag", "ruwe", "nss"]
+    return Table(rows=[{k: (np.nan if v is None else v) for k, v in r.items()} for r in rows]) if rows else \
+        Table(names=names, dtype=[int, float, float, float, float, "U16", float, int])
+
+
+def fill_with_gaia(res: Table, target: dict, cfg: dict | None = None, cache_dir=None) -> Table:
+    """Ergaenzt das Ensemble mit Gaia-DR3-Feldsternen, wenn die VSP-Auswahl zu klein ist.
+
+    Gaia-Kandidaten: im Feld, V (aus G und BP-RP) im ``comp_v_range``, Farbe nah am Ziel, kein VARIABLE,
+    RUWE < 1,4, Einzelstern, kein VSP-Stern (dort gilt die VSP-Bewertung), nicht im Halo des Ziels. Nach
+    Farbnaehe sortiert werden sie nacheinander auf Nachbarn im Aperturbereich geprueft (ESA-TAP, je ~3 s)
+    bis genug Sterne da sind. VSP-Comps behalten Vorrang. Die V-Werte sind Gaia-abgeleitet (Fehler
+    ``gaia_v_err``) und sollten gegen die VSP-Comps gegengeprueft werden; Zeilen tragen ``source='Gaia'``.
+    """
+    cfg = {**VSP_CFG, **(cfg or {})}
+    roles = np.asarray(res["role"]).astype(str)
+    n_comp = int((roles == "comp").sum())
+    has_check = bool((roles == "check").any())
+    need = max(0, cfg["comp_n"] - n_comp) + (0 if has_check else 1)
+    if need == 0:
+        return res
+
+    bprp_t = float(bprp_from_bv(target["BV"]))
+    v_lo, v_hi = cfg["comp_v_range"]
+    radius = float(np.hypot(*(0.5 * np.asarray(cfg["field_deg"]))))
+    cand = _gaia_candidates_raw(target["ra"], target["dec"], radius, v_lo - 0.4, v_hi + 0.4, cache_dir)
+    if not len(cand):
+        return res
+    c_ra, c_dec = np.asarray(cand["ra"], float), np.asarray(cand["dec"], float)
+    tc = SkyCoord(target["ra"] * u.deg, target["dec"] * u.deg)
+    cc = SkyCoord(c_ra * u.deg, c_dec * u.deg)
+    sep = tc.separation(cc).deg
+    vg = v_from_gaia(cand["G"], cand["bp_rp"])
+    inside = in_field(c_ra, c_dec, target["ra"], target["dec"], cfg["field_deg"], cfg["field_margin_deg"],
+                      cfg["field_pa_deg"])
+    vsp_cc = SkyCoord(np.asarray(res["ra"], float) * u.deg, np.asarray(res["dec"], float) * u.deg)
+    in_vsp = cc.match_to_catalog_sky(vsp_cc)[1].arcsec <= 3.0
+    ok = (inside & (vg >= v_lo) & (vg <= v_hi) & (np.abs(cand["bp_rp"] - bprp_t) <= cfg["gaia_bprp_tol"])
+          & (np.asarray(cand["varflag"]).astype(str) != "VARIABLE") & (sep >= cfg["gaia_min_sep_deg"]) & ~in_vsp)
+    order = [i for i in np.argsort(np.abs(np.asarray(cand["bp_rp"]) - bprp_t) + 0.1 * sep) if ok[i]]
+
+    rows = [dict(zip(res.colnames, [res[c][i] for c in res.colnames])) for i in range(len(res))]
+    template = {c: (np.nan if res[c].dtype.kind == "f" else "") for c in res.colnames}
+    good = checked = 0
+    for i in order:
+        if good >= need or checked >= cfg["gaia_max_checks"]:
+            break
+        checked += 1
+        near = gaia_cone(c_ra[i], c_dec[i], cfg["comp_r_iso_arcsec"], 18.0, cache_dir)
+        d = SkyCoord(c_ra[i] * u.deg, c_dec[i] * u.deg).separation(
+            SkyCoord(np.asarray(near["ra"], float) * u.deg, np.asarray(near["dec"], float) * u.deg)).arcsec \
+            if len(near) else np.array([])
+        bad = [j for j in range(len(near)) if d[j] > 0.5 and near["G"][j] < cand["G"][i] + cfg["comp_neighbour_dmag"]]
+        row = dict(template)
+        row.update(auid=f"Gaia DR3 {int(cand['source_id'][i])}", label=f"g{checked}", ra=c_ra[i], dec=c_dec[i],
+                   V=float(vg[i]), V_err=cfg["gaia_v_err"], BV=np.nan, sep_deg=float(sep[i]), G=float(cand["G"][i]),
+                   bp_rp=float(cand["bp_rp"][i]), V_gaia=float(vg[i]), comment="Gaia-abgeleitetes V", source="Gaia",
+                   score=float(abs(cand["bp_rp"][i] - bprp_t) + 0.1 * sep[i]))
+        if bad:
+            j = min(bad, key=lambda k: d[k])
+            row.update(role="verworfen", reasons=f"Gaia-Nachbar G={near['G'][j]:.1f} in {d[j]:.0f}″")
+        else:
+            row.update(role="comp" if n_comp + good < cfg["comp_n"] else ("check" if not has_check else "reserve"),
+                       reasons="")
+            if row["role"] == "check":
+                has_check = True
+            good += 1
+        rows.append(row)
+    out = Table(rows=rows, names=res.colnames)          # Dtypes neu ableiten (sonst wird 'Gaia' zu 'VSP'-Breite gekappt)
+    out.meta["gaia_checked"], out.meta["gaia_candidates"] = checked, int(len(order))
     return out
 
 

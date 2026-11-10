@@ -18,6 +18,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Comp-Auswahl aus AAVSO-VSP + Gaia DR3** (`varphot/vsp.py`, Roadmap P0-2): SIMBAD-Auflösung, VSP-Abruf mit Cache,
   Regeln (Feld, Helligkeit, Fehler, Farbe, NSV/„nur visuell"), Gaia-Prüfung (Nachbarn, Variabilität, RUWE, V-Konsistenz),
   Begründung für jeden verworfenen Stern; `plot_comp_field()`; NB03 komplett neu.
+- **Gaia-Feldsterne als Ensemble-Ergänzung** (`fill_with_gaia()`, NB03 Schritt 3b): Delta Cep 4 → 8 Comps + 1 Check bei
+  rotationssicherem Feld; V aus G und BP−RP (abgeleitet, Fehler 0,05 mag), Nachbarprüfung per ESA-TAP.
 - `pyproject.toml` (`pip install -e .`), Tests (`tests/`, pytest).
 - **PSF-Photometrie (in Arbeit)**: `build_psf()`, `psf_flux()` — bekannter Fehler, siehe unten.
 
