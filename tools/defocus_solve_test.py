@@ -11,15 +11,9 @@ Eigene Bilder: ``--frame`` auf ein scharfes Bild mit gueltiger WCS im Header (Wa
 (Suchradius, Sternzahl) wie in ``solve_image``. Ergebnis fuer LCO delta Cep: KONZEPT §12.1.
 """
 import argparse
-import tempfile
-import time
-
-import numpy as np
-from astropy.io import fits
 
 from varphot import read_frame
-from varphot.astrometry import solve_image
-from varphot.synthetic import defocus_image
+from varphot.astrometry import defocus_solve_ladder
 
 
 def main():
@@ -33,28 +27,11 @@ def main():
     img, hdr, w = read_frame(a.frame)
     if w is None:
         raise SystemExit("Das Bild braucht eine gueltige WCS im Header (Wahrheit fuer den Vergleich)")
-    ny, nx = img.shape
-    ra0, dec0 = (float(v) for v in w.pixel_to_world_values(nx / 2, ny / 2))
-    scale = float(np.hypot(*w.pixel_scale_matrix[:, 0])) * 3600 if hasattr(w, "pixel_scale_matrix") else 1.0
-    fov = ny * scale / 3600
-    keep = {k: hdr[k] for k in ("RA", "DEC", "EXPTIME", "DATE-OBS", "OBJECT") if k in hdr}
-    print(f"Bild {ny}x{nx}, {scale:.2f}\"/px, Feldhoehe {fov:.3f} Grad")
+    hint = {k: hdr[k] for k in ("RA", "DEC", "EXPTIME", "DATE-OBS", "OBJECT") if k in hdr}
+    print(f"Bild {img.shape[0]}x{img.shape[1]}")
     print(f"{'Art':6} {'blur px':>8} {'Ergebnis':>9} {'Versatz ["]':>11} {'s':>5}")
-    for kind in a.kind:
-        for b in a.blur:
-            arr = defocus_image(img, b, kind) if b else img
-            h = fits.Header()
-            for k, v in keep.items():
-                h[k] = v
-            with tempfile.TemporaryDirectory() as d:
-                fits.PrimaryHDU(arr.astype(np.float32), h).writeto(f"{d}/t.fits")
-                t0 = time.time()
-                r = solve_image(f"{d}/t.fits", radius_deg=a.radius, fov_deg=fov, timeout=180)
-            ok = r.wcs is not None and r.source == "ASTAP"
-            if ok:
-                c = r.wcs.pixel_to_world_values(nx / 2, ny / 2)
-                sep = np.hypot((c[0] - ra0) * np.cos(np.radians(dec0)), c[1] - dec0) * 3600
-            print(f"{kind:6} {b:8g} {'geloest' if ok else 'NICHT':>9} {(f'{sep:.1f}' if ok else '—'):>11} {time.time() - t0:5.1f}", flush=True)
+    defocus_solve_ladder(img, w, hint, a.blur, a.kind, radius_deg=a.radius,
+                         progress=lambda r: print(f"{r['kind']:6} {r['blur_px']:8g} {'geloest' if r['solved'] else 'NICHT':>9} {(str(r['offset_arcsec']) if r['solved'] else '—'):>11} {r['seconds']:5.1f}", flush=True))
 
 
 if __name__ == "__main__":

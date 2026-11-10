@@ -20,6 +20,8 @@ MATURITY: dict[str, tuple[str, str]] = {
     "obstype_colour": ("offen", "OBSTYPE fuer Farbkamera/RGB-Filter: Format-Seite und AAVSO-Forum widersprechen sich (DSLR laut Forum). Bei der AAVSO bestaetigen."),
     "std_field_vsp": ("real", "Standardfelder ueber die VSP-Schnittstelle abgerufen (6 Felder, Sterne mit U/B/V/Rc/Ic)."),
     "plan_probe": ("synthetisch", "Planung aus Probebildern nur mit synthetischen Bildern."),
+    "plan_defocus": ("synthetisch", "Defokus-Vergleich (NB00 3c): Rechnung (Spitzenwert ∝ 1/FWHM², S/N ∝ 1/FWHM) nur mit synthetischen Bildern und einem kuenstlich verunschaerften LCO-Bild geprueft; nie mit echtem Defokus am Teleskop."),
+    "plate_solve_defocus": ("real", "ASTAP-Grenze fuer kuenstlich verunschaerfte LCO-δ-Cep-Bilder gemessen (Gauss bis FWHM ~20 px, Donut ~12 px); echtes Defokussieren ungeprueft."),
 }
 
 

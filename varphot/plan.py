@@ -96,12 +96,47 @@ def star_metrics(img, max_adu: float | None = None, fwhm_guess: float = 4.0, nsi
 
 
 def fwhm_summary(df: pd.DataFrame) -> dict:
-    """Median-FWHM, robuste Streuung und Zahl der Sterne aus :func:`star_metrics`."""
-    f = df["fwhm"].dropna().to_numpy()
-    f = f[(f > 0.8) & (f < 200)]
+    """Median-FWHM, robuste Streuung und Zahl der Sterne aus :func:`star_metrics`; dazu die FWHM der helleren und der schwaecheren Haelfte.
+
+    Warum: Auf echten Bildern (LCO δ Cep) waren helle Sterne breiter als schwache (7 px gegen 4,5 px; Fluegel der PSF). Die Apertur nach dem Handbuch richtet sich nach dem **groessten** Stern,
+    Comps sind aber schwaecher; der Unterschied soll sichtbar sein, nicht in einem Median verschwinden. Rueckgabe: ``fwhm`` (Median aller), ``scatter`` (1,4826·MAD), ``n``, ``fwhm_bright`` und
+    ``fwhm_faint`` (Median der helleren/schwaecheren Haelfte nach ``raw_max``, ab 6 Sternen, sonst NaN) und ``grows_with_brightness`` (``fwhm_bright/fwhm_faint`` > 1,25). Validierung: ``tests/test_plan.py``.
+    """
+    d = df.dropna(subset=["fwhm"])
+    d = d[(d["fwhm"] > 0.8) & (d["fwhm"] < 200)]
+    f = d["fwhm"].to_numpy()
     if len(f) == 0:
-        return dict(fwhm=float("nan"), scatter=float("nan"), n=0)
-    return dict(fwhm=float(np.median(f)), scatter=float(1.4826 * np.median(np.abs(f - np.median(f)))), n=int(len(f)))
+        return dict(fwhm=float("nan"), scatter=float("nan"), n=0, fwhm_bright=float("nan"), fwhm_faint=float("nan"), grows_with_brightness=False)
+    br = fa = float("nan")
+    if len(d) >= 6:
+        s = d.sort_values("raw_max", ascending=False)["fwhm"].to_numpy()
+        br, fa = float(np.median(s[:len(s) // 2])), float(np.median(s[len(s) // 2:]))
+    return dict(fwhm=float(np.median(f)), scatter=float(1.4826 * np.median(np.abs(f - np.median(f)))), n=int(len(f)), fwhm_bright=br, fwhm_faint=fa,
+                grows_with_brightness=bool(np.isfinite(br) and np.isfinite(fa) and br / fa > 1.25))
+
+
+def defocus_tradeoff(fwhm_sharp: float, fwhm_def: float) -> dict:
+    """Folgen des Defokussierens gegenueber dem scharfen Bild (Naeherungen fuer gleichen Fluss).
+
+    Warum: Defokussieren senkt den Spitzenwert (laengere Belichtung ohne Saettigung, weniger Szintillation, Bayer-Muster verschmiert) und kostet S/N der schwachen Sterne. Wie (Gauss-Sterne): Spitzenwert ∝ 1/FWHM²,
+    also ``peak_factor = (FWHM_scharf/FWHM_defokus)²`` und gleiche Saettigungsgrenze bei ``exposure_gain = 1/peak_factor`` mal laengerer Belichtung; S/N eines himmelsbegrenzten Sterns ∝ 1/FWHM
+    (Aperturflaeche ∝ FWHM²), also ``snr_factor = FWHM_scharf/FWHM_defokus``; ``aperture_area_factor`` = Flaechenzuwachs der Apertur.
+    Grenzen: Naeherung fuer Gauss-Profile — bei Donuts (Ringe) und starker Defokussierung ungenau; bei hellen Sternen, die photonenbegrenzt sind, faellt der S/N-Verlust kleiner aus. Validierung: ``tests/test_plan.py``.
+    """
+    r = fwhm_sharp / fwhm_def
+    return dict(peak_factor=r ** 2, exposure_gain=1.0 / r ** 2, snr_factor=r, aperture_area_factor=1.0 / r ** 2)
+
+
+def defocus_needed(raw_max: float, offset: float, limit_adu: float, fwhm_now: float, exptime_now: float, exptime_want: float) -> float:
+    """FWHM [px], die noetig ist, damit der hellste Stern bei ``exptime_want`` unter ``limit_adu`` bleibt (Spitzenwert ∝ 1/FWHM², Fluss ∝ Belichtung).
+
+    Warum: Man will oft eine bestimmte Belichtung (Szintillation, Nachfuehrung) und fragt, wie weit man defokussieren muss. Wie: ``peak' = offset + (raw_max − offset)·t_want/t_now``; ist
+    ``peak' ≤ limit``, bleibt ``fwhm_now``; sonst ``fwhm_now·sqrt((peak' − offset)/(limit − offset))``. Grenzen: Gauss-Naeherung, setzt Linearitaet voraus. Validierung: ``tests/test_plan.py``.
+    """
+    scaled = offset + (raw_max - offset) * exptime_want / exptime_now
+    if scaled <= limit_adu:
+        return float(fwhm_now)
+    return float(fwhm_now * np.sqrt((scaled - offset) / (limit_adu - offset)))
 
 
 def recommend_exposure(raw_max: float, exptime_s: float, limit_adu: float, offset: float = 0.0) -> float:
@@ -282,6 +317,10 @@ class ObservingPlan:
     v_comp_min: float | None = None               # hellster zulaessiger Comp (V) bei der empfohlenen Belichtung (aus den Probebildern)
     field_checks: list = field(default_factory=list)   # je Katalogstern: id, Rolle, V, hellster Pixel, t_max, S/N
     moon: dict = field(default_factory=dict)      # Beleuchtung/Abstand im Beobachtungsfenster
+    fwhm_sharp_px: float | None = None            # FWHM des scharfen Referenzbildes (NB00 Schritt 3c)
+    defocus_factor: float | None = None           # FWHM(geplanter Fokus)/FWHM(scharf)
+    plate_solve: dict = field(default_factory=dict)  # Ergebnis des Plate-Solve-Tests (getestet, geloest, Skala, Leiter der Unschaerfe)
+    readiness: dict = field(default_factory=dict)  # Status NB07 (Kameraprofil), NB08 (Transformation), gewaehltes Standardfeld
     focal_length_mm: float | None = None          # Brennweite des Aufbaus (mit Reducer), Eingabe in NB00
     field_deg: list = field(default_factory=list) # Bildfeld [lange, kurze Seite] in Grad aus Sensor und Brennweite (leer = unbekannt)
     warnings: list = field(default_factory=list)

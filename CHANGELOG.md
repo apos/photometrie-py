@@ -9,6 +9,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unveröffentlicht]
 
 ### Neu
+- **NB00 umgebaut:** Schritt 0 **Vorbedingungen** (gemeinsame Prüfung mit NB01, `varphot.readiness`: Python, Pakete, ASTAP, Siril, Datenordner, `observer.json`, KI-Wege); Schritt 2b **Bereitschaft** (Kameraprofil NB07, Transformation NB08, am Standort sichtbare Standardfelder); Schritt 3c **scharf gegen defokussiert** (FWHM, Spitzenwert, S/N-Folgen, Wunschbelichtung → nötiger Defokus, `defocus_tradeoff`/`defocus_needed`) und **Plate-Solve-Test** mit ASTAP am geplanten Fokus und an künstlich verunschärften Bildern (`defocus_solve_ladder`); der Plan speichert FWHM scharf, Defokusfaktor, Plate-Solve-Ergebnis und Bereitschaft.
+  `fwhm_summary` weist FWHM heller und schwacher Sterne getrennt aus (helle Sterne sind auf echten Bildern breiter). NB01 nutzt dieselbe Prüfung (Siril optional statt ✗). `solve_array` löst Arrays ohne WCS (RA/Dec in Grad → `OBJCTRA`/`OBJCTDEC`).
 - **Defokus-Simulation** `varphot.synthetic.defocus_image` (Gauß-Faltung oder Kreisring mit Obstruktion) und `tools/defocus_solve_test.py`: prüft an einem echten scharfen Bild, bis zu welcher Unschärfe ASTAP noch löst (LCO δ Cep: Gauß bis FWHM ~20 px, Donut bis ~12 px; KONZEPT §12.1). Befund: bei echten Bildern ist die FWHM heller Sterne größer als die schwacher (7 px gegen 4,5 px).
 
 ## [0.4.0] — 2026-11-10
