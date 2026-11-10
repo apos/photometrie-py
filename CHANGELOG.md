@@ -8,6 +8,16 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Behoben
+- **NB04-Cache-Pfad:** Eine bereits berechnete `messtabelle_roh_*.csv` wurde mit `keep_default_na=False` gelesen; leere Felder (NaN) blieben leere Zeichenketten und machten Zahlenspalten zu Text
+  (`TypeError: '>' not supported between 'str' and 'float'` in `qc_frames`). Neu `read_measurements()` (Regressionstest). Der Fehler trat nur beim zweiten Lauf auf.
+- **NB04-Cache-Schlüssel** enthält jetzt Kernmaske **und Aperturen**; mit einem Plan (andere Aperturen) wurde sonst eine veraltete Tabelle wiederverwendet.
+
+### Neu
+- **NB00 Planung und Probebilder** (`notebooks/00_planung.ipynb`, `varphot/plan.py`): Ziel (SIMBAD), Methode (Monochrom + Filter / Farbkamera / DSLR) und Kamera-Profil wählen, Sichtbarkeit am Standort, **Probebilder** auswerten (hellster Stern, Sättigung, FWHM per Gauß-Anpassung; bei Bayer auf der Grünebene),
+  daraus längste/empfohlene Belichtung, Aperturen (1,5 × FWHM, Ring nach Handbuch §6.1) und Warnungen (Bayer-Rohbild-FWHM < 8 px, alles gesättigt). Der Plan wird als JSON in `PHOTOMETRIE_PY_DATA/plans/` gespeichert; **NB04** übernimmt die Aperturen über `VARPHOT_PLAN`. Demo-Modus mit synthetischen Probebildern
+  (FWHM 2,98 statt 3,0 px und 4,45 statt 4,5 px wiedergefunden). Mit echten Probebildern nicht getestet. `Camera` hat jetzt `linear_min_adu`/`linear_max_adu` (NB07 schreibt sie; NB00 nutzt die gemessene Obergrenze statt der 75-%-Regel). KONZEPT §12.
+
 ### Neu
 - **NB07 Schritt 3b: RAW-Kompression prüfen** (`histogram_gaps`, `compression_verdict`): zählt je Flat-Aufnahme und Farbebene fehlende ganzzahlige ADU-Werte im Kern der Verteilung (Median ± 2σ, nur wo sie bei dem Rauschen vorkommen
   müssten) und den gemeinsamen Teiler der besetzten Werte; Verdacht bei mindestens zwei Pegeln mit > 5 % Lücken oder Teiler > 1 (Startwert). Erkennt verlustbehaftete („companded“) und skalierte (14 → 16 Bit) RAW-Daten, vor der Gain-Messung.
