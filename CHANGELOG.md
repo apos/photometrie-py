@@ -8,6 +8,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Neu
+- **Defokus-Simulation** `varphot.synthetic.defocus_image` (Gauß-Faltung oder Kreisring mit Obstruktion) und `tools/defocus_solve_test.py`: prüft an einem echten scharfen Bild, bis zu welcher Unschärfe ASTAP noch löst (LCO δ Cep: Gauß bis FWHM ~20 px, Donut bis ~12 px; KONZEPT §12.1). Befund: bei echten Bildern ist die FWHM heller Sterne größer als die schwacher (7 px gegen 4,5 px).
+
 ## [0.4.0] — 2026-11-10
 
 Schwerpunkte: Transformation und AAVSO-Export, Planung (NB00), Inhaltsprüfung, lokale KI-Zweitlesung, Kamera-Charakterisierung (NB07), Transformationskoeffizienten (NB08), breitere Tests (79 → 91 % Abdeckung, 196 → 210+ Tests).
