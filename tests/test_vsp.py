@@ -235,3 +235,9 @@ def test_comp_bv_abs_rule_rejects_red_and_blue():
     assert any("außerhalb 0.3" in w for w in _stage1_reasons(row(1.4), 0.1, True, tgt, cfg))
     assert any("außerhalb 0.3" in w for w in _stage1_reasons(row(0.05), 0.1, True, tgt, cfg))
     assert not any("Handbuch" in w for w in _stage1_reasons(row(1.4), 0.1, True, tgt, {**VSP_CFG, "comp_bv_tol": 5.0, "comp_v_range": (5, 12)}))
+
+
+def test_vsp_table_keeps_chart_id():
+    d = json.loads((DATA / "vsp_delta_cep_180_11.json").read_text())
+    assert V.vsp_table({**d, "chartid": "X43370RNS"}).meta["chartid"] == "X43370RNS"
+    assert V.vsp_table({k: v for k, v in d.items() if k != "chartid"}).meta["chartid"] is None
