@@ -148,3 +148,32 @@ def test_presets_and_profiles(tmp_path):
     save_config(Observer("abcd", "S", b, cams), [], p)
     o, _ = load_config(p)
     assert len(o.cameras) == 2 and o.camera.gain_setting == "ISO 640"
+
+
+def _plane_values(level_adu, sigma, n=10000, rng=None, transform=None):
+    rng = rng or np.random.default_rng(3)
+    v = np.rint(rng.normal(level_adu, sigma, n))
+    return transform(v) if transform else v
+
+
+def test_histogram_gaps_clean_vs_companded_vs_scaled():
+    from varphot import histogram_gaps, compression_verdict
+    clean = [histogram_gaps(_plane_values(lv, 12.0)) for lv in (800, 3000, 9000, 14000)]
+    assert all(r["reliable"] and r["gap_fraction"] < 0.01 and r["step"] == 1 for r in clean)
+    assert compression_verdict(clean)["suspect"] is False
+    # verlustbehaftet: ab 2000 ADU nur jeder 4. Wert (wie eine Kompanderung)
+    comp = lambda v: np.where(v > 2000, 2000 + np.round((v - 2000) / 4) * 4, v)
+    cmp_ = [histogram_gaps(_plane_values(lv, 12.0, transform=comp)) for lv in (800, 3000, 9000, 14000)]
+    assert cmp_[0]["gap_fraction"] < 0.01 and cmp_[2]["gap_fraction"] > 0.5 and cmp_[2]["step"] == 4
+    v = compression_verdict(cmp_)
+    assert v["suspect"] is True and v["worst_gap"] > 0.5
+    # skaliert: 14 -> 16 Bit (x4): nur Vielfache von 4
+    scaled = [histogram_gaps(_plane_values(lv, 12.0, transform=lambda x: x * 4)) for lv in (800, 3000, 9000)]
+    assert all(r["step"] == 4 and r["gap_fraction"] > 0.5 for r in scaled)
+
+
+def test_histogram_gaps_low_noise_not_reliable():
+    from varphot import histogram_gaps, compression_verdict
+    r = histogram_gaps(_plane_values(500, 1.0))
+    assert r["reliable"] is False
+    assert compression_verdict([r, r])["suspect"] is None

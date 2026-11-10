@@ -274,3 +274,61 @@ def iso_from_header(hdr, keys=("ISOSPEED", "ISO", "GAIN")) -> float | None:
             except (TypeError, ValueError):
                 pass
     return None
+
+
+def histogram_gaps(values, k_sigma: float = 2.0, min_expected: float = 20.0) -> dict:
+    """Fehlen im Kern der ADU-Verteilung ganze Zahlenwerte? (Hinweis auf komprimierte oder skalierte RAW-Daten.)
+
+    Warum: Manche Kameras speichern RAW verlustbehaftet („companded“: bei hellen Pixeln nur jeder 2., 4. … Wert) oder skalieren 12/14 Bit auf
+    16 Bit. Dann kommen nicht alle ADU-Werte vor; Gain, Ausleserauschen und die Rauschstatistik der Photon-Transfer-Kurve werden verfaelscht,
+    weil die Quantisierung Rauschen vortaeuscht bzw. verschluckt. Bei unkomprimierten Daten mit ausreichend Rauschen ist jeder ganzzahlige Wert im
+    Kernbereich besetzt.
+    Wie: ``values`` (Pixelwerte eines Bereichs einer Farbebene) auf ganze Zahlen runden; Median und robuste Sigma (MAD) bestimmen. Gezaehlt werden
+    ganzzahlige Werte im Bereich ``Median ± k_sigma·σ``, deren *erwartete* Besetzung (Normalverteilung, N Pixel) mindestens ``min_expected`` ist — ein dort
+    leerer Wert hat bei ``min_expected = 20`` eine Wahrscheinlichkeit von etwa e⁻²⁰ und ist ein echtes Loch. ``gap_fraction`` = Anteil leerer Werte unter den
+    geprueften; ``step`` = groesster gemeinsamer Teiler aller besetzten Werte im Kern (2 = nur gerade Werte, 1 = unauffaellig).
+    Rueckgabe: ``median``, ``sigma``, ``n_tested``, ``gap_fraction``, ``step``, ``reliable`` (mindestens 5 Werte geprueft und ``σ`` ≥ 2 ADU; bei kleinem Rauschen
+    ``σ`` < ~2 ADU nicht der Fall — dann hoeheren Pegel waehlen).
+    Grenzen: Nur fuer den Kern; die Pegelabhaengigkeit der Kompression zeigt sich erst bei mehreren Flat-Pegeln (:func:`compression_verdict`). Ein
+    FITS mit nicht ganzzahligen Pixelwerten (BSCALE/Skalierung) ergibt Luecken durch das Runden. Validierung: ``tests/test_camera.py``.
+    """
+    v = np.rint(np.asarray(values, float).ravel()).astype(np.int64)
+    n = v.size
+    med = float(np.median(v))
+    sig = float(1.4826 * np.median(np.abs(v - med)))
+    out = dict(median=med, sigma=sig, n_tested=0, gap_fraction=float("nan"), step=1, reliable=False)
+    if sig < 0.5:
+        return out
+    lo, hi = int(np.floor(med - k_sigma * sig)), int(np.ceil(med + k_sigma * sig))
+    cand = np.arange(lo, hi + 1)
+    expected = n * np.exp(-0.5 * ((cand - med) / sig) ** 2) / (sig * np.sqrt(2 * np.pi))
+    cand = cand[expected >= min_expected]
+    if cand.size == 0:
+        return out
+    uniq, cnt = np.unique(v, return_counts=True)
+    lookup = dict(zip(uniq.tolist(), cnt.tolist()))
+    counts = np.array([lookup.get(int(c), 0) for c in cand])
+    occupied = cand[counts > 0]
+    gaps = int(np.sum(counts == 0))
+    step = int(np.gcd.reduce(np.diff(occupied))) if occupied.size > 1 else 1
+    out.update(n_tested=int(cand.size), gap_fraction=gaps / cand.size, step=max(step, 1), reliable=bool(cand.size >= 5 and sig >= 2.0))
+    return out
+
+
+def compression_verdict(results: list[dict], gap_limit: float = 0.05) -> dict:
+    """Urteil ueber mehrere Pegel (Ergebnisse von :func:`histogram_gaps`): sieht das RAW komprimiert oder skaliert aus?
+
+    Verdacht, wenn bei mindestens zwei verlaesslichen Pegeln der Lueckenanteil ``gap_limit`` (Startwert 5 %) uebersteigt oder der Teiler ``step`` > 1 ist.
+    Rueckgabe: ``suspect`` (bool), ``n_reliable``, ``worst_gap``, ``reason`` (Text). Ohne mindestens zwei verlaessliche Pegel: ``suspect=None``
+    (nicht beurteilbar — hellere Flats mit mehr Rauschen aufnehmen).
+    """
+    rel = [r for r in results if r.get("reliable")]
+    if len(rel) < 2:
+        return dict(suspect=None, n_reliable=len(rel), worst_gap=float("nan"),
+                    reason="nicht beurteilbar: weniger als zwei Pegel mit genug Rauschen (sigma >= ~2 ADU)")
+    bad = [r for r in rel if r["gap_fraction"] > gap_limit or r["step"] > 1]
+    worst = max(r["gap_fraction"] for r in rel)
+    if len(bad) >= 2:
+        return dict(suspect=True, n_reliable=len(rel), worst_gap=worst,
+                    reason=f"{len(bad)} von {len(rel)} Pegeln mit Luecken (bis {100 * worst:.0f} % der Werte fehlen) oder Teiler > 1 — komprimiertes/skaliertes RAW?")
+    return dict(suspect=False, n_reliable=len(rel), worst_gap=worst, reason="alle geprueften Werte besetzt — keine Hinweise auf Kompression")
