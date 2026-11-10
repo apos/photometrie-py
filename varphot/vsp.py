@@ -136,17 +136,21 @@ def fetch_std_field(name: str, maglimit: float = 16.0, cache_dir=None, force=Fal
     return vsp_table(d)
 
 
+def _band(bands: dict, band: str, k: int) -> float:
+    """Wert ``k`` (0 = Helligkeit, 1 = Fehler) des Bandes aus der VSP-Antwort; ``nan``, wenn das Band fehlt."""
+    return bands[band][k] if band in bands else np.nan
+
+
 def vsp_table(d: dict) -> Table:
     """Wandelt die VSP-JSON-Antwort in eine Tabelle (auch fuer Offline-Fixtures); die Sequenz-ID steht in ``tabelle.meta["chartid"]``."""
     rows = []
     for p in d["photometry"]:
         c = SkyCoord(p["ra"], p["dec"], unit=(u.hourangle, u.deg))
         b = {x["band"]: (x["mag"], x["error"]) for x in p["bands"]}
-        g = lambda band, k: b[band][k] if band in b else np.nan
         comment = (p.get("comments") or "").strip()
         rows.append(dict(auid=p["auid"], label=p["label"], ra=c.ra.deg, dec=c.dec.deg,
-                         V=g("V", 0), V_err=g("V", 1), B=g("B", 0), B_err=g("B", 1),
-                         Rc=g("Rc", 0), Ic=g("Ic", 0), comment=comment))
+                         V=_band(b, "V", 0), V_err=_band(b, "V", 1), B=_band(b, "B", 0), B_err=_band(b, "B", 1),
+                         Rc=_band(b, "Rc", 0), Ic=_band(b, "Ic", 0), comment=comment))
     t = Table(rows=rows)
     t["BV"] = t["B"] - t["V"]
     t.meta["chartid"] = d.get("chartid")           # Sequenz-ID der AAVSO (Feld CHART im Extended Format); None bei Offline-Fixtures ohne ID

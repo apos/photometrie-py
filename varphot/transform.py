@@ -241,7 +241,7 @@ def loo_validation(cat: pd.DataFrame, instr: pd.DataFrame, sol: TransformSolutio
             continue
         T = getattr(sol, tname)
         tr, st = [], []
-        for i, sid in enumerate(idx):
+        for i in range(len(idx)):
             if not np.isfinite(I[col].iloc[i]) or not np.isfinite(C[cmag].iloc[i]):
                 continue
             vals_tr, vals_st = [], []
