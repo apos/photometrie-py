@@ -19,6 +19,7 @@ matplotlib>=3.8
 jupyter
 ipykernel
 ipywidgets
+ipyfilechooser
 
 # Hilfspakete
 pandas>=2.1
