@@ -114,3 +114,32 @@ def standard_field(n_stars=24, truth=None, n_frames=8, noise_mag=0.01, rng=None,
         meas[ch] = pd.DataFrame(rows)
     truth_out = dict(t, Tbv=1.0 / (1 - t["Tb_bv"] + t["Tv_bv"]))
     return cat, meas, truth_out
+
+
+def defocus_image(img, blur_fwhm_px: float, kind: str = "gauss", obstruction: float = 0.37):
+    """Simuliert Defokussieren eines Bildes durch Faltung (Test und Demo fuer NB00 und das Plate-Solving).
+
+    Warum: Fuer die Photometrie heller Sterne wird bewusst unscharf gestellt (sonst Saettigung, Bayer-Muster, Szintillation); das Plate-Solving und die Sterndetektion muessen mit solchen Bildern noch
+    zurechtkommen. Mit echten Aufnahmen laesst sich das erst am Teleskop pruefen — vorher kann man ein scharfes Bild kuenstlich verunschaerfen.
+    Wie: ``kind="gauss"``: Gauss-Filter mit der zusaetzlichen Breite ``blur_fwhm_px`` (FWHM, ``sigma = FWHM/2,3548``); die Gesamtbreite waechst quadratisch: ``sqrt(FWHM0² + blur²)``.
+    ``kind="donut"``: Faltung mit einem Kreisring (Aussendurchmesser ``blur_fwhm_px``, Innendurchmesser ``obstruction`` mal Aussendurchmesser) — so sieht ein defokussierter Stern an einem Teleskop mit
+    Fangspiegel aus (Schmidt-Cassegrain: etwa 0,35–0,4 Obstruktion, hier 0,37 als Startwert, nicht fuer ein bestimmtes Geraet gemessen). Der Fluss bleibt erhalten (Kern summiert zu 1).
+    Grenzen: Eine Faltung des *scharfen* Bildes ersetzt kein echtes Defokussieren (Rauschen und Sternmuster werden mitgefaltet, Gradienten des Rands, Koma/Feldkruemmung fehlen); der Himmelshintergrund
+    wird mitgefaltet (bleibt im Mittel gleich). Validierung: ``tests/test_synthetic.py`` (Fluss, Breitenzuwachs, Loch im Ring).
+    """
+    from scipy import ndimage, signal
+    img = np.asarray(img, float)
+    if blur_fwhm_px <= 0:
+        return img.copy()
+    if kind == "gauss":
+        return ndimage.gaussian_filter(img, blur_fwhm_px / 2.3548, mode="nearest")
+    if kind == "donut":
+        R = blur_fwhm_px / 2.0
+        n = int(np.ceil(R)) * 2 + 1
+        yy, xx = np.mgrid[:n, :n] - n // 2
+        r = np.hypot(xx, yy)
+        k = ((r <= R) & (r >= obstruction * R)).astype(float)
+        if k.sum() == 0:
+            k[n // 2, n // 2] = 1.0
+        return signal.fftconvolve(np.pad(img, n // 2, mode="edge"), k / k.sum(), mode="valid")
+    raise ValueError(f"kind muss 'gauss' oder 'donut' sein, nicht {kind!r}")
