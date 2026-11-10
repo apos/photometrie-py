@@ -6,6 +6,34 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unveröffentlicht]
+
+### Neu
+- **Plate Solving mit echten Bildern** (`varphot/astrometry.py`): `solve_image()` ruft ASTAP auf und liest die
+  `<bild>.wcs`-Datei (ASTAP schreibt mit `-wcs` NICHT in den FITS-Header); Original bleibt unverändert, Fallback auf
+  Header-WCS, sonst `wcs=None`. NB02 mit echtem Bild über `VARPHOT_REF=/pfad/bild.fit`.
+- **Sternerkennung für Nebelfelder**: `detect(..., background="2d")` (Background2D + Filter gegen lokales Rauschen).
+- **Sternkarte für echte Bilder**: `plot_detections()` (Übersicht + 1:1-Ausschnitt, RA/Dec-Gitter); NB02 Schritt 6 mit
+  Quellenliste `<bild>.sources.ecsv` und `skip_if_fresh`-Cache (`varphot/cache.py`).
+- **Comp-Auswahl aus AAVSO-VSP + Gaia DR3** (`varphot/vsp.py`, Roadmap P0-2): SIMBAD-Auflösung, VSP-Abruf mit Cache,
+  Regeln (Feld, Helligkeit, Fehler, Farbe, NSV/„nur visuell"), Gaia-Prüfung (Nachbarn, Variabilität, RUWE, V-Konsistenz),
+  Begründung für jeden verworfenen Stern; `plot_comp_field()`; NB03 komplett neu.
+- `pyproject.toml` (`pip install -e .`), Tests (`tests/`, pytest).
+- **PSF-Photometrie (in Arbeit)**: `build_psf()`, `psf_flux()` — bekannter Fehler, siehe unten.
+
+### Behoben
+- Sternbildkarte (NB02 Schritt 5) zeigte bei Zielen auf der Gegenseite des Himmels gespiegelte Sternbilder
+  (Orion im Feld von M16): `gnomonic()` liefert für die abgewandte Halbkugel NaN.
+- NB02 behauptete, ASTAP schreibe die WCS in den FITS-Header (stimmt nicht, s. o.).
+- Zielposition in NB02 kam aus `CRVAL` (WCS-Referenzpunkt), jetzt aus RA/DEC der Montierung im Header.
+
+### Bekannte Fehler
+- `psf_flux()`: PSF-Differenzhelligkeit im synthetischen Demo um ~1,1 mag zu schwach, weil das Ziel defokussiert
+  (FWHM 22 px) und die Comps fokussiert (4,5 px) sind; PSF-Pfad daher nur für fokussierte Felder gedacht.
+- NB03 kennt noch keine Bild-Zuordnung (Crossmatch im Bild folgt mit P0-3).
+
+---
+
 ## [0.2.0] — 2026-11-10
 
 ### Neu
