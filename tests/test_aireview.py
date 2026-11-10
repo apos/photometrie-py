@@ -273,3 +273,43 @@ def test_other_network_errors_are_not_rerouted(monkeypatch):
     import errno
     monkeypatch.setattr(A.socket, "create_connection", lambda *a, **k: (_ for _ in ()).throw(OSError(errno.ECONNREFUSED, "refused")))
     assert A.tcp_open("127.0.0.1", 9) is False and not A._blocked(OSError(errno.ECONNREFUSED, "x")) and A._blocked(OSError(65, "x"))
+
+
+# ------------------------------------------------------------------------------------------------ Sicherheit: Weiterleitung, Proxy; URL-Auswertung
+class _Redirect(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        self.send_response(302); self.send_header("Location", "http://8.8.8.8:11434/api/tags"); self.end_headers()
+
+
+def test_redirect_to_public_address_is_not_followed():
+    srv = _Server(("127.0.0.1", 0), _Redirect)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}"
+        with pytest.raises(Exception, match="302|Redirect|Found"):
+            A._http_json(url + "/api/tags", timeout=5)
+        assert A.ollama_models(url) == []                      # nach aussen: leere Liste, nie ein Zugriff auf die oeffentliche Adresse
+    finally:
+        srv.shutdown()
+
+
+def test_system_proxy_is_ignored(ollama, monkeypatch):
+    port, _ = ollama
+    for k in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.setenv(k, "http://127.0.0.1:9")            # toter Proxy: wuerde der Aufruf ueber ihn laufen, schluege er fehl
+    assert A.ollama_models(f"http://127.0.0.1:{port}") != []
+
+
+def test_url_helpers():
+    assert A._host_of("http://[::1]:11434") == "::1" and A._port_of("http://[::1]:11434") == 11434
+    assert A._host_of("http://192.168.1.5") == "192.168.1.5" and A._port_of("http://192.168.1.5") == 11434 and A._port_of("http://h:99") == 99
+    assert A._host_of("kaputt") == "" and A._host_of("http://[bad") == "" and A._port_of("http://[bad") == 11434
+
+
+def test_local_opencode_can_be_disabled(tmp_path, monkeypatch):
+    _fake_opencode(tmp_path, monkeypatch, ["ollama/qwen2.5:7b"])
+    cfg = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:9", "opencode": False, "opencode_model": None}, "models": []}
+    assert [b.kind for b in A.detect_backends(cfg)] == ["ollama"]

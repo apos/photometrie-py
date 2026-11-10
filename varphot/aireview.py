@@ -14,7 +14,7 @@ Konfiguration: Schluessel ``ai`` in ``observer.json`` (privater Datenordner, nic
 
     "ai": {"enabled": true,
            "hosts": [{"name": "rechner", "addresses": ["192.168.x.y", "10.x.y.z"], "ollama_port": 11434, "ssh": "alias"}],
-           "local": {"ollama_url": "http://127.0.0.1:11434", "opencode_model": "ollama/qwen2.5:7b"},
+           "local": {"ollama_url": "http://127.0.0.1:11434", "opencode": true, "opencode_model": "ollama/qwen2.5:7b"},
            "models": ["qwen2.5:7b", "llama3.1:8b"]}
 
 Ohne Konfiguration wird nur der lokale Rechner geprueft. ``VARPHOT_AI=off`` schaltet alles ab.
@@ -32,6 +32,7 @@ import subprocess
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -108,8 +109,29 @@ def is_private_host(host: str) -> bool:
 
 
 def _host_of(url: str) -> str:
-    m = re.match(r"^[a-z]+://(\[[^\]]+\]|[^/:]+)", url.strip(), re.I)
-    return m.group(1) if m else ""
+    """Rechnername/-adresse einer URL (ohne Klammern bei IPv6); leer bei ungueltiger URL."""
+    try:
+        return urllib.parse.urlsplit(url.strip()).hostname or ""
+    except ValueError:
+        return ""
+
+
+def _port_of(url: str, default: int = 11434) -> int:
+    """Port einer URL oder ``default``."""
+    try:
+        return urllib.parse.urlsplit(url.strip()).port or default
+    except ValueError:
+        return default
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Folgt keinen Weiterleitungen: ein privater Server koennte sonst auf eine oeffentliche Adresse umleiten und die Pruefung :func:`is_private_host` umgehen."""
+
+    def redirect_request(self, *a, **k):
+        return None
+
+
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())     # ohne System-/Umgebungs-Proxy: der Text soll direkt zum Zielrechner, nicht ueber einen Proxy
 
 
 NO_ROUTE = (65, 113)       # EHOSTUNREACH (macOS, Linux)
@@ -142,10 +164,10 @@ def _curl_json(url: str, payload: dict | None, timeout: float) -> dict:
     curl = shutil.which("curl")
     if not curl:
         raise OSError("curl nicht gefunden")
-    cmd = [curl, "-sS", "-f", "-m", str(max(1, int(timeout))), "-H", "Content-Type: application/json"]
+    cmd = [curl, "-sS", "-f", "--noproxy", "*", "-m", str(max(1, int(timeout))), "-H", "Content-Type: application/json"]      # ohne -L: keine Weiterleitungen
     if payload is not None:
         cmd += ["--data-binary", "@-"]
-    r = subprocess.run(cmd + [url], input=None if payload is None else json.dumps(payload), capture_output=True, text=True, timeout=timeout + 5)
+    r = subprocess.run(cmd + [url], input=None if payload is None else json.dumps(payload), capture_output=True, text=True, timeout=timeout + 5, check=False)
     if r.returncode != 0:
         raise OSError(f"curl Rueckgabecode {r.returncode}: {r.stderr.strip()[:160]}")
     return json.loads(r.stdout)
@@ -158,7 +180,7 @@ def _http_json(url: str, payload: dict | None = None, timeout: float = 5.0) -> d
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"} if data else {})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:                  # noqa: S310 - Ziel oben auf private Adressen beschraenkt
+        with _OPENER.open(req, timeout=timeout) as r:                            # Ziel oben auf private Adressen beschraenkt, keine Weiterleitung, kein Proxy
             return json.loads(r.read().decode("utf-8"))
     except (urllib.error.URLError, OSError) as e:
         if _blocked(e):
@@ -169,7 +191,7 @@ def _http_json(url: str, payload: dict | None = None, timeout: float = 5.0) -> d
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Konfiguration
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-DEFAULT_AI = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:11434", "opencode_model": None}, "models": list(PREFERRED_MODELS)}
+DEFAULT_AI = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:11434", "opencode": True, "opencode_model": None}, "models": list(PREFERRED_MODELS)}
 
 
 def load_ai_config(path=None) -> dict:
@@ -226,7 +248,7 @@ def pick_model(available: list[str], preferred: list[str] | None = None) -> str 
 
 
 def _run(cmd: list[str], timeout: float) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL, check=False)
 
 
 def probe_opencode_local(model: str | None = None, timeout: float = 40.0) -> Backend:
@@ -289,10 +311,10 @@ def detect_backends(cfg: dict | None = None, check_opencode_remote: bool = True)
         models = ollama_models(url)
         model = pick_model(models, cfg.get("models"))
         out.append(Backend("ollama", via, model is not None, f"{len(models)} Modelle" if model else "Server antwortet, aber kein brauchbares Chat-Modell", url=url, model=model, strong=True))
-    out.append(probe_opencode_local(cfg["local"].get("opencode_model")))
+    if cfg["local"].get("opencode", True):                    # "opencode": false schaltet die Pruefung ab (``opencode models`` startet dessen Hintergrunddienst)
+        out.append(probe_opencode_local(cfg["local"].get("opencode_model")))
     url = cfg["local"].get("ollama_url") or DEFAULT_AI["local"]["ollama_url"]
-    port = int(re.search(r":(\d+)", url.split("//", 1)[-1]).group(1)) if re.search(r":(\d+)", url.split("//", 1)[-1]) else 11434
-    if is_private_host(_host_of(url)) and tcp_open(_host_of(url).strip("[]"), port):
+    if is_private_host(_host_of(url)) and tcp_open(_host_of(url), _port_of(url)):
         models = ollama_models(url)
         model = pick_model(models, cfg.get("models"))
         out.append(Backend("ollama", "lokal", model is not None, f"{len(models)} Modelle" if model else "Server antwortet, aber kein brauchbares Chat-Modell", url=url, model=model))
@@ -336,7 +358,7 @@ def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout:
             if not exe:
                 raise FileNotFoundError("opencode nicht gefunden")
             with tempfile.TemporaryDirectory() as tmp:
-                r = subprocess.run([exe, "run", "--model", backend.model, system + "\n\n--- BERICHT ---\n" + text], capture_output=True, text=True, timeout=timeout, cwd=tmp, stdin=subprocess.DEVNULL)
+                r = subprocess.run([exe, "run", "--model", backend.model, system + "\n\n--- BERICHT ---\n" + text], capture_output=True, text=True, timeout=timeout, cwd=tmp, stdin=subprocess.DEVNULL, check=False)
             if r.returncode != 0:
                 raise RuntimeError(f"opencode Rueckgabecode {r.returncode}: {r.stderr.strip()[:200]}")
             res.text = _clean(r.stdout)
