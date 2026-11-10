@@ -23,7 +23,8 @@ import numpy as np
 import pandas as pd
 
 METHODS = {
-    "mono": "Monochrom-Kamera + Filter (z. B. V)",
+    "mono": "Monochrom-Kamera + Standardfilter (Johnson-Cousins, z. B. V)",
+    "monorgb": "Monochrom-Kamera + RGB-Filter (Astroimaging; TB/TG/TR)",
     "osc": "Farbkamera (One-Shot-Color, Bayer)",
     "dslr": "DSLR / spiegellos (Bayer, RAW)",
 }

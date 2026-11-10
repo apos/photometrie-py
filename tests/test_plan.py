@@ -73,7 +73,7 @@ def test_plan_roundtrip_and_latest(tmp_path):
     p2 = load_plan(path)
     assert p2.exptime_max_s == 3.5 and p2.aperture["ap_r"] == 7 and p2.created
     assert latest_plan("del cep", tmp_path).camera_model == "Cam A" and latest_plan("anderes", tmp_path) is None
-    assert set(METHODS) == {"mono", "osc", "dslr"}
+    assert set(METHODS) == {"mono", "monorgb", "osc", "dslr"}
 
 
 def _wcs(nx=600, ny=500, scale=1.44, ra=337.29, dec=58.41):
