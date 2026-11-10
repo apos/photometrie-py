@@ -13,3 +13,15 @@ packages = ["varphot"]
 
 [tool.setuptools.dynamic]
 version = { attr = "varphot.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 200              # Docstrings tragen Herleitung und Quellen; kurze Zeilen waeren dort schaedlich
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["F", "B", "PLE", "PLW", "E7", "E9"]
+ignore = ["E731", "E741", "E701", "E702", "B905", "PLW2901"]     # Lambdas, einzeilige Anweisungen (Stil dieses Projekts), zip ohne strict
