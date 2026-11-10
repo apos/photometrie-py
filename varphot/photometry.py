@@ -11,10 +11,14 @@ from .config import CFG
 
 
 def aperture_flux(img, xy, r_ap=None, r_in=None, r_out=None, cfg=None):
-    """Gibt (flux_array, flux_err_array, bkg_array) zurück.
+    """Gibt (flux_array, flux_err_array, bkg_array) zurueck (einfache Aperturphotometrie, Altpfad fuer Notebook-Demos).
 
-    xy: Liste von (x, y)-Tupeln.
-    Warnung bei Peak > CFG['sat_adu'] (Sättigung / Nichtlinearität).
+    Warum/Wie: Summe in der Kreisapertur minus Himmelsmedian im Ring mal Aperturflaeche. Der Fehler ``sqrt(|Summe|)`` enthaelt nur
+    Photonenrauschen — fuer Messungen die vollstaendige CCD-Gleichung aus :func:`varphot.batch.measure_frame` verwenden.
+    Warnung bei Peak > ``CFG['sat_adu']`` (Saettigung/Nichtlinearitaet).
+
+    Behobener Fehler: ``ApertureStats`` clippt standardmaessig auch die Summe; helle Sternkerne wurden abgeschnitten
+    (Fluss -18 % im Test). Jetzt ``sigma_clip=None`` (Regressionstest ``tests/test_photometry.py``).
     """
     cfg = cfg or CFG
     r_ap = r_ap if r_ap is not None else cfg["ap_r"]
@@ -148,14 +152,12 @@ def psf_flux(img, xy, epsf, cfg=None):
 
 
 def diff_mag(f_t, f_c, V_c, f_k=None):
-    """Differentielle Helligkeit via Ensemble-Nullpunkt.
+    """Differentielle Helligkeit via Ensemble-Nullpunkt (einfache Variante ohne Ausreisser-Verwurf).
 
-    f_t: Fluss Ziel (Skalar)
-    f_c: Fluss-Array der Comps
-    V_c: Katalog-V-Array der Comps
-    f_k: Fluss Check-Stern (optional)
-
-    Rückgabe: (mag_ziel, mag_check_or_nan, zp_scatter)
+    Warum: Aus Fluessen und Katalog-V der Comps die Magnitude des Ziels ohne absolute Kalibrierung. Wie: ``zp_i = V_i + 2,5
+    log10 f_i``, Nullpunkt = Median, ``mag = -2,5 log10 f_t + zp``. Rueckgabe ``(mag_ziel, mag_check, zp_streuung)``.
+    Fuer Messungen :func:`varphot.batch.ensemble_mag` benutzen (robust, gewichtet, mit Fehler). Validierung:
+    ``tests/test_batch.py::test_diff_mag_recovers_known_magnitude``.
     """
     zp = V_c + 2.5 * np.log10(f_c)
     zp_med = np.median(zp)
