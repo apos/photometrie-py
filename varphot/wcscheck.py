@@ -74,8 +74,8 @@ def check_wcs(wcs, xy_detected, gaia: Table, epoch: float, shape, match_arcsec: 
     werden Versatz, Streuung, Wiederfindungsrate, linearer Trend (Skalen-/Rotationsfehler) und die schlechteste Zelle eines
     8x6-Gitters. Urteil in Pixeln der Bildskala: Versatz <= 0,5 px, Streuung <= 0,7 px, schlechteste Zelle <= 1 px -> "OK".
     Grenzen: Die Schwellen sind Startwerte ohne Herleitung. Validierung: M16-Testbild (2636 Treffer, Versatz 0,08″, Streuung
-    0,27″, schlechteste Zelle 0,60″ -> OK). Quelle: Gaia Collaboration (Vallenari et al.) 2023, A&A 674, A1 (Gaia DR3,
-    aus dem Gedaechtnis, nicht geprueft).
+    0,27″, schlechteste Zelle 0,60″ -> OK). Quelle: Gaia Collaboration (Vallenari et al.) 2023, A&A 674, A1,
+    doi:10.1051/0004-6361/202243940 (Gaia DR3; Zitat per Suche geprueft).
     """
     x, y = (np.asarray(a, float) for a in xy_detected)
     ny, nx = shape[-2:]

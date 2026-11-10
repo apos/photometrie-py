@@ -32,9 +32,10 @@ def harmonic_fit(t, y, p_lo: float, p_hi: float, nharm: int = 3, n_period: int =
 
     Validierung: ``tests/test_periodfit.py`` (Periode 5,366 d +- 0,02 aus 90 verrauschten Punkten).
 
-    Quellen: Standardverfahren (Fourier-Zerlegung von Lichtkurven); Zusammenhang mit Lomb-Scargle: Lomb 1976, Ap&SS 39, 447;
-    Scargle 1982, ApJ 263, 835 (aus dem Gedaechtnis, nicht geprueft); VanderPlas, J. T. 2018, ApJS 236, 16,
-    doi:10.3847/1538-4365/aab766 (geprueft, Zitat).
+    Quellen (Zitate per Suche geprueft, Volltexte nicht gelesen): Standardverfahren (Fourier-Zerlegung von Lichtkurven);
+    Zusammenhang mit Lomb-Scargle: Lomb, N. R. 1976, Ap&SS 39, 447, doi:10.1007/bf00648343; Scargle, J. D. 1982, ApJ 263, 835
+    (zeigt die Aequivalenz von Periodogramm und Kleinste-Quadrate-Sinusanpassung); VanderPlas, J. T. 2018, ApJS 236, 16,
+    doi:10.3847/1538-4365/aab766.
     """
     t, y = np.asarray(t, float), np.asarray(y, float)
     if len(t) < 2 * nharm + 3:

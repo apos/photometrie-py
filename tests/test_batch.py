@@ -51,6 +51,9 @@ def test_scintillation_young_formula():
     assert 0.005 < m < 0.02
     assert scintillation_mag(0.4, 2.0, 0.0, 1.0) > m          # mehr Luftmasse -> mehr
     assert scintillation_mag(0.4, 1.0, 0.0, 10.0) < m         # laengere Belichtung -> weniger
+    # Osborn et al. 2015, Gl. 2: sigma = sqrt(1e-5) D^(-2/3) t^(-1/2) X^1,5 exp(-h/8000) -> in mag mal 1,0857 (c_y = 1)
+    assert scintillation_mag(0.4, 1.0, 0.0, 1.0, c_y=1.0) == pytest.approx(1.0857 * 3.1623e-3 * 0.4 ** (-2 / 3), rel=1e-3)
+    assert scintillation_mag(0.4, 1.0, 0.0, 1.0) == pytest.approx(1.5 * scintillation_mag(0.4, 1.0, 0.0, 1.0, c_y=1.0))
 
 
 # ------------------------------------------------------------------ Feldgeometrie

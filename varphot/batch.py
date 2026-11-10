@@ -45,28 +45,33 @@ def read_frame(path) -> tuple[np.ndarray, "fits.Header", WCS | None]:
     return img, hdr, (w if w.has_celestial else None)
 
 
-def scintillation_mag(aperture_m: float, airmass: float, height_m: float, exptime_s: float) -> float:
-    """Szintillationsrauschen eines Sterns in mag (Young-Naeherung).
+def scintillation_mag(aperture_m: float, airmass: float, height_m: float, exptime_s: float, c_y: float = 1.5) -> float:
+    """Szintillationsrauschen eines Sterns in mag (Young-Naeherung nach Osborn et al. 2015, mit Korrekturfaktor).
 
     Warum: Bei kurzen Belichtungen an kleinen Teleskopen dominiert die Szintillation das Rauschen heller Sterne; sie
     muss im Fehlerbudget stehen, sonst sind die Fehlerbalken zu klein.
 
-    Wie: ``sigma = 0,09 * D^(-2/3) * X^(1,75) * exp(-h/h0) / sqrt(2 t)`` als relativer Fluss (``D`` Teleskopoeffnung in cm,
-    ``X`` Luftmasse, ``h`` Hoehe, ``h0`` = 8000 m, ``t`` Belichtung in s); Umrechnung in mag mit 1,0857.
+    Wie: Osborn et al. (2015), Gl. 2 (Young-Naeherung, alle Groessen in SI): ``sigma^2 = 10e-6 * D^(-4/3) * t^(-1) *
+    (cos z)^(-3) * exp(-2 h/H)`` mit ``D`` Teleskopoeffnung [m], ``t`` Belichtung [s], ``cos z = 1/X`` (``X`` Luftmasse),
+    ``h`` Hoehe [m], ``H`` = 8000 m. Das ist ``sigma = 3,16e-3 * D^(-2/3) * t^(-1/2) * X^1,5 * exp(-h/H)`` als relativer
+    Fluss; mal ``c_y`` und mal 1,0857 in mag. (Die aeltere Schreibweise ``0,09 D_cm^(-2/3) X^1,75 exp(-h/h0)/sqrt(2t)`` liefert
+    fuer 0,4 m, 1,3 s, X = 1,2, h = 2 km fast dasselbe: 5,1e-3 statt 5,2e-3.)
 
-    Parameter: ``aperture_m`` [m], ``airmass``, ``height_m`` [m], ``exptime_s`` [s]. Rueckgabe: mag (1 sigma).
+    ``c_y``: Osborn et al. fanden, dass die Young-Naeherung die gemessene *mediane* Szintillation unterschaetzt, „typically by
+    a factor of 1.5"; ihre Tabelle 1 nennt standortabhaengige Faktoren von etwa 1,30 (La Palma) bis 1,67 (San Pedro Martir).
+    Standard hier 1,5 (kein Wert fuer den eigenen Standort bekannt).
 
-    Grenzen: Die Young-Naeherung unterschaetzt laut Osborn et al. (2015) die mediane Szintillation an mehreren
-    Observatorien; die genaue Abweichung hier nicht geprueft. Sie gilt fuer einen Stern, nicht fuer das Ensemble. Am LCO-Satz
-    (0,4 m, 1,3 s) ergibt sie ~0,006 mag, die gemessene Comp-Streuung ist groesser (0,03 mag, Ursache nicht abschliessend geklaert).
+    Rueckgabe: mag (1 sigma) fuer einen Stern. Grenzen: gilt nicht fuer das Ensemble; mittlere Turbulenz, keine
+    Nachtwerte (genauer mit Turbulenzprofilen, Osborn Gl. 3/4). Am LCO-Satz (0,4 m, 1,3 s) ergibt sie ~0,008 mag, die gemessene
+    Comp-Streuung ist groesser (~0,03 mag; Ursache nicht abschliessend geklaert).
 
-    Quellen: Young, A. T. 1967, AJ 72, 747, doi:10.1086/110303 (geprueft, Zitat); Osborn, J. et al. 2015, MNRAS 452, 1707,
-    doi:10.1093/mnras/stv1400 (geprueft, Zitat; verbesserte Formel mit Turbulenzprofilen). Der Zahlenfaktor 0,09 und
-    h0 = 8000 m stammen aus dem Gedaechtnis und sind nicht gegen Young (1967) geprueft.
+    Validierung: ``tests/test_batch.py`` (Richtung und Groessenordnung).
+
+    Quellen: Osborn, J., Foehring, D., Dhillon, V. S. & Wilson, R. W. 2015, MNRAS 452, 1707, doi:10.1093/mnras/stv1400,
+    arXiv:1506.06921 (Gl. 2 und Faktor 1,5 gelesen); Young, A. T. 1967, AJ 72, 747, doi:10.1086/110303 (Zitat geprueft).
     """
-    d_cm = aperture_m * 100.0
-    rel = 0.09 * d_cm ** (-2 / 3) * airmass ** 1.75 * np.exp(-height_m / 8000.0) / np.sqrt(2 * exptime_s)
-    return float(1.0857 * rel)
+    rel = np.sqrt(10e-6) * aperture_m ** (-2 / 3) * exptime_s ** -0.5 * airmass ** 1.5 * np.exp(-height_m / 8000.0)
+    return float(1.0857 * c_y * rel)
 
 
 def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> list[dict]:
@@ -89,8 +94,9 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
 
     Validierung: ``tests/test_batch.py`` (Fluss vs. Eingabe, 5 %); LCO delta Cep.
 
-    Quellen: CCD-Gleichung nach Howell, S. B. 2006, Handbook of CCD Astronomy, 2. Aufl., Cambridge UP (aus dem Gedaechtnis,
-    nicht geprueft); Merline, W. J. & Howell, S. B. 1995, Exp. Astron. 6, 163 (aus dem Gedaechtnis, nicht geprueft).
+    Quellen: Die CCD-Gleichung (Signal-Poisson + Himmel + Ausleserauschen, Himmelsring-Korrektur) ist Standard; Howell, S. B.
+    2006, Handbook of CCD Astronomy, 2. Aufl., Cambridge UP (Buch existiert, geprueft); die genaue Kapitel-/Seitenangabe der
+    Gleichung ist *nicht* geprueft (Buch nicht eingesehen).
     Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag (+ flux_ring, flux_ring_err).
     """
     cfg = cfg or CFG
@@ -274,10 +280,15 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
     ab. Die Ringmethode setzt voraus, dass Comps und Ziel dieselbe PSF haben (gleiches Bildfeld, aehnliche Position).
     Bei defokussiertem, ungesaettigtem Ziel entfaellt die Korrektur.
 
-    Quellen: *eigene Methode*; verwandt sind Photometrie aus den ungesaettigten PSF-Fluegeln bzw. mit maskiertem Kern
-    (vgl. STScI ACS-Notebook zu Saettigungsspuren
-    https://spacetelescope.github.io/hst_notebooks/notebooks/ACS/acs_saturation_trails/acs_saturation_trails.html; DECaPS2,
-    arXiv:2206.11909, zur Verfaelschung durch fast gesaettigte Sterne — beide nur als Hinweis gelesen, kein Rezept uebernommen).
+    Quellen: Die konkrete Kombination (Ring ausserhalb des Kerns, je Bild mit dem Ringanteil ungesaettigter Comps auf den
+    Gesamtfluss hochgerechnet) ist *eigene Methode*, an LCO delta Cep validiert. Verwandte, in der Literatur beschriebene
+    Verfahren (Titel/Kennung per Suche geprueft, Volltexte nicht gelesen): Halo-/Fluegel-Photometrie gesaettigter Sterne aus den
+    ungesaettigten PSF-Pixeln (EVEREST/K2, arXiv:1702.05488; TESS-Photometrie, arXiv:2106.08341); Apertursumme ueber die
+    Bleed-Spur bei ladungserhaltenden CCDs (HST ACS Instrument Handbook §4.3,
+    https://hst-docs.stsci.edu/acsihb/chapter-4-detector-performance/4-3-ccd-operations-and-limitations); Maskierung von
+    Bleeding-Pixeln (KMTNet, arXiv:2607.09148). Warum hier die Spur nicht half: Kreisaperturen bis 36 px (schliessen die ~8 px
+    lange Spur ein) aenderten die Streuung nicht (0,125-0,138 mag); der Verlust sitzt offenbar im abgeschnittenen Kern
+    (Digitalisierungsgrenze, ``SATURATE`` 102 400 ADU), nicht in der Spur. Das ist ein Schluss aus den Daten, keine Geraetekenntnis.
     Honeycutt 1992 (Ensemble) siehe :func:`ensemble_mag`.
     """
     cfg = cfg or CFG
