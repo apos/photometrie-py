@@ -53,6 +53,8 @@ def solve_image(image: str | Path, astap: str = ASTAP_DEFAULT, radius_deg: float
     ``wcs=None``.
     """
     image = Path(image)
+    if image.suffix.lower() in (".fz", ".gz"):
+        return _solve_compressed(image, astap, radius_deg, fov_deg, timeout, max_stars)
     notes: list[str] = []
     with fits.open(image) as hdul:
         img_hdr = hdul[0].header.copy()
@@ -90,6 +92,36 @@ def solve_image(image: str | Path, astap: str = ASTAP_DEFAULT, radius_deg: float
         notes.append("Fallback: WCS aus dem FITS-Header")
         return SolveResult(w, "header", log[-800:], img_hdr, notes)
     return SolveResult(None, "keine", log[-800:], img_hdr, notes)
+
+
+def _solve_compressed(image: Path, astap: str, radius_deg: float, fov_deg: float | None, timeout: int, max_stars: int) -> SolveResult:
+    """Loest ein komprimiertes Bild (``.fits.fz``/``.gz``) ueber eine **Kopie** in einem Wegwerf-Ordner.
+
+    Warum: ASTAP entpackt ``.fz``-Dateien neben dem Original und **loescht dabei das Original** (beobachtet 2026-11-11: eine Verknuepfung auf ein LCO-``.fits.fz`` war danach weg; die entpackte ``.fits``,
+    ``.ini`` und ``.wcs`` lagen im Ordner). Das verletzte die Zusage „Originalbild bleibt unveraendert“. Jetzt: Daten und Kopf per astropy lesen, als normales FITS in einen Wegwerf-Ordner schreiben, dort loesen;
+    die ``.wcs`` wird neben das Original kopiert (``<bild>.wcs``). Validierung: ``tests/test_core.py`` (Attrappe, die die Eingabedatei loescht).
+    """
+    import shutil
+    import tempfile
+
+    from .batch import read_frame
+    img, hdr, _ = read_frame(image)
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d) / (image.name.split(".")[0] + ".fits")
+        keep = fits.Header()
+        for k, v in hdr.items():
+            if k not in ("COMMENT", "HISTORY", "") and not k.startswith(("CTYPE", "CRVAL", "CRPIX", "CD", "PC", "CDELT", "A_", "B_", "AP_", "BP_")):
+                try:
+                    keep[k] = v
+                except (ValueError, TypeError):
+                    pass
+        fits.PrimaryHDU(np.asarray(img, np.float32), keep).writeto(tmp)
+        res = solve_image(tmp, astap=astap, radius_deg=radius_deg, fov_deg=fov_deg, timeout=timeout, max_stars=max_stars)
+        side = tmp.with_suffix(".wcs")
+        if side.exists():
+            shutil.copy2(side, image.with_suffix(".wcs"))
+    res.notes.append("komprimiertes Bild ueber eine Kopie geloest (ASTAP wuerde das Original loeschen)")
+    return res
 
 
 def gnomonic(ra, dec, ra0, dec0, min_cos: float = 0.1):

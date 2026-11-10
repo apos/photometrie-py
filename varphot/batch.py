@@ -138,21 +138,35 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
 
 
 def _process_one(args):
-    path, stars, cfg = args
+    path, stars, cfg, reference, wcs_mode = (tuple(args) + (None, "auto"))[:5] if len(args) < 5 else args
     img, hdr, wcs = read_frame(path)
     t = mid_exposure(hdr)
     info = dict(file=Path(path).name, jd_mid=t.jd, exptime=float(hdr.get("EXPTIME", np.nan)),
                 airmass=float(hdr.get("AIRMASS", np.nan)), fwhm_arcsec=float(hdr.get("L1FWHM", np.nan)),
-                telescope=str(hdr.get("TELESCOP", "")), filter=str(hdr.get("FILTER", "")))
+                telescope=str(hdr.get("TELESCOP", "")), filter=str(hdr.get("FILTER", "")), wcs_source="header" if wcs is not None else "none", reg_match=np.nan, reg_rms_px=np.nan)
+    if reference is not None and (wcs_mode == "register" or (wcs_mode == "auto" and wcs is None)):
+        from .registration import register_frame
+        reg = register_frame(reference["xy"], img, reference["wcs"], reference.get("fwhm", 4.0), reference.get("nsigma", 6.0))
+        info.update(reg_match=reg.n_match, reg_rms_px=reg.rms_px)
+        wcs, info["wcs_source"] = (reg.wcs, "registered") if reg.ok else (None, "none")
     if wcs is None:
         return [dict(info, star_id=s, star_flag="NO_WCS") for s in stars["id"]]
     return [dict(info, **r) for r in measure_frame(img, wcs, stars, hdr, cfg)]
 
 
-def run_batch(paths, stars: pd.DataFrame, cfg=None, workers: int = 4, progress=None) -> pd.DataFrame:
-    """Photometrie fuer alle Bilder (Prozesspool). ``progress``: optionaler Iterator-Wrapper (z. B. ``tqdm``)."""
+def run_batch(paths, stars: pd.DataFrame, cfg=None, workers: int = 4, progress=None, reference: dict | None = None, wcs_mode: str = "auto") -> pd.DataFrame:
+    """Photometrie fuer alle Bilder (Prozesspool). ``progress``: optionaler Iterator-Wrapper (z. B. ``tqdm``).
+
+    WCS je Bild: ``wcs_mode="header"`` nur aus dem Kopf; ``"register"`` immer per Registrierung gegen ``reference``; ``"auto"`` (Standard) aus dem Kopf und, wo sie fehlt, per Registrierung.
+    ``reference``: ``dict(xy=<Sternpositionen der Referenz>, wcs=<WCS der Referenz>, fwhm=<erwartete FWHM im Bild>, nsigma=6)`` (:mod:`varphot.registration`). Ergebnisspalten ``wcs_source``
+    (``header``/``registered``/``none``), ``reg_match`` und ``reg_rms_px``; ohne WCS Flag ``NO_WCS``. Validierung: ``tests/test_batch.py``, ``tests/test_registration.py``.
+    """
     cfg = cfg or CFG
-    jobs = [(str(p), stars, cfg) for p in paths]
+    if wcs_mode not in ("auto", "header", "register"):
+        raise ValueError(f"wcs_mode muss auto, header oder register sein, nicht {wcs_mode!r}")
+    if wcs_mode == "register" and reference is None:
+        raise ValueError("wcs_mode='register' braucht eine Referenz (xy, wcs)")
+    jobs = [(str(p), stars, cfg, reference, wcs_mode) for p in paths]
     with cf.ProcessPoolExecutor(workers) as ex:
         it = ex.map(_process_one, jobs)
         results = list(progress(it, total=len(jobs)) if progress else it)
@@ -166,9 +180,12 @@ def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
     am LCO-Satz waren 58 von 156 Bildern unbrauchbar (docs/testdaten.md).
 
     Wie: ``roles``: {star_id: 'target'|'comp'|'check'}. Flags je Bild:
-    ``NO_WCS`` (keine WCS); ``NO_SIGNAL`` (ein Comp mit Fluss <= 0 oder S/N < ``snr_min``); ``LOW_TRANSPARENCY``
-    (Median ueber die Comps von Fluss / Laufmedian des jeweiligen Comps < ``transp_min``: dünne Wolken); ``BAD_SEEING``
+    ``NO_WCS`` (keine WCS); ``NO_SIGNAL`` (weniger als ``min_comps`` (Standard 3) Comps mit Fluss > 0 **und** S/N ≥ ``snr_min``); ``LOW_TRANSPARENCY``
+    (Median ueber diese Comps von Fluss / Laufmedian des jeweiligen Comps < ``transp_min``: dünne Wolken); ``BAD_SEEING``
     (``fwhm_arcsec`` > ``fwhm_max_arcsec``). Spalte ``transparency`` ist der genannte Median.
+
+    Behobener Fehler (2026-11-11): Frueher genügte **ein** verrauschter Comp (S/N < 10), um das ganze Bild zu verwerfen. Mit schwachen Comps (kleine Felder, Ergaenzung durch Gaia-Sterne bis V = 12,5) fielen so
+    60 % der Bilder durch (34 von 105 brauchbar statt ~100). Jetzt zaehlt die **Zahl brauchbarer Comps**; einzelne schwache Comps werden im Bild nur uebergangen (siehe :func:`light_curve`).
 
     Grenzen: Die Schwellen (10 / 0,6 / 4″, ``CFG``) sind Startwerte ohne Herleitung. Der Laufmedian setzt voraus, dass die
     Mehrheit der Bilder brauchbar ist. ``BAD_SEEING`` liest den Header-FWHM (LCO: ``L1FWHM``); ohne ihn wird nicht geflaggt.
@@ -177,6 +194,7 @@ def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
     """
     cfg = cfg or CFG
     snr_min = cfg.get("snr_min", 10.0)
+    min_comps = int(cfg.get("min_comps", 3))
     transp_min = cfg.get("transp_min", 0.6)
     fwhm_max = cfg.get("fwhm_max_arcsec", 4.0)
     df = df.copy()
@@ -185,7 +203,9 @@ def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
     comps["snr"] = comps["flux"] / comps["flux_err"]
     ref = comps[comps["snr"] > snr_min].groupby("star_id")["flux"].median()          # Lauf-Median je Comp
     comps["rel"] = comps["flux"] / comps["star_id"].map(ref)
-    per = comps.groupby("file").agg(min_flux=("flux", "min"), min_snr=("snr", "min"), transp=("rel", "median"))
+    comps["ok"] = (comps["flux"] > 0) & (comps["snr"] >= snr_min)
+    per = comps.groupby("file").agg(n_good=("ok", "sum"))
+    per["transp"] = comps[comps["ok"]].groupby("file")["rel"].median()
     flags = {}
     for f, g in df.groupby("file"):
         fl = []
@@ -193,7 +213,7 @@ def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
             fl.append("NO_WCS")
         if f in per.index:
             p = per.loc[f]
-            if not (p["min_flux"] > 0 and p["min_snr"] >= snr_min):
+            if p["n_good"] < min_comps:
                 fl.append("NO_SIGNAL")
             elif p["transp"] < transp_min:
                 fl.append("LOW_TRANSPARENCY")
@@ -278,7 +298,7 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
 
     Grenzen: Der Kernradius (``core_r`` = 1,5 px) wurde an diesem Datensatz auf kleinstes Residuum gewaehlt, nicht auf die
     Amplitude; die Modellamplitude waechst mit dem Radius (0,75 bei 1,0 px bis 0,99 bei 2,5 px, Literatur ~0,88), der Radius
-    ist also nicht allgemeingueltig (NB04 Schritt 4b prueft mehrere). Bleeding reicht bis ~8 px, die Maske deckt es nicht
+    ist also nicht allgemeingueltig (frueher NB04 Schritt 4b; im Messnotebook NB02 ueber das Feld „Kernmaske“ einstellbar). Bleeding reicht bis ~8 px, die Maske deckt es nicht
     ab. Die Ringmethode setzt voraus, dass Comps und Ziel dieselbe PSF haben (gleiches Bildfeld, aehnliche Position).
     Bei defokussiertem, ungesaettigtem Ziel entfaellt die Korrektur.
 
@@ -300,7 +320,8 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
     out = []
     for f, g in df[df["frame_flags"] == ""].groupby("file"):
         g = g.set_index("star_id")
-        comp_ids = [i for i in g.index if roles.get(i) == "comp" and np.isfinite(g.loc[i, "flux"]) and np.isfinite(V.get(i, np.nan))]
+        comp_ids = [i for i in g.index if roles.get(i) == "comp" and np.isfinite(g.loc[i, "flux"]) and np.isfinite(V.get(i, np.nan)) and g.loc[i, "flux"] > 0
+                    and g.loc[i, "flux"] / g.loc[i, "flux_err"] >= cfg.get("snr_min", 10.0)]                  # zu verrauschte Comps gehen in diesem Bild nicht in den Nullpunkt ein
         if len(comp_ids) < 3 or not np.isfinite(g.loc[target_id, "flux"]) or g.loc[target_id, "flux"] <= 0:
             continue
         fc = g.loc[comp_ids, "flux"].to_numpy()
@@ -336,10 +357,10 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
 
 
 def read_measurements(path) -> pd.DataFrame:
-    """Liest eine Messtabelle (CSV aus NB04) mit den richtigen Typen.
+    """Liest eine Messtabelle (CSV aus NB02) mit den richtigen Typen.
 
     Warum: ``DataFrame.to_csv`` schreibt fehlende Zahlen (NaN) als leere Felder; mit ``keep_default_na=False`` blieben sie leere Zeichenketten und machten ganze
-    Zahlenspalten zu Text (Fehler im Cache-Pfad von NB04: ``'>' not supported between 'str' and 'float'``). Hier gelten leere Felder in Zahlenspalten als NaN, in den
+    Zahlenspalten zu Text (Fehler im Cache-Pfad von NB02: ``'>' not supported between 'str' and 'float'``). Hier gelten leere Felder in Zahlenspalten als NaN, in den
     Textspalten (``star_id``, ``star_flag``, ``frame_flags``, ``file``, ``telescope``, ``filter``) als leere Zeichenkette.
     """
     text = ["star_id", "star_flag", "frame_flags", "file", "telescope", "filter", "role"]
@@ -351,7 +372,7 @@ def read_measurements(path) -> pd.DataFrame:
 
 
 def stars_from_field_config(record: dict, extra_roles=("comp", "check")) -> pd.DataFrame:
-    """Sterntabelle (``id, role, ra, dec, V, V_err``) aus einer NB03-``field_config.json`` (Ziel + Comps/Check)."""
+    """Sterntabelle (``id, role, ra, dec, V, V_err``) aus einer NB01-``field_config.json`` (Ziel + Comps/Check)."""
     z = record["ziel"]
     rows = [dict(id="target", role="target", ra=z["ra"], dec=z["dec"], V=z["V"], V_err=np.nan)]
     for s in record["sterne"]:

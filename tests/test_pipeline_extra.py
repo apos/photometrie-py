@@ -114,3 +114,41 @@ def test_plot_wcs_check_smoke(tmp_path):
                           pixel_scale_arcsec=1.0, median_dra_arcsec=0.01, median_ddec_arcsec=-0.02, rms_arcsec=0.2, n_match=n, offset_arcsec=0.02, worst_cell_arcsec=0.1, verdict="OK")
     plot_wcs_check(chk, (3000, 4000), outfile=str(tmp_path / "w.png"))
     assert (tmp_path / "w.png").stat().st_size > 5000
+
+
+# ------------------------------------------------------------------------------------------------ WCS je Bild per Registrierung
+def test_run_batch_registers_frames_without_wcs(tmp_path):
+    from astropy.wcs import WCS
+
+    from varphot.registration import bright_sources
+    w = WCS(naxis=2)
+    w.wcs.crpix, w.wcs.crval, w.wcs.cdelt, w.wcs.ctype = [200, 150], [100.0, 20.0], [-0.0004, 0.0004], ["RA---TAN", "DEC--TAN"]
+    rng = np.random.default_rng(4)
+    pts = np.c_[rng.uniform(60, 340, 30), rng.uniform(50, 250, 30)]
+    flux = np.geomspace(2e3, 4e4, 30)[::-1]
+    yy, xx = np.mgrid[:300, :400]
+
+    def render(p, seed):
+        img = 300 + np.random.default_rng(seed).normal(0, 3, (300, 400))
+        for (x, y), f in zip(p, flux):
+            img += f / (2 * np.pi * 1.7 ** 2) * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 1.7 ** 2))
+        return img.astype(np.float32)
+    ref_img = render(pts, 1)
+    ref = dict(xy=bright_sources(ref_img, 4.0), wcs=w, fwhm=4.0)
+    shifted = pts + [9.0, -6.0]                                                          # Nachfuehrfehler: das Feld ist um (9, -6) px verschoben
+    for name, p in (("a.fits", shifted), ("b.fits", pts + [3.0, 2.0])):
+        h = fits.Header({"DATE-OBS": "2020-01-10T01:00:00", "EXPTIME": 10.0, "GAIN": 2.0, "RDNOISE": 5.0, "SATURATE": 60000.0})      # ohne WCS
+        fits.PrimaryHDU(render(p, 5), h).writeto(tmp_path / name)
+    ra, dec = w.pixel_to_world_values(pts[[0, 4]][:, 0], pts[[0, 4]][:, 1])                # Ziel = Stern 0, Comp = Stern 4 (wahre Himmelspositionen)
+    stars = pd.DataFrame({"id": ["target", "c1"], "ra": ra, "dec": dec})
+    cfg = {"ap_r": 6, "ap_r_in": 9, "ap_r_out": 13, "sat_adu": 60000}
+    df = run_batch([tmp_path / "a.fits", tmp_path / "b.fits"], stars, cfg=cfg, workers=1, reference=ref)
+    assert set(df["wcs_source"]) == {"registered"} and (df["star_flag"] == "").all() and df["reg_rms_px"].max() < 0.7
+    f = df[df["file"] == "a.fits"].set_index("star_id")["flux"]
+    assert f["target"] == pytest.approx(flux[0], rel=0.05) and f["c1"] == pytest.approx(flux[4], rel=0.05)      # die Aperturen sitzen auf den verschobenen Sternen
+    none = run_batch([tmp_path / "a.fits"], stars, cfg=cfg, workers=1)                  # ohne Referenz: wie bisher NO_WCS
+    assert (none["star_flag"] == "NO_WCS").all() and (none["wcs_source"] == "none").all()
+    with pytest.raises(ValueError, match="Referenz"):
+        run_batch([tmp_path / "a.fits"], stars, cfg=cfg, wcs_mode="register")
+    with pytest.raises(ValueError, match="wcs_mode"):
+        run_batch([tmp_path / "a.fits"], stars, cfg=cfg, wcs_mode="egal")

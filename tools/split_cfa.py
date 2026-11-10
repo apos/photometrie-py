@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """CFA-Bilder (kalibrierte Bayer-FITS) in R-, G-, B-Einzelbilder trennen: ``python tools/split_cfa.py EINGABEORDNER AUSGABEORDNER [--pattern RGGB] [--g12]``.
 
-G = Mittel beider Gruen-Ebenen; WCS und Pixelskala werden fuer die halbe Aufloesung angepasst. Ergebnis: ``<name>_R.fits``, ``<name>_G.fits``, ``<name>_B.fits`` — dann NB04 je Kanal.
+G = Mittel beider Gruen-Ebenen; WCS und Pixelskala werden fuer die halbe Aufloesung angepasst. Ergebnis: ``<name>_R.fits``, ``<name>_G.fits``, ``<name>_B.fits`` — dann NB02 je Kanal.
 Siril kalibriert vorher im CFA-Bereich (``tools/siril_calibrate_cfa.ssf``). Details: varphot/cfa.py.
 """
 import argparse
