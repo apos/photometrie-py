@@ -165,7 +165,7 @@ chart.png und lightcurve.png geschrieben.
 ## Hardware (Referenz-Setup)
 
 - **Teleskop**: Celestron C9.25 SCT (235 mm, f/10 → f/7 mit Reducer)
-- **Kamera**: QHY268M (Vollformat Mono, 3,76 µm Pixel)
+- **Kamera**: QHY268M (APS-C Mono, 6252×4176 px, 3,76 µm Pixel)
 - **Filter**: Johnson-Cousins B, V, Rc, Ic (Baader Bessel, 2")
 - **Plate Solver**: ASTAP (lokal, offline)
 
