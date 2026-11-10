@@ -305,14 +305,22 @@ B/V/R ab, (3) alle drei Farben entstehen im selben Bild — die Farbe des Sterns
   Bedingungen eines Beobachters, die dort unwidersprochen blieben (Gary Hawkins, OSC-CMOS, RMS 0,04–0,06 mag): Ziele mit **(V−R) < 1**, **mindestens 4 Comps**.
   Ken Menzies: `TG` → V transformiert gut für die meisten Sterne, `TB`/`TR` schlechter (Emissions-/Absorptionslinien farbiger Sterne); Empfehlung: Standardfeld aufnehmen und
   `TR` (untransformiert) gegen `R` (transformiert) für sehr blaue/rote Comps vergleichen. Bei Sternen mit starken Emissions-/Absorptionsbändern `TB`/`TG`/`TR` melden.
-- **`OBSTYPE` — Widerspruch in den Quellen:** Die Format-Seite (G) sagt „If you use a CMOS camera please report it as CCD". Die Zusammenfassung im selben Forum-Thread (G, Hawkins)
-  nennt für **OSC-CMOS `OBSTYPE=DSLR`** (mit `TB`/`TG`/`TR`, `TRANS=NO` oder `B`/`V`/`R`, `TRANS=YES`); der Einwand eines Beobachters betraf andere Punkte, nicht diesen.
-  **Entscheidung (vorläufig):** für die Farbkamera `OBSTYPE=DSLR`, in `NOTES` „OSC CMOS camera, Bayer RGGB, green channel"; vor der ersten Meldung bei der AAVSO bestätigen lassen.
+- **`OBSTYPE`:** Die Format-Seite (G) sagt „If you use a CMOS camera please report it as CCD“; das Handbuch (G, §6.7) verlangt für Dateien mit DSLR-Daten „Be sure that the ‚OBSTYPE‘ in that output file is set to DSLR“ und nennt
+  `TG`/`TB`/`TR` ausdrücklich als Kennzeichen für „DSLR (and one shot color CCD) photometry“ (§6.2.3); die Zusammenfassung im Forum-Thread (G, Hawkins, 2022) nennt für **OSC-CMOS `OBSTYPE=DSLR`**.
+  **Entscheidung (vorläufig):** Farbkamera → `OBSTYPE=DSLR`, in `NOTES` „OSC CMOS camera, Bayer RGGB, green channel“; die Lücke (Handbuch kennt OSC-CMOS nicht namentlich) vor der ersten Meldung bei der AAVSO bestätigen lassen.
 - **Datum:** nur `JD`, `HJD` oder `EXCEL` (G), Mittenzeit in UT — **BJD_TDB nicht vorgesehen**: Export mit UTC-Mitte als JD; BJD_TDB bleibt der Auswertung vorbehalten.
 - **Weitere Felder (G):** `#TYPE=Extended`, `#OBSCODE`, `#SOFTWARE`, `#DELIM`, `#DATE`, `#OBSTYPE`; je Zeile `MTYPE=STD`, `CNAME` (bei Ensemble `ENSEMBLE`, `CMAG=na`), `KNAME`/`KMAG`
   (Check-Stern, nicht im Ensemble), `AIRMASS`, `CHART` (VSP-Sequenz-ID; bei eigenen Comps Kommentarcode K „non-AAVSO chart", Comps in `NOTES`), `NOTES` mit Unterfeldern (`|VMAGINS=…|Tv_bv=…`).
 - **IR-Sperrfilter:** Ohne UV/IR-Sperrfilter leckt IR in die Kanäle (F, Forum 2023); rote Sterne erscheinen dann deutlich zu hell. Der Aufbau gehört in die `NOTES`.
-- **Das DSLR-Handbuch v1.4 (§6.5 Transformationsgleichungen, §6.7 Einreichen) ist nicht gelesen** (§11.10); es wird in den Quellen oben zitiert.
+- **AAVSO DSLR Observing Manual, Version 1.4** (G; © 2016 AAVSO, ISBN 978-1-939538-07-9; Redaktion M. Blackford, Kap. 6 Kloppenborg & Henden; gelesen: Kap. 4–6, Anhang A und E). Wichtigste Regeln:
+  - **Standardisierte Magnitude** (§6.2.3): „Standardized Mag ≈ Δmag + C_catalog“ (Gl. 6.7–6.10); `TG` = Grünkanal mit dem Katalog-V des Comps, `TB` Blaukanal mit B, `TR` Rotkanal mit R. Das ≈ steht dort, weil die Kanäle nicht exakt Johnson/Cousins sind.
+  - **Ensemble-Eintrag** (§6.7): „ensemble“ im Comp-Label, „na“ als Comp-Mag; im Check-Mag-Feld die *transformierte* (nicht instrumentelle) Magnitude. Mehrere Farben desselben Bildes: gleiche `GROUP`-Nummer.
+  - **Comps** (§6.3.1): AAVSO-Sequenzen bevorzugen; (B−V) zwischen +0,3 und +1,0 (Mittel 0,7), keine roten/sehr blauen Sterne, ähnliche Helligkeit wie das Ziel, keine Begleiter, **S/N ≥ 100**, ähnliche Fehler (< 0,01–0,02 mag), nicht nahe der Sättigung. Katalogquellen für Sterne ohne Sequenz: Mermilliod-UBV (II/168), SeqPlot (APASS, Tycho-2, GCPD).
+  - **Sättigung/Linearität** (§4.5.2): alle Sterne (Ziel, Comps, Check) unter **75 % des Maximalwerts** halten (14 bit: ≈ 12 300 ADU); „impossible to obtain meaningful photometry of the saturated star“. Linearität selbst testen (Anhang E).
+  - **Abtastung** (§5.5.1): FWHM der Sterne im Rohbild (vor Kanaltrennung) **≥ 8–10 Pixel**, damit jeder der vier Bayer-Kanäle gut abgetastet ist; zu scharfe Sterne erzeugen Kanalschwankungen durch die Pixelfarbe unter dem Zentroid (Beispiel V1369 Cen).
+  - **Kanaltrennung** (§5.4): „The best procedure is to extract both green channels, average them together, and perform photometry on the resulting image“; Trennung vor oder nach der Kalibrierung ist gleichwertig, solange alles gleich behandelt wird. Aperturradius = 1,2–1,5 × FWHM des größten Sterns (§6.1.1), Himmelsring mit mindestens so vielen Pixeln wie die Apertur.
+  - **Dunkelbilder** (§4.4.2): „Classical dark correction“ (mindestens 16 Darks bei gleichen Einstellungen) empfohlen; belichtungsskalierte Darks nicht für Canon/Nikon-RAW — für andere Kameras testen (→ NB07).
+  - **Nicht transformieren** bei Sternen mit starken Emissions-/Absorptionslinien (Nova V1369 Cen: transformiertes R 0,43 mag zu schwach, B +0,15, V +0,07 mag zu hell) — dann nur `TB`/`TG`/`TR` melden. Für geeignete Sterne (E1-Standardsterne, 15 Stück): transformiertes V innerhalb 0,02 mag des Katalogs, Präzision < 10 mmag (Tab. 6.1).
 
 ### 11.3 Rolle von Siril — und warum seine Lichtkurve die Transformation nicht ersetzt
 
@@ -330,33 +338,36 @@ Standardfeld und rechnet sie heraus. Siril kann das nicht (die Doku erwähnt kei
 
 ### 11.4 Ablauf in der Pipeline (Entwurf)
 
-1. **Aufnahme:** Roh (CFA, FITS, 16 Bit), UV/IR-Sperrfilter im Strahlengang, **leicht defokussiert** (jeder Kanal sieht dann mehrere Pixel), Belichtung unter der Sättigung (Bittiefe beachten, §11.6),
+1. **Aufnahme:** Roh (CFA, FITS, 16 Bit), UV/IR-Sperrfilter im Strahlengang, **defokussiert auf FWHM ≥ 8–10 px im Rohbild** (Handbuch §5.5.1), Sterne unter 75 % des Maximalwerts, Darks zur Belichtung (klassisch); **Standardfeld** (M 67 / NGC 7790) bei mehreren Luftmassen für die Koeffizienten.
    Darks zur Belichtung; **Standardfeld** (M 67 / NGC 7790) bei mehreren Luftmassen für die Koeffizienten.
 2. **Siril:** Kalibrieren (CFA), Kanäle trennen → je Kanal ein Mono-FITS mit gleichen Zeitstempeln.
 3. **Pipeline je Kanal** (Apertur, Ensemble) → instrumentelle Magnituden `r`, `g`, `b` derselben Sterne.
 4. **Ohne Koeffizienten:** `TG`/`TB`/`TR`, `TRANS=NO`, `MTYPE=STD`, Comps im jeweiligen Band.
 5. **Mit Koeffizienten:** Transformation (§11.5) → `V` (optional `B`, `R`), `TRANS=YES`, Koeffizienten in `NOTES`.
 
-### 11.5 Transformation auf Johnson/Cousins (G: Kamenec 2023; Methode nach Benson 1998 und Henden & Kaitchuck 1982, dort zitiert)
+### 11.5 Transformation auf Johnson/Cousins (G: AAVSO DSLR Observing Manual §6.5–6.6; Variante Kamenec 2023)
 
-Kamenec (OEJV 2023, Canon EOS 500D; Gleichungen im Wortlaut gelesen): Variable (Index 1) und Vergleichsstern (Index 2) stehen auf demselben Bild nahe beieinander (< 0,2°), daher entfallen
-die Extinktionsterme. Instrumentelle Kanäle `b`, `g`, `r`, Katalogwerte `B`, `V`, `R`:
+**Handbuch (maßgeblich), Gl. 6.11–6.14 — enge Felder, Differenzextinktion vernachlässigbar** (alle Größen differentiell gegen den Comp; Δb = b_var − b_comp usw.):
 
 ```
-Δ(B − V) = T_bg · Δ(b − g)          Δ(V − R) = T_gr · Δ(g − r)
-B1 = B2 + Δb + T_b · T_bg · Δ(b − g)
-V1 = V2 + Δg + T_g · T_bg · Δ(b − g)      (oder  V1 = V2 + Δg + T_g · T_gr · Δ(g − r))
-R1 = R2 + Δr + T_r · T_gr · Δ(g − r)
+B_var = Δb + Tb_bv · Δ(B−V) + B_comp
+V_var = Δv + Tv_bv · Δ(B−V) + V_comp          (v = Grünkanal)
+R_var = Δr + Tr_bv · Δ(B−V) + R_comp
+Δ(B−V) = Tbv · Δ(b−v)                           (Δ(B−V) = Katalog-(B−V) des Ziels minus des Comps)
 ```
-Koeffizienten aus einem Standardfeld (Landolt-Felder der AAVSO, hier Melotte 111, 24 Sterne): `T_bg` = Steigung von (B−V) gegen (b−g); `T_gr` = Steigung von (V−R) gegen (g−r); `T_b` = Steigung von
-(B−b) gegen (B−V); `T_g` = Steigung von (V−g) gegen (B−V) oder (V−R); `T_r` = Steigung von (R−r) gegen (V−R). Ergebnis der Arbeit (Canon 500D): `T_bg` 3,186, `T_gr` 1,526, `T_b` 0,641, `T_g` −0,162,
-`T_r` −0,537; mittlere Abweichung transformiert minus Katalog **B 0,113, V 0,019, Rc 0,032 mag** — Grün gelingt am besten, Blau am schlechtesten; Koeffizienten der Farbindizes sollten je Veränderlichem
-bestimmt werden (Farbe ändert sich mit der Phase bei Pulsierenden). *Das sind Werte einer Canon, nicht der Ares-C.*
 
-**Alternative/Gegenprobe, ohne Standardfeld (F; Software GPL-3.0, nur gelesen):** `astronomyk/seestar_photometry` kalibriert Bayer-Ebenen auf **Gaia-DR3-synthetisches Johnson V**
-(`V = m_inst + ZP + k·(B−R)` auf der Grünebene). Dessen Dokumentation misst für die Seestar S50 (UV/IR-Sperrfilter, rote Kante 693 nm): `G_S50` liegt 8 nm von Johnson V, `R_S50` 4 nm von Sloan r, `B_S50` 60 nm
-rot von Johnson B (die blaue Bayer-Farbe hat einen roten Ausläufer) — also dieselbe Reihenfolge wie bei Kamenec: Grün ≈ V gut, Blau schlecht. Die Gaia-Synthese reproduziert Gaias eigenes `v_jkc_mag` mit 8,2 mmag Streuung
-(231 924 Sterne, nach Abzug von +0,0364 mag). Für die Ares-C bräuchte man dazu die absolute Kanalempfindlichkeit samt Sperrfilter; die Relativkurve der Herstellerangabe (§11.6) liegt nur als Bild vor.
+Koeffizienten aus einem Standardfeld (Gl. 6.15–6.18): `(b−v) = 1/Tbv · (B−V) + ZP` (Tbv = Kehrwert der Steigung); `(B−b) = Tb_bv·(B−V) + ZP_b`, `(V−v) = Tv_bv·(B−V) + ZP_v`,
+`(R−r) = Tr_bv·(B−V) + ZP_r` (Steigungen). Die „normale Praxis“ war, nur Gl. 6.12 mit Katalog-(B−V) zu nutzen; das ist bei **Veränderlichen, die ihre Farbe ändern** (δ Cep!) systematisch falsch.
+Besser: Δ(B−V) aus den instrumentellen Kanälen (Gl. 6.14), also Blau- und Rotkanal mitzutransformieren. Für **weite Felder/große Zenitdistanz** kommt ein Extinktionsterm hinzu (Gl. 6.19–6.21, `−k·ΔX`);
+die Ebenenanpassung `(V−v) = −kv·X + Tv_bv·(B−V) + ZPv` (Gl. 6.22–6.25, Citizen-Sky-Verfahren, Kloppenborg et al., JAAVSO 40, 2012) braucht **mindestens 3, empfohlen ≥ 6 Comps**. Das Handbuch liefert dazu eine Auswertetabelle
+(<https://www.aavso.org/dslr-camera-photometry-guide>, „Additional Material“). Bei kleinem Feld (Ares-C Pro an 540 mm: ~1,2°) und Zenitnähe gelten Gl. 6.11–6.14.
+
+**Variante Kamenec (OEJV 2023, Canon EOS 500D; Gleichungen gelesen)** nach Benson 1998 und Henden & Kaitchuck 1982: gleiche Struktur, aber andere Koeffizientendefinition (z. B. `V1 = V2 + Δg + T_g·T_bg·Δ(b−g)`,
+`T_bg` = Steigung (B−V) gegen (b−g)); Ergebnis Melotte 111: mittlere Abweichung transformiert − Katalog **B 0,113, V 0,019, Rc 0,032 mag** — Grün gelingt am besten, Blau am schlechtesten. *Werte einer Canon, nicht der Ares-C.*
+
+**Alternative/Gegenprobe ohne Standardfeld (F; Software GPL-3.0, nur gelesen):** `astronomyk/seestar_photometry` kalibriert Bayer-Ebenen auf **Gaia-DR3-synthetisches Johnson V** (`V = m_inst + ZP + k·(B−R)` auf der Grünebene).
+Dessen Doku misst für die Seestar S50: `G_S50` 8 nm von Johnson V, `R_S50` 4 nm von Sloan r, `B_S50` 60 nm rot von Johnson B — dieselbe Reihenfolge wie bei Kamenec. Die Gaia-Synthese reproduziert Gaias `v_jkc_mag` mit 8,2 mmag Streuung
+(231 924 Sterne). Für die Ares-C bräuchte man die absolute Kanalempfindlichkeit samt Sperrfilter; die Relativkurve der Herstellerangabe (§11.6) liegt nur als Bild vor.
 
 ### 11.6 Player One Ares-C Pro (IMX533) — Herstellerangaben (G: Ares-C Pro Camera Manual V1.0, Dec 2024) und Folgen
 
@@ -397,7 +408,7 @@ Für V > 10 liegen die Gaia-Werte überwiegend 0,02–0,07 mag zu schwach. **Fol
 Ja — Kamera-Charakterisierung und Transformationskoeffizienten gehören **nicht** in die Beobachtungsnotebooks, sondern in eigene, seltener laufende Notebooks, deren Ergebnis als „Kameraprofil" in
 `PHOTOMETRIE_PY_DATA/` (neben `observer.json`) liegt und von NB04/05 gelesen wird:
 
-- **NB07 Kamera-Charakterisierung** (Hardware, pro Gain-Modus): Gain und Ausleserauschen aus Flat-/Bias-Paaren (Photon-Transfer-Kurve), Linearität aus Flats steigender Belichtung (Abweichung von der Geraden,
+- **NB07 Kamera-Charakterisierung** (Hardware, pro Gain-Modus): Gain und Ausleserauschen aus Flat-/Bias-Paaren (Photon-Transfer-Kurve), Linearität aus Flats steigender Belichtung (Abweichung von der Geraden, Verfahren nach Handbuch Anhang A und E (G): Maximalwert und Offset aus Über-/Nullbelichtung, Gain/Ausleserauschen/Full Well aus Bias-, Dark-, Flat-Paaren je Einstellung; **Rausch-Kenngrößen an einer einzelnen Farbebene (R, B oder G1) messen, nicht am gemittelten Grün** (das hat kleinere Streuung und verfälscht Gain/RN); Linearität aus Belichtungsreihe (2, 4, 6 … s, je dreimal): Zählrate (ADU/s) gegen Belichtung, Residuum in % — linearer Bereich dort, wo das Residuum ≈ 0 ist; Belichtungen unter ~10 s können durch die reale Verschlusszeit abweichen (Rolling Shutter der Ares-C beachten).
   Sättigungsgrenze in ADU), Dunkelstrom gegen Temperatur, Bittiefe/Skalierung der FITS; je Bayer-Kanal. Ausgabe: `Camera` (Gain, RN, Dunkelstrom, Linearität, `SATURATE`) → NB01, NB04.
 - **NB08 Transformationskoeffizienten** (Aufbau aus Kamera + Filter + Optik): Standardfeld-Bilder (M 67/NGC 7790) → je Kanal instrumentelle Magnituden → Regressionen aus §11.5 → `T_bg`, `T_gr`, `T_b`, `T_g`, `T_r` mit Fehlern,
   Gütetest (Abweichung transformiert minus Katalog), Gültigkeit ((V−R) < 1). Ausgabe: `transform.json` (mit Datum, Aufbau). Neubestimmung bei jeder Änderung des Aufbaus.
@@ -432,8 +443,8 @@ Warnung (F): Seestar-Firmware seit 08/2025 soll nichtlineare FITS erzeugen (BAA-
 | Gaia gegen VSP | `tools/compare_gaia_vsp.py` (eigene Messung, Netz) | **eigene Rechnung** |
 | Siril: Lichtkurven, AAVSO-Export | Siril-Doku „Light curves", <https://siril.readthedocs.io/en/latest/photometry/lightcurves.html> | **G** (Auszug über WebFetch) |
 | Siril: Split CFA / Extract Green | Siril-Doku „Split Channels", <https://siril.readthedocs.io/en/latest/processing/extraction.html> | **F** (Suchauszug) |
-| DSLR Observing Manual v1.4 §6.5/§6.7 | <https://aavso.org/wp-content/uploads/2026/07/DSLR-English-1.4.pdf> (Link von der AAVSO-Handbuchseite <https://aavso.org/manuals/>, Rubrik „DSLR / Mirrorless Cameras“, Eintrag „English (v1.4)“) | **nicht gelesen** (Download per Skript von der AAVSO-Seite gesperrt; im Browser-Pane lässt sich die PDF öffnen, aber nicht als Text auslesen; ein Versuch, sie per eingeschleustem Skript auszulesen, wurde abgelehnt und nicht umgangen) |
+| AAVSO DSLR Observing Manual v1.4 (© 2016 AAVSO, ISBN 978-1-939538-07-9): §4.4–4.5, §5.4–5.5, §6.1–6.7, Anhang A, E | <https://aavso.org/wp-content/uploads/2026/07/DSLR-English-1.4.pdf> (Link von <https://aavso.org/manuals/>, Rubrik „DSLR / Mirrorless Cameras“, „English (v1.4)“); vom Nutzer lokal abgelegt, mit `pdftotext` gelesen | **G** (Kap. 4–6, Anhang A/E im Wortlaut gelesen; Kap. 1–3, 7, Anhänge B–D nur überflogen) |
 | Standardfelder M 67, NGC 7790; Transform Generator/Applier | AAVSO-Seiten und JAAVSO-Artikel (Suchauszug) | **F** |
 
-**Offen:** (1) DSLR-Handbuch §6.5/§6.7 mit dem Nutzer gegenlesen (der Nutzer legt die PDF lokal ab). (2) Bestätigung der AAVSO zu `OBSTYPE` bei OSC-CMOS. (3) Bittiefe/Skalierung im FITS; Sperrfilter im Aufbau (Modell Ares-C Pro mit Kühlung bestätigt).
+**Offen:** (1) Bestätigung der AAVSO zu `OBSTYPE` bei OSC-CMOS (Handbuch kennt nur DSLR/„one shot color CCD“). (2) Bittiefe/Skalierung im FITS; Sperrfilter im Aufbau (Modell Ares-C Pro mit Kühlung bestätigt). (3) Siril-Befehlsnamen in der installierten Version prüfen. (4) B-/R-Comp-Magnituden: VSP statt Gaia (§11.7); Comp-Regeln für die Farbkamera nach Handbuch §6.3.1 (B−V 0,3–1,0, S/N ≥ 100) in NB03 abbilden.
 (4) Siril-Befehlsnamen in der installierten Version prüfen. (5) B-/R-Comp-Magnituden: VSP statt Gaia (§11.7).
