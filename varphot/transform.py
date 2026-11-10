@@ -97,14 +97,26 @@ def solution_path(model: str, setting: str) -> Path:
     return base / f"transform_{slug(model)}_{slug(setting)}.json"
 
 
-def catalog_from_vsp_table(vsp) -> pd.DataFrame:
+def _forbid_gaia(cat: pd.DataFrame) -> None:
+    """Gaia-abgeleitete Werte duerfen **nicht** in die Transformation: ``source`` mit „Gaia“ -> Fehler.
+
+    Warum: Die Pruefung gegen die AAVSO-Sequenz (KONZEPT §11.7) zeigte fuer Gaia-synthetisches R eine Systematik von +0,045 mag und 0,03–0,05 mag Streuung in V/B; Koeffizienten aus solchen Katalogwerten
+    wuerden den Fehler des Katalogs in jede gemeldete Magnitude tragen. Standardsterne muessen aus den AAVSO-Standardfeldern, der AAVSO-Sequenz oder Landolt/Stetson stammen.
+    """
+    if "source" in cat and cat["source"].astype(str).str.contains("gaia", case=False).any():
+        raise ValueError("Katalog enthaelt Gaia-abgeleitete Werte (Spalte 'source'): fuer die Transformation nur AAVSO-Standardfeld/-Sequenz oder Landolt/Stetson verwenden")
+    if "id" in cat and cat["id"].astype(str).str.match(r"^g\d+$").any():
+        raise ValueError("Katalog enthaelt Sterne mit Gaia-Kennung (g1, g2 …) aus NB03: nicht als Standardsterne geeignet")
+
+
+def catalog_from_vsp_table(vsp, source: str = "AAVSO") -> pd.DataFrame:
     """Katalogtabelle ``id, ra, dec, B, V, R`` aus einer AAVSO-VSP-Tabelle (:func:`varphot.vsp.fetch_vsp`); nur Sterne mit B und V (R = Rc, wenn vorhanden).
 
     Warum: Als Standardfeld taugt jedes Feld, dessen Sterne B/V (und R) aus der AAVSO-Sequenz kennen — z. B. das Feld des Ziels (Handbuch §6.6: die Comps im Bild eichen die
     Transformation). Grenze: Sequenzsterne sind weniger zahlreich und weniger farbenreich als ein Standardhaufen (M 67, NGC 7790); der Farbbereich begrenzt die Gueltigkeit.
     """
     df = vsp.to_pandas() if hasattr(vsp, "to_pandas") else pd.DataFrame(vsp)
-    out = pd.DataFrame(dict(id=df["label"].astype(str), ra=df["ra"].astype(float), dec=df["dec"].astype(float),
+    out = pd.DataFrame(dict(id=df["label"].astype(str), source=source, ra=df["ra"].astype(float), dec=df["dec"].astype(float),
                             B=pd.to_numeric(df["B"], errors="coerce"), V=pd.to_numeric(df["V"], errors="coerce"),
                             R=pd.to_numeric(df["Rc"], errors="coerce") if "Rc" in df else np.nan))
     return out.dropna(subset=["B", "V"]).reset_index(drop=True)
@@ -159,6 +171,7 @@ def fit_transform(cat: pd.DataFrame, instr: pd.DataFrame, channels: dict | None 
     Grenzen: Der (B−V)-Bereich der Sterne begrenzt die Gueltigkeit (``bv_range``); Handbuch/Forum: bei starker Emission/Absorption nicht transformieren, Ziele mit (V−R) < 1.
     Validierung: ``tests/test_transform.py`` (synthetisch, Koeffizienten ±5 %).
     """
+    _forbid_gaia(cat)
     channels = channels or {"b": "b", "v": "g", "r": "r"}
     c = cat.set_index("id")
     idx = [i for i in c.index if i in instr.index]
@@ -246,3 +259,62 @@ def loo_validation(cat: pd.DataFrame, instr: pd.DataFrame, sol: TransformSolutio
             out[band] = dict(rms_transformed=float(np.sqrt(np.mean(tr ** 2))), rms_standardized=float(np.sqrt(np.mean(st ** 2))), n=len(tr),
                              mean=float(tr.mean()), resid_transformed=tr.tolist(), resid_standardized=st.tolist())
     return out
+
+
+def transformed_light_curve(meas: dict[str, pd.DataFrame], stars: pd.DataFrame, target_id, sol: TransformSolution, channels: dict | None = None,
+                            min_comps: int = 4, clip: float = 3.0) -> pd.DataFrame:
+    """Transformierte Lichtkurve (B, V, R, B−V) des Ziels aus den Messtabellen der Farbkanaele — Anwendung der Koeffizienten (Handbuch Gl. 6.11–6.14).
+
+    Warum: Erst damit darf man ``V``/``B``/``R`` mit ``TRANS=YES`` melden. Wie: Je Bild und Comp ``j`` (mit Katalog-B und -V): instrumentelle Differenzen ``Δb, Δg, Δr`` Ziel − Comp aus
+    ``m = −2,5·log10(flux)``; :func:`transform_target` (Farbe aus den instrumentellen Kanaelen, ``Δ(B−V) = Tbv·Δ(b−g)``); Median ueber alle Comps (Ausreisser > ``clip``·MAD verworfen), Streuung/√n als Fehler.
+    Nur Bilder ohne ``frame_flags`` und mit Messung des Ziels in den Kanaelen b und g (r optional). Die Luftmasse des Ziels und der Comps im selben Bild gilt als gleich (enges Feld; Handbuch §6.5.1).
+    Rueckgabe: ``file, jd_mid, airmass, B, V, R, BV, V_err, n_comps``. Grenzen: Gueltig im Farbbereich der Standardsterne (``sol.bv_range``) und fuer geeignete Sterne ((V−R) < 1, keine starken Emissionslinien);
+    der Katalog der Comps muss AAVSO-Werte tragen (Gaia-abgeleitete Comps werden abgelehnt, :func:`_forbid_gaia`). ``stars``: Spalten ``id, role, B, V`` (``R`` optional); Rolle ``comp``.
+    Validierung: ``tests/test_transform.py``.
+    """
+    _forbid_gaia(stars)
+    channels = channels or {"b": "b", "v": "g", "r": "r"}
+    comps = stars[(stars["role"] == "comp") & stars["B"].notna() & stars["V"].notna()].set_index("id")
+    wide, info = {}, None
+    for ch, df in meas.items():
+        d = df[(df["frame_flags"] == "") & (df["flux"] > 0)] if "frame_flags" in df else df[df["flux"] > 0]
+        wide[ch] = d.pivot_table(index="file", columns="star_id", values="flux", aggfunc="first").pipe(lambda t: -2.5 * np.log10(t))
+        if info is None or ch == channels["v"]:
+            info = d.drop_duplicates("file").set_index("file")[[c for c in ("jd_mid", "airmass") if c in d]]
+    bch, vch, rch = channels["b"], channels["v"], channels["r"]
+    rows = []
+    for f in wide[bch].index.intersection(wide[vch].index):
+        mb, mv = wide[bch].loc[f], wide[vch].loc[f]
+        mr = wide[rch].loc[f] if rch in wide and f in wide[rch].index else None
+        if target_id not in mb.index or target_id not in mv.index or not (np.isfinite(mb[target_id]) and np.isfinite(mv[target_id])):
+            continue
+        vals = {"B": [], "V": [], "R": [], "BV": []}
+        for j, cj in comps.iterrows():
+            if j not in mb.index or j not in mv.index or not (np.isfinite(mb[j]) and np.isfinite(mv[j])):
+                continue
+            dB, dV = mb[target_id] - mb[j], mv[target_id] - mv[j]
+            dR = (mr[target_id] - mr[j]) if mr is not None and target_id in mr.index and j in mr.index and np.isfinite(mr[target_id]) and np.isfinite(mr[j]) else None
+            try:
+                o = transform_target(dB, dV, dR, dict(B=cj["B"], V=cj["V"], R=cj.get("R")), sol)
+            except ValueError:
+                continue
+            for k in vals:
+                if k in o:
+                    vals[k].append(o[k])
+        if len(vals["V"]) < min_comps:
+            continue
+        def robust(x):
+            x = np.asarray(x, float)
+            med = np.median(x)
+            mad = 1.4826 * np.median(np.abs(x - med)) or 1e-9
+            keep = np.abs(x - med) <= clip * max(mad, 0.005)
+            return float(np.median(x[keep])), float(np.std(x[keep], ddof=1) / np.sqrt(keep.sum())) if keep.sum() > 1 else float("nan"), int(keep.sum())
+        V, Ve, n = robust(vals["V"])
+        row = dict(file=f, V=V, V_err=Ve, n_comps=n)
+        for k in ("B", "R", "BV"):
+            row[k] = robust(vals[k])[0] if len(vals[k]) >= min_comps else float("nan")
+        for c in ("jd_mid", "airmass"):
+            row[c] = info[c].get(f, np.nan) if c in info else np.nan
+        rows.append(row)
+    cols = ["file", "jd_mid", "airmass", "B", "V", "R", "BV", "V_err", "n_comps"]
+    return pd.DataFrame(rows, columns=cols).sort_values("jd_mid" if rows else "file").reset_index(drop=True)

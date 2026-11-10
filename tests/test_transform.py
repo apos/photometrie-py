@@ -99,3 +99,37 @@ def test_catalog_from_vsp_table():
                             B=[9.5, np.nan, 11.6], Rc=[8.8, 9.7, None]))
     c = catalog_from_vsp_table(vsp)
     assert c["id"].tolist() == ["a", "c"] and np.isnan(c["R"].iloc[1]) and c["R"].iloc[0] == 8.8
+
+
+def test_gaia_derived_catalog_is_refused():
+    cat, meas, truth = standard_field(n_stars=12, n_frames=4, rng=np.random.default_rng(8))
+    instr, _ = instrumental_table(meas)
+    bad = cat.copy(); bad["source"] = ["Gaia"] * 3 + ["AAVSO"] * 9
+    with pytest.raises(ValueError, match="Gaia"):
+        fit_transform(bad, instr)
+    bad2 = cat.copy(); bad2["id"] = ["g1"] + list(cat["id"][1:])
+    with pytest.raises(ValueError, match="Gaia-Kennung"):
+        fit_transform(bad2, instr)
+    ok = cat.copy(); ok["source"] = "AAVSO"
+    assert fit_transform(ok, instr).n_stars == 12                                  # saubere Quelle geht durch
+
+
+def test_transformed_light_curve_recovers_catalog_values_better_than_standardized(field):
+    from varphot import transformed_light_curve
+    cat, meas, truth, instr, frames = field
+    sol = fit_transform(cat, instr)
+    target = cat["id"].iloc[2]
+    stars = cat.copy(); stars["role"] = np.where(stars["id"] == target, "target", "comp")
+    lc = transformed_light_curve(meas, stars, target, sol)
+    t = cat[cat["id"] == target].iloc[0]
+    assert len(lc) == 10 and (lc["n_comps"] >= 20).all()
+    assert abs(lc["V"].median() - t["V"]) < 0.03 and abs(lc["B"].median() - t["B"]) < 0.06
+    assert abs(lc["BV"].median() - (t["B"] - t["V"])) < 0.08
+    comps = stars[stars["role"] == "comp"].set_index("id")                                # ohne Transformation: Δv + V_comp, Median ueber die Comps
+    from varphot.transform import transform_target  # noqa: F401
+    mv = -2.5 * np.log10(meas["g"].pivot_table(index="file", columns="star_id", values="flux"))
+    std = np.median((mv[target].to_numpy()[:, None] - mv[comps.index].to_numpy()) + comps["V"].to_numpy()[None, :], axis=1)
+    assert abs(lc["V"].median() - t["V"]) <= abs(np.median(std) - t["V"]) + 1e-9
+    with pytest.raises(ValueError, match="Gaia"):
+        bad = stars.copy(); bad["source"] = "Gaia"
+        transformed_light_curve(meas, bad, target, sol)
