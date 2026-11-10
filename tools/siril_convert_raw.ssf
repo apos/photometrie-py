@@ -1,0 +1,13 @@
+# Siril-Skript: rohe Kamerabilder (RW2, CR2, NEF, ARW, DNG ...) ohne Debayern nach FITS wandeln (CFA bleibt erhalten).
+#
+# Aufruf (im Ordner mit den RAW-Dateien oder mit -d):
+#   siril -d <Ordner_mit_RAW> -s tools/siril_convert_raw.ssf
+# Ergebnis: <Ordner>/fits/raw_00001.fit ...  (Namensbasis "raw")
+#
+# Stand: nach der Siril-Dokumentation (Befehl `convertraw basename [-debayer] [-fitseq] [-ser] [-start=index] [-out=]`;
+# ohne -debayer wird nicht demosaikiert). NICHT getestet: es lag keine RW2-Datei vor.
+# Nach der Wandlung pruefen: Kopfzeilen EXPTIME und ISO (die Siril-Dokumentation sagt nicht, ob sie uebernommen werden)
+# und BAYERPAT; Bildmaxima (NB07 leitet die Bittiefe aus dem Maximalwert ab).
+requires 1.2.0
+convertraw raw -out=./fits
+close
