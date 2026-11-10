@@ -226,3 +226,51 @@ def group_by_exposure(records: list[dict], decimals: int = 3) -> dict[float, lis
     for r in records:
         out.setdefault(round(float(r["exptime"]), decimals), []).append(r)
     return {k: v for k, v in sorted(out.items()) if len(v) >= 2}
+
+
+def detect_saturation(maxima, nominal: float | None = None, tol: float = 0.005, min_frames: int = 3) -> dict:
+    """Maximalwert (ADC-Grenze) aus den Bildmaxima ableiten und pruefen, ob wirklich gesaettigt wurde.
+
+    Warum: Bei Kameras ohne bekannte Bittiefe (z. B. Lumix S9: laut Spezifikation „not stated“) muss der Maximalwert gemessen werden; ein
+    nicht gesaettigtes Bild liefert nur eine Untergrenze und wuerde Full Well und Linearitaetsgrenze falsch ansetzen.
+    Wie: Gesaettigt ist, wenn mindestens ``min_frames`` Bilder dasselbe hoechste Maximum haben (Abweichung ≤ ``tol`` relativ) — ein
+    abgeschnittener Pixel erreicht immer genau die Grenze, ein helles, aber nicht gesaettigtes Bild nicht. Mit ``nominal`` (aus der
+    Bittiefe) gilt zusaetzlich: Maximum ≥ 98 % von ``nominal``.
+    Rueckgabe: ``max_adu``, ``saturated``, ``bits`` (kleinste Bittiefe, die ``max_adu`` fasst), ``n_at_max``.
+    Grenze: Kameras mit hoeherem Weisspunkt als dem ADC-Maximum (Skalierung 14 → 16 Bit) liefern ``bits`` = 16; im FITS/Handbuch pruefen.
+    """
+    m = np.sort(np.asarray(maxima, float))[::-1]
+    top = float(m[0])
+    n_at = int(np.sum(m >= top * (1.0 - tol)))
+    sat = n_at >= min_frames
+    if nominal is not None:
+        sat = sat and top >= 0.98 * nominal
+    return dict(max_adu=top, saturated=bool(sat), bits=int(np.ceil(np.log2(top + 1.0))), n_at_max=n_at)
+
+
+def exposure_from_header(hdr, keys=("EXPTIME", "EXPOSURE", "EXP_TIME", "EXPTIM")) -> float | None:
+    """Belichtungszeit [s] aus einem FITS-Header (mehrere gaengige Schluessel); ``None``, wenn keiner vorhanden ist.
+
+    Warum: Siril und die Kamerasoftware schreiben sie unterschiedlich; bei einer Umwandlung aus RAW (RW2, CR2) ist nicht sicher, dass die
+    Belichtungszeit uebernommen wird (Siril-Dokumentation sagt dazu nichts) — dann muss der Aufrufer sie anders liefern.
+    """
+    for k in keys:
+        if k in hdr:
+            try:
+                v = float(hdr[k])
+                if np.isfinite(v):
+                    return v
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def iso_from_header(hdr, keys=("ISOSPEED", "ISO", "GAIN")) -> float | None:
+    """ISO bzw. Gain-Einstellung aus dem Header (``ISOSPEED``, ``ISO``, ``GAIN``); ``None``, wenn nicht vorhanden."""
+    for k in keys:
+        if k in hdr:
+            try:
+                return float(hdr[k])
+            except (TypeError, ValueError):
+                pass
+    return None
