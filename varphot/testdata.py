@@ -4,8 +4,8 @@ Warum: Die Pipeline wird an echten Bildern geprueft, die nicht im (oeffentlichen
 mit eigenen Nutzungsbedingungen. Dieses Modul beschreibt die Quellen und holt die Dateien reproduzierbar.
 
 Wie: ``download_dataset("lco-dcep")`` fragt die Archiv-/Repo-API ab, filtert wie unten dokumentiert und laedt in
-``testdata_dir()`` (Standard ``~/astro_testdata``, ueberschreibbar mit ``VARPHOT_TESTDATA``; absichtlich ausserhalb des
-Nextcloud-Ordners). Vorhandene Dateien werden nicht erneut geladen, wenn die Pruefsumme (LCO: MD5) bzw. die Groesse
+``testdata_dir()`` (Standard ``PHOTOMETRIE_PY_DATA/testdata`` neben dem Repo — liegt im Nextcloud-Ordner und ist damit gesichert, vom Nutzer
+ausdruecklich gewuenscht; ohne Datenordner ``~/astro_testdata``; ueberschreibbar mit ``VARPHOT_TESTDATA``). Vorhandene Dateien werden nicht erneut geladen, wenn die Pruefsumme (LCO: MD5) bzw. die Groesse
 (GitHub) stimmt. TLS-Zertifikate werden immer geprueft.
 
 Quellen und Bedingungen siehe ``README.md`` (Abschnitt Beispieldaten) und ``docs/testdaten.md``.
@@ -37,8 +37,11 @@ DATASETS = {
 
 
 def testdata_dir() -> Path:
-    """Ordner der Testdaten (``VARPHOT_TESTDATA`` oder ``~/astro_testdata``)."""
-    return Path(os.environ.get("VARPHOT_TESTDATA") or "~/astro_testdata").expanduser()
+    """Ordner der Testdaten: ``VARPHOT_TESTDATA``, sonst ``PHOTOMETRIE_PY_DATA/testdata`` (wenn der Datenordner existiert), sonst ``~/astro_testdata``."""
+    if os.environ.get("VARPHOT_TESTDATA"):
+        return Path(os.environ["VARPHOT_TESTDATA"]).expanduser()
+    from .observer import data_dir
+    return data_dir() / "testdata" if data_dir().is_dir() else Path("~/astro_testdata").expanduser()
 
 
 def md5sum(path, chunk: int = 1 << 20) -> str:

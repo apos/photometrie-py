@@ -13,7 +13,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   6000×4000, RAW-Bittiefe nicht angegeben) sowie „Eigene Kamera“, jeweils mit Prüfstatus je Angabe. **NB07** wählt Kamera und Einstellung (Dropdown oder `VARPHOT_CAMERA`/`VARPHOT_CAMERA_SETTING`); die Bittiefe wird bei Unbekannten aus dem Maximalwert abgeleitet
   (`detect_saturation`: mehrere Bilder am Anschlag = gesättigt, sonst Abbruch statt falscher Wert); RAW-Ordner werden erkannt und auf die Siril-Wandlung (`tools/siril_convert_raw.ssf`, ungetestet) verwiesen.
 - **Mehrere Kameraprofile** in `observer.json` (Liste `cameras`, je Modell + Einstellung; `camera` = aktive). **NB01** wählt die Kamera (Profil, Vorlage oder neu) und bewahrt dabei die NB07-Felder; ältere Dateien bleiben lesbar.
-- KONZEPT §11.11: Lumix S9 (Spezifikation, Folgen, offene Punkte, u. a. ob die Kamera astro-modifiziert ist).
+- KONZEPT §11.11: Lumix S9 (Spezifikation, Folgen, offene Punkte, Kamera im Originalzustand, nicht astro-modifiziert (vom Nutzer bestätigt)).
 
 ### Neu
 - **NB07 Kamera-Charakterisierung** (`notebooks/07_kamera_charakterisierung.ipynb`, `varphot/camera.py`): Bayer-Ebenen trennen, Offset und Maximalwert, **Gain per Photon-Transfer-Kurve**
@@ -49,7 +49,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Neu
 - **Testdaten-Download** (`varphot/testdata.py`, `tools/download_testdata.py`): `lco-dcep` (LCO-Archiv, MD5-geprüft) und `hatp32`
-  (EXOTIC-Beispielsatz), Standardziel `~/astro_testdata`. Quellen, Auswahl und Ergebnisse: `docs/testdaten.md`, README.
+  (EXOTIC-Beispielsatz), Standardziel `PHOTOMETRIE_PY_DATA/testdata/` (Nextcloud). Quellen, Auswahl und Ergebnisse: `docs/testdaten.md`, README.
   Aus dem Testsatz entfernt: 103 Bilder anderer Teleskope (769 MB; nicht re-downloadbar nötig, Skript lädt nur `elp0m411`).
 - **Entwicklungsrichtlinien** (`docs/entwicklung.md`): Git, Datenschutz, Tests und Docstring-Standard (Warum, Wie, Grenzen,
   Validierung, Quellen mit Prüfstatus). Kernfunktionen entsprechend dokumentiert (`light_curve`/Kernkorrektur, `harmonic_fit`,

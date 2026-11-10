@@ -172,7 +172,7 @@ chart.png und lightcurve.png geschrieben.
 ## Beispieldaten
 
 Die Pipeline wird an echten, öffentlichen Bildern geprüft. Sie liegen **nicht** im Repo; ein Skript lädt sie
-(`~/astro_testdata`, MD5-/Größenprüfung, Zertifikate werden geprüft):
+(nach `PHOTOMETRIE_PY_DATA/testdata/` im Nextcloud-Ordner, MD5-/Größenprüfung, Zertifikate werden geprüft):
 
 ```bash
 python tools/download_testdata.py --list

@@ -17,7 +17,7 @@ Notizsystem (basic-memory, `chat_rules.md` §8); hier ist die maßgebliche Fassu
 
 Keine persönlichen Daten im Repo (Koordinaten des Beobachtungsortes, AAVSO-Code, Adressen, Pfade mit Benutzernamen in
 Ausgaben). Sie liegen in `PHOTOMETRIE_PY_DATA/observer.json` neben dem Repo (`varphot/observer.py`). Notebooks werden
-ohne Zell-Ausgaben committet (nbstripout). Tests verwenden Dummywerte. Rohbilder und Ergebnisse gehören nicht ins Repo.
+ohne Zell-Ausgaben committet (nbstripout). Tests verwenden Dummywerte. Rohbilder, Testdaten und Ergebnisse gehören nicht ins Repo; sie liegen im privaten Nextcloud-Ordner `PHOTOMETRIE_PY_DATA/` (gesichert, aber nicht öffentlich teilen — Lizenzen siehe §2a).
 
 ## 2a. Quellen, Lizenzen und Nutzungsbedingungen — verpflichtend vor jeder Übernahme
 

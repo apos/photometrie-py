@@ -2,7 +2,7 @@
 """Testdaten laden: ``python tools/download_testdata.py lco-dcep hatp32 [--dest ORDNER] [--dry-run] [--list]``.
 
 Quellen, Umfang und Nutzungsbedingungen: README.md (Beispieldaten) und docs/testdaten.md.
-Standardziel: ~/astro_testdata (oder VARPHOT_TESTDATA); Zertifikate werden immer geprueft.
+Standardziel: PHOTOMETRIE_PY_DATA/testdata neben dem Repo (Nextcloud; sonst ~/astro_testdata; VARPHOT_TESTDATA ueberschreibt); Zertifikate werden immer geprueft.
 """
 import argparse
 import sys
