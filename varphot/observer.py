@@ -74,7 +74,8 @@ class Camera:
 class Observer:
     aavso_code: str = ""
     site_name: str = ""
-    camera: Camera = field(default_factory=Camera)
+    camera: Camera = field(default_factory=Camera)                 # aktive Kamera/Einstellung
+    cameras: list = field(default_factory=list)                    # alle gespeicherten Kameraprofile (Camera je Modell+Einstellung)
 
     def __post_init__(self):
         self.aavso_code = self.aavso_code.strip().upper()
@@ -112,7 +113,7 @@ def load_config(path: str | Path | None = None) -> tuple[Observer, list[Site]]:
         return Observer(), []
     d = json.loads(p.read_text(encoding="utf-8"))
     cam = Camera(**d.get("camera", {}))
-    obs = Observer(d.get("aavso_code", ""), d.get("site_name", ""), cam)
+    obs = Observer(d.get("aavso_code", ""), d.get("site_name", ""), cam, [Camera(**c) for c in d.get("cameras", [])])
     return obs, [Site(**s) for s in d.get("sites", [])]
 
 
@@ -121,7 +122,7 @@ def save_config(observer: Observer, sites: list[Site], path: str | Path | None =
     p = config_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     d = {"aavso_code": observer.aavso_code, "site_name": observer.site_name,
-         "camera": asdict(observer.camera), "sites": [asdict(s) for s in sites]}
+         "camera": asdict(observer.camera), "cameras": [asdict(c) for c in observer.cameras], "sites": [asdict(s) for s in sites]}
     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     p.chmod(0o600)
     return p
@@ -136,3 +137,13 @@ def all_sites(own: list[Site]) -> list[Site]:
 def upsert_site(sites: list[Site], site: Site) -> list[Site]:
     """Ersetzt einen Standort gleichen Namens oder haengt ihn an."""
     return [s for s in sites if s.name != site.name] + [site]
+
+
+def upsert_camera(cameras: list, cam: Camera) -> list:
+    """Ersetzt das Profil gleichen Modells *und* gleicher Einstellung (``gain_setting``) oder haengt es an."""
+    return [c for c in cameras if (c.model, c.gain_setting) != (cam.model, cam.gain_setting)] + [cam]
+
+
+def camera_label(cam: Camera) -> str:
+    """Anzeigename eines Profils: ``Modell — Einstellung`` (fehlende Teile entfallen)."""
+    return " — ".join(x for x in (cam.model, cam.gain_setting) if x) or "(leer)"

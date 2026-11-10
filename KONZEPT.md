@@ -427,6 +427,29 @@ Ja — Kamera-Charakterisierung und Transformationskoeffizienten gehören **nich
 
 Warnung (F): Seestar-Firmware seit 08/2025 soll nichtlineare FITS erzeugen (BAA-VSS-Diskussion) — Linearität vor Nutzung prüfen.
 
+### 11.11 Weitere Kamera: Panasonic Lumix S9 (Vollformat, spiegellos)
+
+Die Pipeline und NB07 unterstützen mehrere Kameras über **Vorlagen** (`varphot/camera_presets.py`: Ares-C Pro, Lumix S9, „Eigene Kamera“); Messprofile werden je **Modell und Einstellung** (Gain-Modus bzw. ISO) gespeichert (`observer.json`, Liste `cameras`; NB01 wählt die aktive Kamera).
+Prüfstatus: G = Panasonic-Spezifikation gelesen (<https://help.na.panasonic.com/answers/features-and-specifications-lumix-s-series-model-dc-s9k/>, 2026-11-10), F = Testberichte (Newsshooter, DPReview-Suchauszug), E = Annahme/abgeleitet.
+
+| Größe | Wert | Status | Folge |
+|---|---|---|---|
+| Sensor | 35-mm-Vollformat-CMOS, ≈ 24,2 MP effektiv (25,3 MP gesamt) | G | gleicher Sensor wie Lumix S5 II laut Testberichten (F) |
+| Ausgabe (L, 3:2) | 6000 × 4000 px | G | Ebenen je 3000 × 2000 px; Grünebene beide Grün gemittelt |
+| Pixelabstand | ≈ 5,93 µm (35,6 mm / 6000 px) | E | nicht amtlich; Sensorbreite aus einem Testbericht |
+| Formate | JPEG und RAW; **RAW-Bittiefe nicht angegeben** | G | Bittiefe wird in NB07 aus dem Maximalwert abgeleitet; ein Blog nennt 12 Bit im elektronischen Modus (F, unbestätigt) |
+| Verschluss | **nur elektronisch** (kein mechanischer genannt); längste Belichtung ca. 60 s, über ISO 1600 kürzer | G | Rolling Shutter: nicht sehr kurz belichten; Zeitstempel = Mitte der Belichtung (Zeilenversatz prüfen); max. ~60 s |
+| ISO | 100–51 200 (erweitert 50–204 800); Dual Native ISO 100/640 (Standard-Aufnahme) | G / F | **je ISO ein eigenes Profil** (mindestens ISO 100 und 640) |
+| Stabilisierung | 5-Achsen-Sensor-Shift, Dual I.S.2 | G | für Photometrie aus (Annahme E) — auch Objektivstabilisierung |
+| Bayer-Muster | RGGB (übliche Annahme) | E | an den Ebenen bzw. `BAYERPAT` prüfen |
+| IR-Sperrfilter | nicht in der Spezifikation genannt | ? | unmodifiziert ist ein Sperrfilter vor dem Sensor üblich (E); **bei einer „astro-modifizierten“ Kamera (Filter entfernt) ist Photometrie laut AAVSO-Forum kaum möglich** — klären, ob die Kamera modifiziert ist |
+| Gain, Rauschen, Full Well | keine Herstellerangaben gefunden | ? | messen (NB07) |
+
+**Einordnung AAVSO (G, DSLR-Handbuch v1.4, Kap. 1–6):** Spiegellose Kameras laufen dort unter „DSLR / Mirrorless Cameras“; Auswertung wie in §11.2–11.5 (Grünkanal `TG`, ggf. Transformation, `OBSTYPE=DSLR`).
+**Arbeitsablauf:** RAW (RW2) → Siril `convertraw` **ohne** `-debayer` (`tools/siril_convert_raw.ssf`; nach der Doku, nicht mit einer RW2-Datei getestet) → FITS (CFA) → NB07 je ISO → Beobachtungsbilder wie §11.4. Nach der Wandlung prüfen: `EXPTIME`/ISO in der Kopfzeile (die Siril-Doku nennt die Übernahme nicht),
+`BAYERPAT`, Bildmaxima. Ungekühlt: Darks bei gleicher Sensortemperatur (Handbuch §4.4.2.3: Darks vor und nach der Serie), **keine** belichtungsskalierten Darks, ohne Test (dort für Canon/Nikon belegt). Langzeit-Rauschminderung der Kamera ausschalten (Handbuch §4.4.2.2: „in-camera long exposure noise reduction … should be disabled“).
+**Zu prüfen bei RAW-Daten:** komprimierte/„companded“ RAW-Formate zeigen Lücken im Histogramm (nicht jeder ADU-Wert kommt vor) — würde Gain und Rauschen verfälschen; im Flat-Histogramm nachsehen. Nicht Teil von NB07 (offen).
+
 ### 11.10 Quellen und Prüfstatus
 
 | Aussage | Quelle | Status |

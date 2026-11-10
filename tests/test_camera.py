@@ -2,7 +2,8 @@
 import numpy as np
 import pytest
 
-from varphot import (bayer_planes, dark_current_e_per_s, full_well_e, gain_from_pair, linearity_curve, pair_stats,
+from varphot import (bayer_planes, dark_current_e_per_s, detect_saturation, exposure_from_header, full_well_e, gain_from_pair,
+                     iso_from_header, linearity_curve, pair_stats,
                      ptc_fit, read_noise_e)
 from varphot.camera import center_roi
 from varphot.observer import Camera, Observer, load_config, save_config
@@ -107,3 +108,43 @@ def test_summarize_and_group():
     recs = [dict(exptime=1.0), dict(exptime=1.0004), dict(exptime=2.0), dict(exptime=2.0), dict(exptime=2.0), dict(exptime=3.0)]
     g = group_by_exposure(recs, decimals=2)
     assert list(g) == [1.0, 2.0] and len(g[2.0]) == 3          # 3.0 hat nur ein Bild -> faellt weg
+
+
+def test_detect_saturation_plateau_vs_bright_unsaturated():
+    sat = [16383.0] * 6 + [12000.0, 9000.0]
+    r = detect_saturation(sat)
+    assert r["saturated"] and r["max_adu"] == 16383 and r["bits"] == 14 and r["n_at_max"] == 6
+    bright = [15800.0, 15200.0, 14000.0, 9000.0]                    # hell, aber nie am Anschlag
+    assert not detect_saturation(bright)["saturated"]
+    assert not detect_saturation([16383.0] * 5, nominal=65535)["saturated"]     # Plateau, aber weit unter der nominellen Grenze
+    assert detect_saturation([4095.0] * 4)["bits"] == 12
+
+
+def test_header_helpers():
+    assert exposure_from_header({"EXPOSURE": "2.5"}) == 2.5 and exposure_from_header({"X": 1}) is None
+    assert exposure_from_header({"EXPTIME": "abc", "EXPOSURE": 3}) == 3.0
+    assert iso_from_header({"ISOSPEED": 640}) == 640.0 and iso_from_header({}) is None
+
+
+def test_presets_and_profiles(tmp_path):
+    from varphot import get_preset, preset_choices, PRESETS
+    from varphot.camera_presets import slug
+    assert {"ares-c-pro", "lumix-s9", "eigene"} <= set(PRESETS)
+    s9 = get_preset("lumix-s9")
+    assert s9.format_px == (6000, 4000) and s9.bit_depth is None and s9.raw_input == "raw" and s9.bayer_status == "E"
+    assert get_preset("ares-c-pro").bit_depth == 14 and "Gain 0, LRN" in get_preset("ares-c-pro").settings
+    assert get_preset("ares-c-pro").settings["Gain 0, LRN"].full_well_e == 72889
+    assert ("Panasonic Lumix DC-S9", "lumix-s9") in preset_choices()
+    assert slug("Gain 0, LRN") == "gain-0-lrn" and slug("ISO 640 (Dual Native high)") == "iso-640-dual-native-high"
+    with pytest.raises(KeyError):
+        get_preset("gibt-es-nicht")
+    from varphot.observer import camera_label, upsert_camera
+    a, b = Camera(model="X", gain_setting="ISO 100"), Camera(model="X", gain_setting="ISO 640")
+    cams = upsert_camera(upsert_camera([], a), b)
+    cams = upsert_camera(cams, Camera(model="X", gain_setting="ISO 100", gain_e_per_adu=1.5))
+    assert [c.gain_setting for c in cams] == ["ISO 640", "ISO 100"] and cams[-1].gain_e_per_adu == 1.5
+    assert camera_label(a) == "X — ISO 100"
+    p = tmp_path / "o.json"
+    save_config(Observer("abcd", "S", b, cams), [], p)
+    o, _ = load_config(p)
+    assert len(o.cameras) == 2 and o.camera.gain_setting == "ISO 640"
