@@ -8,6 +8,29 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+## [0.6.0] — 2026-11-11
+
+**Notebook-Umbau und fachliche Prüfung** (Konzept §12.2–§12.4, §13): vier Phasen-Notebooks (00 Planung, 01 Vorbereitung, 02 Messung, 03 Bericht) mit einer gemeinsamen Sitzung; Eigendatenweg lauffähig.
+
+### Neu
+- **Sitzung** (`varphot/session.py`): `session.json` im Siril-Arbeitsordner trägt Ziel, Methode, Ordner, Plan, Referenzbild/WCS, Feldkonfiguration von Notebook zu Notebook; `Session.open()` erhält Ergebnisse bei erneutem NB00 und leert sie bei Wechsel von Ziel/Methode.
+- **Notebooks neu strukturiert:** `01_vorbereitung` (Kalibrierung, Plate-Solve, Comps; ersetzt 01–03), `02_messung` (Photometrie, Lichtkurve, Periode; ersetzt 04–05), `03_bericht` (ersetzt 06); je ein Formular am Anfang, danach „Ab hier automatisch“; Logik in getesteten Funktionen (`varphot/workflow.py`). NB00 legt die Sitzung an, erfasst Beobachter/Standort (aus der alten NB01), nimmt Probebilder aus `probe/` (RAW per Siril nach FITS) und ein scharfes Referenzbild aus `probe/scharf/`; Modus „LCO-Testdaten“ zum Ausprobieren mit echten Bildern.
+- **Siril-Skripte aus der Sitzung** (`varphot/siril.py`): Kalibrierung (Bias/Dark/Flat → Master → `calibrate`, Farbkameras im CFA-Bereich) und RAW→FITS; Ausführung mit `siril-cli`, sonst liegt das Skript in `scripts/`. **Nicht gegen Siril getestet.**
+- **WCS je Bild per Registrierung** (`varphot/registration.py`, `run_batch(reference=, wcs_mode=)`): ein scharfes Referenzbild wird gelöst, jedes Bild der Reihe per `astroalign` darauf registriert (LCO δ Cep: 104 von 104, Median 0,5″ gegen den Kopf). Ohne das war der Eigendatenweg nicht lauffähig.
+- **Aperturradius aus den Daten** (`varphot/aperture.py`, Wachstumskurve nach Stetson 1990 und S/N-Optimum nach Howell 1989): NB00 Schritt 4; am LCO-Satz 9 px (Amplitude 0,79 mag, Periode 5,366 d) statt 5 px (0,64 mag) bzw. der 1,5-×-FWHM-Regel (3 px).
+- **`defocus_solve_ladder`**, `solve_array`, Defokus-Rechnungen, `readiness` (aus 0.5.0) sind in NB00 eingebunden.
+
+### Behoben (fachliche Prüfung, KONZEPT §13)
+- **`qc_frames`:** ein einziger verrauschter Comp verwarf das ganze Bild (34 statt 93 von 105 brauchbar); jetzt zählt die Zahl brauchbarer Comps (`min_comps`), `light_curve` übergeht zu schwache Comps im Bild. Regressionstest.
+- **ASTAP löscht komprimierte Eingaben** (`.fits.fz`): `solve_image` löst sie über eine Kopie. Regressionstest mit Attrappe.
+- **Registrierung auf feste Muster:** Hotpixel zogen die Zuordnung auf „keine Verschiebung“; 3×3-Medianfilter, Sternfinder ohne Formfilter (Donuts), Gegenprobe an den hellsten Referenzsternen. Regressionstest.
+- **Comp-Regeln für kleine Felder:** Nachbarradius aus Apertur × Pixelskala (die 36″ galten nur für 1,44″/px), Farb-/Randregeln stufenweise gelockert (jede Stufe gemeldet), Check-Stern notfalls ein mittelheller Comp, Sequenznamen mit ausgeschriebenen griechischen Buchstaben.
+- **Fremde Archivdaten unter eigenem Code:** NB03 erkennt LCO-Köpfe (`ORIGIN`, `PROPID`) und erzwingt `TST01` und die Kennzeichnung (zuvor entstand beim Test eine Datei mit echtem Code und ohne Warnung; gelöscht).
+- Aperturplanung: Median über die Probebilder (nicht das unschärfste: 15 px ergaben Residuum 0,107 mag und 56 Bilder ohne Signal), bei gesättigtem Ziel 98 % Fluss.
+
+### Geändert
+- Notebooks 01–06 entfallen (siehe Zuordnung in KONZEPT §12.4); entfallen sind die Sternbild-Kontextkarte und der Kernradius-Vergleich (jetzt Feld „Kernmaske“). Docstrings verweisen auf die neuen Nummern. Tests: Notebooks gültig/ohne Ausgaben/übersetzbar, NB00-Demo läuft durch (`tests/test_notebooks.py`).
+
 ## [0.5.0] — 2026-11-10
 
 NB00 umgebaut (Vorbedingungen, Bereitschaft NB07/NB08, Defokus-Vergleich, Plate-Solve-Test), Defokus-Simulation, gemeinsame Vorbedingungsprüfung in NB01/NB00.

@@ -560,3 +560,75 @@ FWHM im Rohbild ≥ 8–10 px bei Bayer-Kameras (§5.5.1). Mit NB07-Profil gilt 
 **Grenzen:** Eine Faltung des scharfen Bildes ersetzt kein echtes Defokussieren (Rauschen und Sternmuster werden mitgefaltet; Koma, Feldkrümmung und Himmelshelligkeit am Rand fehlen); ein Bild, das *kürzer* belichtet ist als das Probebild, hat weniger Sterne; die Sterndichte hängt vom Feld ab (δ Cep: wenige helle Sterne). Ein Ergebnis für das eigene Feld liefert derselbe Aufruf mit einem eigenen scharfen Bild.
 **Empfehlung für die Praxis:** Probebilder scharf *und* defokussiert aufnehmen (NB00), das defokussierte Bild mit ASTAP lösen (NB02-Aufruf); löst es nicht, ein scharfes Bild derselben Position zum Lösen aufnehmen (die Übertragung der WCS auf die defokussierte Reihe ist noch nicht gebaut).
 **Befund am Rand (offen):** Auf dem echten LCO-Bild liefert `star_metrics` für die hellen, nicht gesättigten Sterne FWHM ≈ 7 px, ein eigener 2D-Gauß-Fit 5,4–5,9 px, die schwachen Sterne 4,5 px, der Header (Median) 3,8 px: **helle Sterne sind breiter** (Flügel). NB00 leitet die Apertur (1,5 × FWHM) aus mittelhellen Sternen ab; bei realen Bildern kann sie dadurch zu groß ausfallen. Noch nicht untersucht, ob das für das Ziel selbst (defokussiert, ungesättigt) gilt.
+
+### 12.2 Aperturradius aus den Daten (Wachstumskurve und S/N)
+
+**Problem:** Die Regel „1,5 × FWHM“ (AAVSO DSLR-Handbuch §6.1.1) setzt gauss-förmige Sterne voraus. Auf den LCO-Bildern (δ Cep) liefert die Gauß-Anpassung der Sterne FWHM ≈ 2 px (Probebilder: 1,6–8,5 px, je nach Seeing und Stern), die Wachstumskurve der hellen Sterne erreicht 95 % des Flusses aber erst bei 6–10 px: helle Sterne haben Flügel (Befund 2026-11-10: FWHM heller Sterne 7,1 px, schwacher 5,2 px).
+**Bekannte Verfahren** (Titel und Kennungen per Suche geprüft, Volltexte *nicht* gelesen): die **Wachstumskurve** (Stetson, P. B. 1990, PASP 102, 932, „On the Growth-Curve Method for Calibrating Stellar Photometry with CCDs“; Grundlage von DAOGROW) und das **S/N-Optimum** über dem Radius (Howell, S. B. 1989, PASP 101, 616, doi:10.1086/132477, „Two-dimensional aperture photometry: signal-to-noise ratio of point-source observations and optimal data-extraction techniques“: Maximum bei einem mittleren Radius nahe der PSF-FWHM, laut Sekundärquellen). Für Gauß-Sterne liegt das S/N-Optimum bei etwa 0,67 × FWHM (Herleitung von F. Masci, IPAC; Dokument nicht abrufbar, die Zahl bestätigt unser Test), der 95-%-Radius bei 1,04 × FWHM.
+**Umsetzung** (`varphot/aperture.py`, NB00 Schritt 4): an den ungesättigten, isolierten Sternen **jedes** Probebildes wird die Wachstumskurve der helleren und das S/N der schwächeren Hälfte gemessen. Der **untere Median** über die Probebilder gilt (ein einzelnes sehr schlechtes Bild bestimmt nicht die Apertur der Reihe; Bilder mit schlechtem Seeing erhalten das Flag `BAD_SEEING`; erst probiert: das unschärfste Bild — 15 px, Residuum 0,107 mag, 56 Bilder `NO_SIGNAL`). Regel je Bild: `ap_r` = Radius, der 95 % (bei gesättigtem Ziel 98 %) des Flusses der hellen Sterne einschließt, mindestens 1,0 × FWHM der schwachen Sterne, höchstens 5 × FWHM; das S/N-Verhältnis zum Optimum wird **angezeigt**, nicht erzwungen. Himmelsring wie im Handbuch (Abstand 3 px, Fläche ≥ 1,5 × Apertur).
+**Warum der Flussanteil Vorrang hat (am LCO-Satz geprüft, gleiche Bilder, Kernmaske an, 0,4-m-Teleskop):**
+
+| Apertur | Amplitude (3 Harmonische) | Periode LS / Fourier | Fourier-Residuum |
+|---|---|---|---|
+| 5 px (S/N-nah, 1,5 × FWHM-Regel läge bei 3 px) | 0,64 mag | 5,375 d / 5,373 d | 0,071 mag |
+| 9 px (95-%-Wachstumskurve) | 0,79 mag | 5,365 d / 5,367 d | 0,069 mag |
+| 10 px (frühere Vorgabe, NB04) | 0,81 mag | 5,363 d / 5,367 d | 0,068 mag |
+
+Literatur: P = 5,366 d, Amplitude ≈ 0,88 mag. Eine zu kleine Apertur lässt den größeren Flügelanteil des **hellen Ziels** außerhalb (stärker als bei den schwachen Comps) und staucht die Amplitude; der Anteil schwankt mit dem Seeing. Das S/N-Optimum wäre für eine einzelne schwache Quelle richtig, nicht für Differenzphotometrie eines hellen Ziels gegen schwache Comps.
+**Grenzen:** Startwerte (95/98 %, 5 ×); abhängig von den Probebildern (Seeing; Median über 3–5 Bilder); das gesättigte Ziel selbst wird nicht vermessen (nur unsere Sterne), daher 98 %; Nachbarsterne verfälschen die Kurve (Hinweise in `notes`). Bei Bedarf in NB02 manueller Radius.
+
+### 12.3 WCS für jedes Bild: Registrierung statt Plate-Solve je Bild
+
+**Problem:** NB04 erwartete „je Bild eine WCS“ (so liefern LCO/BANZAI die Bilder). Eigene Reihen (Siril-kalibriert) haben keine WCS im Kopf; ein bewusst defokussiertes Bild löst ASTAP oft nicht (§12.1) — der Eigendaten-Weg war damit **nicht lauffähig** (jedes Bild `NO_WCS`).
+**Umsetzung** (`varphot/registration.py`, `run_batch(..., reference=, wcs_mode=)`): ein **scharfes Referenzbild** wird einmal gelöst (NB00 nimmt es auf, NB01 löst es); für jedes Bild der Reihe wird die Ähnlichkeitstransformation gegen die Referenz bestimmt (`astroalign`: Dreiecks-Invarianten + RANSAC; Beroiz, Cabral & Sanchez 2020, A&C 32, 100384, doi:10.1016/j.ascom.2020.100384; Titel/Autoren per Suche geprüft) und daraus die WCS abgeleitet (`CD' = CD·A`, `CRPIX' = 1 − A⁻¹(t + 1 − CRPIX)`).
+Sternfinder ohne Formfilter (Glätten + lokale Maxima; `DAOStarFinder` verwirft Donuts), 3×3-Medianfilter gegen Hotpixel, Verfeinerung über alle Paare (Umeyama), Gegenprobe an den **hellsten** Referenzsternen (4 von 10 müssen wiedergefunden werden).
+**Befunde an echten Bildern (LCO δ Cep, 105 Bilder mit `WCSERR` = 0):** 104 von 104 registriert, Positionsfehler gegen die WCS im Kopf: Median 0,50″ (0,9 px), 90 % 0,73″, max. 1,5″. Zwei Fehler **vor** den Gegenproben: (1) feste Muster (Hotpixel) zogen die Zuordnung auf „keine Verschiebung“ (22 Treffer, Fluss 0 an den Aperturen) — ein Test mit festen Defekten sichert das jetzt; (2) mit `DAOStarFinder` nur 93 von 104.
+**Dazu gefunden:** 51 der 156 LCO-Bilder tragen `WCSERR` = 4 (WCS-Lösung der Archivpipeline fehlgeschlagen); die Pipeline hat deren Kopf-WCS bisher unbesehen benutzt. Registrierung auf ein gutes Referenzbild fängt das auf (10 von 17 dieser Bilder).
+**Eigendatenweg Ende-zu-Ende** (105 LCO-Bilder ohne WCS im Kopf als „eigene Reihe“, scharfes Referenzbild von ASTAP gelöst): 93 brauchbare Bilder, Periode 5,355 d (LS) / 5,365 d (Fourier), Literatur 5,366 d.
+**Grenzen:** nur Ähnlichkeit (Verschiebung, Drehung, gleicher Maßstab), keine Verzeichnung; Felder mit wenigen hellen Sternen können scheitern (`NO_WCS`, dann bleibt das Bild ohne WCS); sehr stark defokussierte Bilder zeigen nur noch wenige Sterne.
+
+### 12.4 Notebook-Umbau (0.6.0): Phasen statt Einzelschritte
+
+**Bewertung der bisherigen Notebooks** (Prüfung 2026-11-10, gegen die Kriterien: nachvollziehbar, knapp, Entscheidungen zuerst/Automatik zuletzt, Bedienung, Schrittzahl, Nutzerfall):
+- *Nutzerfall:* NB01–NB06 waren auf die LCO-Testdaten zugeschnitten (feste Pfade, `TELESCOPE="0m4-11"`, `ROLLEN={"g1": "check"}`, `PERIOD_RANGE=(5.0, 5.8)`, Datei `session_config.json` per `Path.home().rglob` gesucht); der Eigendatenweg endete bei „kein WCS im Bild“ (§12.3). Siril-Skripte gab es nur als lose Dateien in `tools/`, nicht aus dem Ablauf erzeugt. Probebilder hatten keinen festen Ort.
+- *Schritte:* sechs Notebooks mit 40+ Zellen, die Ergebnisse über Umgebungsvariablen (`VARPHOT_FIELD_CONFIG`, `VARPHOT_PLAN`, `VARPHOT_TAG` …) weiterreichten; Entscheidungen (Referenzbild, Regeln) mitten in Code-Zellen.
+- *Text:* lange Erläuterungen vor jeder Zelle, gemischt mit Herleitungen; Nutzer mussten Zelle für Zelle ausführen.
+
+**Drei Strategien:**
+1. *Polieren:* neun Notebooks behalten, Texte kürzen, Zellen verschieben. Wenig Risiko, aber der Eigendatenweg bleibt unterbrochen, die Zahl der Handgriffe sinkt kaum.
+2. *Phasen-Notebooks mit gemeinsamer Sitzung:* je Phase **ein** Notebook mit **einem Formular am Anfang** und einer automatischen Strecke (*Ausführen → Diese Zelle und alle folgenden*); die Logik liegt in getesteten Funktionen (`varphot/workflow.py`), die Notebooks zeigen Entscheidungen und Ergebnisse; eine Sitzung (`session.json` im Siril-Arbeitsordner) trägt Ziel, Methode, Pfade, Plan, Referenz, WCS und Feld von Notebook zu Notebook.
+3. *Eine Pipeline-Funktion mit einem Notebook:* `varphot.run(config)` für alles. Schnellste Bedienung, aber keine Zwischenkontrolle (Referenzbild, Comps, Aperturen), schwer zu verstehen und zu korrigieren.
+
+**Entscheidung: Strategie 2** (Strategie 3 nimmt die gewünschte Flexibilität und die manuell prüfbaren Zwischenschritte; Strategie 1 löst den Eigendatenweg nicht). Neuer Ablauf:
+
+| Notebook | Phase | Formular (Entscheidungen) | Automatik |
+|---|---|---|---|
+| `00_planung` | Planung, Sitzung | Modus (Demo/echt/LCO), Sitzungsordner, Ziel, Methode, Kamera, Brennweite | Vorbedingungen, Sichtbarkeit/Mond, Bereitschaft NB07/NB08, Probebilder (RAW→FITS per Siril), Defokus, Plate-Solve-Test, Apertur, Plan, Sitzung speichern |
+| `01_vorbereitung` | Kalibrierung, Plate-Solve, Comps | Kalibrierweg (Siril ausführen / nur Skript / schon kalibriert), Referenz, Gaia-Optionen | Siril-Skript erzeugen und ausführen, Referenz wählen und lösen (ASTAP), Gaia-Gegenprobe, Comps/Check (Regeln lockern bei kleinen Feldern), `field_config.json` |
+| `02_messung` | Photometrie, Lichtkurve | WCS-Modus, Apertur, Kernmaske, Periodenbereich, Öffnung | Photometrie (Kopf-WCS oder Registrierung), Bildflags, Lichtkurve, Periode, Plots, Ergebnistabelle |
+| `03_bericht` | AAVSO-Export | eigene Daten?, Betriebsart, Band, OBSTYPE, CHART, KI | Format- und Inhaltsprüfung, Datei, Offene Punkte, Reifegrad, KI-Zweitlesung |
+| `07_`, `08_` | Werkzeuge | Kamera messen (vor NB00), Transformationskoeffizienten | — |
+
+Zuordnung alt → neu: NB01 (Preflight, Beobachter) → NB00 Schritt 0/0b; NB01 (Siril-Ordner) → `01_vorbereitung`; NB02, NB03 → `01_vorbereitung`; NB04, NB05 → `02_messung`; NB06 → `03_bericht`. Entfallen: Sternbild-Kontextkarte (NB02 §5, Zierde) und der Kernradius-Vergleich (NB04 §4b; jetzt Feld „Kernmaske“).
+**Siril:** `varphot/siril.py` erzeugt das Kalibrierskript (Bias/Dark/Flat → Master → `calibrate`, Farbkameras im CFA-Bereich ohne Debayern) und das RAW→FITS-Skript für Probebilder und führt sie mit `siril-cli` aus, wenn Siril vorhanden ist; sonst liegt das Skript in `scripts/` bereit. **Nicht gegen eine laufende Siril-Version geprüft.**
+**Sitzung:** `varphot/session.py`; `Session.open()` erhält Ergebnisse bei erneutem NB00 und leert Plan/Referenz/Feld, wenn Ziel oder Methode wechseln.
+
+## 13. Fachliche Plausibilitätsprüfung (Stand 2026-11-11)
+
+Bisher lag der Schwerpunkt der Prüfungen auf Software und Tests; die fachliche Plausibilität (stimmen die Rechenwege astronomisch und gegen echte Daten?) ist am 2026-11-11 systematisch nachgeholt worden.
+
+| Bereich | Prüfung | Ergebnis |
+|---|---|---|
+| Luftmasse (`airmass`) | gegen `AIRMASS` der LCO/BANZAI-Köpfe, 15 Bilder | Differenz ≤ 0,001; gilt bei großer Höhe (δ Cep), unter 20° ist sec z ungenau (dokumentiert, nicht geändert) |
+| BJD_TDB | Betrag gegen Erwartung (TDB−UTC 69 s + Lichtlaufzeit ±500 s) | 206–280 s im Datensatz, plausibel |
+| CCD-Gleichung, Ensemble, Szintillation | Quellen im Code gelesen/geprüft (Docstrings), Richtungstests | unverändert; Szintillation am LCO-Satz ~0,008 mag gegen gemessene Comp-Streuung ~0,03 mag (Ursache offen, schon dokumentiert) |
+| Transformation (NB08), AAVSO-Format | gegen DSLR-Handbuch v1.4 / Format-Seite im Wortlaut | Gleichungen und Regeln stimmen; nur synthetisch/Format-Beispiele, **keine** echten Standardfeld-Aufnahmen |
+| **Aperturregel 1,5 × FWHM** | an echten Bildern | auf LCO-Bildern unbrauchbar (§12.2) → Wachstumskurve |
+| **`qc_frames`** | Lauf mit schwachen Comps | ein verrauschter Comp verwarf das Bild (34 von 105 brauchbar statt 93) → Zahl brauchbarer Comps zählt |
+| **WCS im Kopf** | `WCSERR` | 51 von 156 LCO-Bildern mit gescheiterter Lösung, bisher unbesehen benutzt (§12.3) |
+| **Comp-Regeln** | auf kleinem Feld (0,48° × 0,32°, 0,57″/px) | feste Zahlen aus dem 1,44″/px-Aufbau (36″ Nachbarradius, Farbtoleranzen) ließen **1** Comp übrig → Nachbarradius aus Apertur × Skala, Regeln in Stufen gelockert (jede Stufe gemeldet), Check-Stern notfalls ein mittelheller Comp |
+| **ASTAP und `.fits.fz`** | Beobachtung bei einer Verknüpfung | ASTAP **löscht** die komprimierte Eingabe nach dem Entpacken → `solve_image` löst komprimierte Bilder jetzt über eine Kopie |
+| **Fremde Daten unter eigenem Code** | Test mit LCO-Bildern als „eigene Sitzung“ | Datei mit echtem Code entstand ohne Warnung (gelöscht) → NB03 erkennt LCO-Köpfe (`ORIGIN`, `PROPID`) und erzwingt `TST01` und die Kennzeichnung |
+| Perioden-Ergebnis | gegen Literatur (δ Cep 5,366 d) | 5,355–5,375 d (LS) / 5,365–5,373 d (Fourier) je nach Lauf; Fourier-Residuum 0,065–0,107 mag je nach Comp-Auswahl und Apertur (früherer Referenzlauf 0,068 mag) — die Streuung hängt an den Comps (Gaia-abgeleitete V), nicht nur am Verfahren |
+
+**Offen / nicht geprüft:** Transformation und CFA-Trennung mit echten Mehrkanal-Daten; Siril-Skripte; echtes Defokussieren am Teleskop; Seeing-Abhängigkeit der Apertur über eine ganze Nacht; `LS`-Periode bei sehr kurzen/lückenhaften Reihen (Aliase; `analyse_period` nennt die drei höchsten Maxima).

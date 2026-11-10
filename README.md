@@ -11,25 +11,18 @@ Differentielle Aperturphotometrie für veränderliche Sterne — Python 3.13, Ju
 Das Projekt liefert eine vollständige Auswertekette: von kalibrierten FITS-Rohbildern über Plate Solving, Felderkennung und Vergleichsternauswahl bis zur Lichtkurve und Periodenbestimmung.
 
 ```
-FITS-Bilder
-    │
-    ▼
-01_kalibrierung     Dark/Flat-Korrektur, Siril-Workspace-Erkennung
-    │
-    ▼
-02_plate_solve      ASTAP-Astrometrie, WCS-Header, generische Sternkarte (88 Sternbilder)
-    │
-    ▼
-03_feld_und_comps   Feld-Config, AAVSO VSP — Vergleichssterne, Check-Stern, QC
-    │
-    ▼
-04_photometrie_batch  Aperturphotometrie über alle Frames, QC-Flags, Messtabelle
-    │
-    ▼
-05_lichtkurve       Differentielle Magnitude, Lomb-Scargle-Periode, Phasenkurve
-    │
-    ▼
-06_bericht          AAVSO-Export, Zusammenfassung
+          00_planung        Vorbedingungen, Probebilder (scharf/defokussiert), Plan, Apertur, Sitzung anlegen
+              │
+              ▼
+          01_vorbereitung   Kalibrierung (Siril-Skript), Referenz + ASTAP, Gaia-Gegenprobe, Comps/Check → field_config.json
+              │
+              ▼
+          02_messung        Photometrie (WCS aus Kopf oder Registrierung), Bildflags, Lichtkurve, Periode
+              │
+              ▼
+          03_bericht        AAVSO-Export (Format + Inhalt geprüft), Offene Punkte, Reifegrad, KI-Zweitlesung
+
+  Werkzeuge:  07_kamera_charakterisierung (einmalig, vor 00)   08_transformation (Farbkamera/RGB-Filter)
 ```
 
 ---
@@ -54,7 +47,7 @@ python tools/make_const_data.py
 python varphot_demo.py
 
 # Notebook in VSCode öffnen
-code notebooks/01_kalibrierung.ipynb
+code notebooks/00_planung.ipynb      # Modus „LCO-Testdaten“ zum Ausprobieren (vorher: python tools/download_testdata.py lco-dcep)
 ```
 
 **Externe Abhängigkeit**: [ASTAP](https://www.hnsky.org/astap.htm) muss installiert sein (`/Applications/ASTAP.app` auf macOS).
@@ -79,21 +72,20 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 
 ## Was jedes Notebook tut
 
-| Nr. | Notebook               | Eingabe                        | Ausgabe                          |
-|-----|------------------------|--------------------------------|----------------------------------|
-| 00  | `00_planung`           | Ziel, Methode, Kamera-Profil, Probebilder (scharf und defokussiert) | Vorbedingungen, Bereitschaft (NB07/NB08, Standardfeld), Defokus-Folgen, Plate-Solve-Test, Plan (Belichtung, FWHM, Aperturen, Meldefilter) in `plans/` |
-| 01  | `01_kalibrierung`      | Siril-Workspace, Rohbilder     | kalibrierte FITS in `cal/`; Vorbedingungen inkl. optionaler KI-Zweitlesung (Weg-Prüfung) |
-| 02  | `02_plate_solve`       | 1 kalibriertes FITS            | WCS-Header, Sternkarte PNG       |
-| 03  | `03_feld_und_comps`    | Referenzbild + AAVSO VSP       | `field_config.json`              |
-| 04  | `04_photometrie_batch` | alle kalibrierten FITS         | `messtabelle.csv`                |
-| 05  | `05_lichtkurve`        | `messtabelle.csv`              | Lichtkurve PNG, `zeitreihe.csv`  |
-| 06  | `06_bericht`           | `zeitreihe.csv` (+ Plan, Beobachter, `field_config.json`) | AAVSO Extended Format, **vor dem Schreiben geprüft** (Format + Inhalt), Bericht mit „Offene Punkte“ und Reifegrad, optional KI-Zweitlesung (`exports/`), kein Upload |
-| 08  | `08_transformation` | Messtabellen der 3 Farbkanäle (R, G, B) + Katalog (B, V, R) | Koeffizienten `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv`, Gütetest, Meldung `TG`/`V` … (`transform_*.json`); Demo-Modus |
-| 07  | `07_kamera_charakterisierung` | rohe Bayer-Bilder: Bias, Flat-Paare, Linearitätsreihe, Darks | Kameraprofil je Farbebene (Gain, Rauschen, Full Well, Linearität, Dunkelstrom); Demo-Modus mit synthetischen Bildern |
+| Nr. | Notebook               | Entscheidungen (Formular)                       | Ergebnis                          |
+|-----|------------------------|-------------------------------------------------|-----------------------------------|
+| 00  | `00_planung`           | Modus, Sitzungsordner, Ziel, Methode, Kamera, Brennweite | Vorbedingungen, Bereitschaft (NB07/NB08, Standardfeld), Defokus-Folgen, Plate-Solve-Test, Apertur (Wachstumskurve), Plan, **Sitzung** |
+| 01  | `01_vorbereitung`      | Kalibrierweg, Referenzbild, Gaia-Optionen       | kalibrierte Bilder, gelöstes Referenzbild, Comps/Check (`field_config.json`) |
+| 02  | `02_messung`           | WCS-Modus, Apertur, Kernmaske, Periodenbereich  | `messtabelle.csv`, `zeitreihe.csv`, Lichtkurve, Periode |
+| 03  | `03_bericht`           | eigene Daten?, Betriebsart, Band, OBSTYPE, CHART, KI | AAVSO Extended Format, **geprüft** (Format + Inhalt), „Offene Punkte“, Reifegrad, optional KI-Zweitlesung, kein Upload |
+| 07  | `07_kamera_charakterisierung` | Kamera, Einstellung, Bilder              | Kameraprofil (Gain, Rauschen, Linearität, RAW-Kompression) |
+| 08  | `08_transformation`    | Standardfeld, Kanäle                            | Koeffizienten `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv`, Gütetest |
+
+**Bedienung:** In jedem Notebook steht oben ein Formular; danach *Ausführen → Diese Zelle und alle folgenden* ab „Ab hier automatisch“. Die **Sitzung** (`session.json` im Siril-Arbeitsordner) verbindet die Notebooks; der Nutzer gibt nichts doppelt an.
 
 ---
 
-## Sternkarte (NB02 Schritt 5)
+## Sternkarte (`varphot.plot.chart_map`)
 
 Die generische Sternkarte zeigt automatisch die Sternbilder rund um den Zielstern:
 
@@ -103,7 +95,7 @@ Alle 88 IAU-Sternbilder werden unterstützt. Beim ersten Start werden Sternposit
 
 ---
 
-## Lichtkurve (NB05)
+## Lichtkurve (NB02)
 
 ![Lichtkurve Demo](docs/images/lightcurve_demo.png)
 
@@ -113,8 +105,8 @@ Alle 88 IAU-Sternbilder werden unterstützt. Beim ersten Start werden Sternposit
 
 ## Lokale KI-Zweitlesung (optional)
 
-NB06 kann den Bericht von einer **lokalen** KI gegenlesen lassen (Widersprüche, Unklares, Fehlendes; nie Zahlen, ändert nichts). Weg und Reihenfolge: stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama);
-Opencode nur mit lokalem Modell, Aufrufe nur an Rechner im privaten Netz. Einrichtung: Schlüssel `ai` in der privaten `observer.json` (Beispiel im Kopf von `varphot/aireview.py`); NB01 zeigt, welcher Weg gefunden wurde. Abschalten: `VARPHOT_AI=off`.
+NB03 kann den Bericht von einer **lokalen** KI gegenlesen lassen (Widersprüche, Unklares, Fehlendes; nie Zahlen, ändert nichts). Weg und Reihenfolge: stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama);
+Opencode nur mit lokalem Modell, Aufrufe nur an Rechner im privaten Netz. Einrichtung: Schlüssel `ai` in der privaten `observer.json` (Beispiel im Kopf von `varphot/aireview.py`); NB00 zeigt, welcher Weg gefunden wurde. Abschalten: `VARPHOT_AI=off`.
 Kleine Modelle irren (Fehlalarme, Übersehenes) — maßgeblich bleiben die festen Prüfungen, Details und Probelauf in KONZEPT §11.14.
 
 ---
