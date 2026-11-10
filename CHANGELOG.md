@@ -25,6 +25,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `plot_wcs_check()`. M16-Testbild: 2636 Treffer, Versatz 0,08″, Streuung 0,27″ (0,32 px), schlechteste Zelle 0,60″ → OK.
 - **Gaia-TAP mit Ausfall-Umschaltung**: ESA-TAP, bei Timeout/503 der ARI-Spiegel (identische Daten, geprüft).
 - `pyproject.toml` (`pip install -e .`), Tests (`tests/`, pytest).
+- **nbstripout** als Git-Filter (`.gitattributes`): Zell-Outputs und Ausführungszähler landen nie im Repo; je Klon einmalig
+  `nbstripout --install --attributes .gitattributes`. Notebooks 01/03/04 einmalig normalisiert.
 - **PSF-Photometrie (in Arbeit)**: `build_psf()`, `psf_flux()` — bekannter Fehler, siehe unten.
 
 ### Behoben

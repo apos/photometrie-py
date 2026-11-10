@@ -44,7 +44,8 @@ cd photometrie-py
 # Virtuelle Umgebung anlegen
 python3.13 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt   # installiert auch das Paket varphot (editierbar) und nbstripout
+nbstripout --install --attributes .gitattributes   # einmalig je Klon: Notebook-Outputs nie committen
 
 # Einmalig: Sternbild-Positionen aus SIMBAD laden (~1–3 Min)
 python tools/make_const_data.py

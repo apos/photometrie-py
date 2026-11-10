@@ -27,3 +27,4 @@ tqdm
 Pillow
 -e .
 pytest
+nbstripout
