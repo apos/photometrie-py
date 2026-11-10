@@ -475,6 +475,16 @@ Empfehlung: Hauptdaten mit dem Bessel-V-Filter (Lichtkurve, wie der LCO-Test), R
 Testdaten fremder Beobachter (LCO) werden mit Code `TST01` und dem Dateinamenszusatz `_TESTDATEN_NICHT_EINREICHEN` geschrieben — **nie unter dem eigenen Code**. Transformierter Export (`V`/`B`/`R`, `TRANS=YES`) nur, wenn der Gütetest aus NB08 für das Band bestanden ist; sonst `TG`/`TB`/`TR`. Sequenz-ID (`CHART`) von der VSP-Seite von Hand eintragen (`VARPHOT_CHART_ID`).
 **Kanaltrennung:** Siril kalibriert im CFA-Bereich ohne Debayern (`tools/siril_calibrate_cfa.ssf`, nach der Befehlsreferenz, ungetestet); `tools/split_cfa.py` / `varphot/cfa.py` trennt in R, G (beide Grün gemittelt) und B mit angepasster WCS und Pixelskala (getestet). Sirils eigene `seqsplit_cfa`/`seqextract_Green` existieren, ihre Dateireihenfolge und WCS-Behandlung sind in der Doku nicht beschrieben.
 
+### 11.14 Inhaltsprüfung, Reifegrad, Automatisierung (2026-11-10)
+
+**Was automatisch geschieht, was gefragt wird:**
+- *Automatisch:* Sequenz-ID (`CHART`) aus der VSP-Antwort (`chartid`, NB03 → `field_config.json` → NB06); Feldgröße aus Sensor und Brennweite (`field_of_view_deg`, NB00 → Plan → NB03; ein Referenzbild hat Vorrang); transformierte Check-Magnitude (`transformed_with_check`, NB05 → KMAG in NB06).
+- *Warnung/Abfrage:* `OBSTYPE` bei Farbkamera/RGB-Filter (Lesart A Forum „DSLR“ / B Format-Seite „CMOS → CCD“; `VARPHOT_OBSTYPE`, nach Klärung bei der AAVSO `VARPHOT_OBSTYPE_CONFIRMED=1`); Plan ohne Brennweite; Check-Stern weicht > 0,05 mag vom Katalog ab.
+- *Reifegrad* (`varphot/maturity.py`): Funktionen, die nicht an echten Daten geprüft sind (Transformation, CFA-Trennung, Siril-Skript, `monorgb`, OBSTYPE-Regel), werden in NB05/NB06 genannt und stehen im Bericht. Die Stufe wird nur hochgesetzt, wenn die Funktion an echten Daten lief.
+- **Inhaltsprüfung** (`check_plausibility`, NB06 Schritt 4b): `ERROR` blockiert das Schreiben (Zeit in der Zukunft/vor 2000, doppelte Zeilen, Helligkeit weit außerhalb des Sternbereichs, fehlende/negative Fehler, Filter/`TRANS`/`OBSTYPE`-Widerspruch, Luftmasse < 1); `WARN` landet unter „Offene Punkte“ im Bericht (CHART fehlt/Gaia/Form, Check-Stern streut oder weicht ab, Sprünge, `TRANS=YES` ohne Koeffizienten, wenige Punkte, Fehler konstant/zu groß/zu klein). Schwellen sind Startwerte.
+  Bei den LCO-Testdaten meldet sie z. B. die tatsächliche Streuung des Check-Sterns (0,065 mag) und die Gaia-Comps.
+- **Geplant (optional): lokale KI als zweite Leserin** des Berichtstextes (Widersprüche, Lesbarkeit), **nie** für Zahlen und ohne Schreibrechte. Verfügbar: Ollama auf `panama` (192.168.0.5:11434, von den Macs erreichbar; Modelle u. a. gemma2:9b, llama3.1:8b, qwen2.5:7b, GTX 1660 SUPER 6 GB), Opencode (auf dem Mac installiert, auf `panama` nicht). Offen: ob Opencode (Agent-Oberfläche) oder ein direkter Ollama-Aufruf der bessere Weg ist.
+
 ### 11.10 Quellen und Prüfstatus
 
 | Aussage | Quelle | Status |
