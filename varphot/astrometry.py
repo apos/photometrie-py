@@ -174,3 +174,69 @@ def field_from_wcs(wcs: WCS, shape) -> dict:
     (a, b, la, sh) = (xe, ye, len_x, len_y) if len_x >= len_y else (xn, yn, len_y, len_x)
     pa = float(np.degrees(np.arctan2(a[1] - b[1], a[0] - b[0])) % 180)
     return dict(ra0=ra0, dec0=dec0, field_deg=(la, sh), pa_deg=pa)
+
+
+def solve_array(img, hint: dict | None = None, astap: str = ASTAP_DEFAULT, radius_deg: float = 10.0, fov_deg: float | None = None, timeout: int = 180) -> SolveResult:
+    """Loest ein Bild, das nur als Array vorliegt (z. B. kuenstlich verunschaerft): schreibt es **ohne WCS** in eine Wegwerf-Datei und ruft :func:`solve_image` auf.
+
+    ``hint``: Kopfzeilen, die ASTAP als Naeherungsposition braucht (``RA``/``DEC`` als Zahlen in Grad — werden zu ``OBJCTRA``/``OBJCTDEC`` umgeschrieben, oder diese direkt; ``EXPTIME``, ``DATE-OBS``). Es wird nie eine WCS aus dem Hinweis gebaut:
+    liefert ASTAP nichts, ist ``wcs`` leer (kein Fallback auf eine Header-WCS, denn die gibt es hier nicht). Validierung: ``tests/test_core.py`` (ASTAP-Attrappe).
+    """
+    import tempfile
+    hint = dict(hint or {})
+    if isinstance(hint.get("RA"), (int, float)) and isinstance(hint.get("DEC"), (int, float)):      # Grad -> OBJCTRA/OBJCTDEC (Stunden-/Gradschreibweise, die ASTAP sicher liest)
+        from astropy import units as u
+        from astropy.coordinates import Angle
+        hint["OBJCTRA"] = Angle(hint.pop("RA"), u.deg).to_string(unit=u.hour, sep=" ", precision=1, pad=True)
+        hint["OBJCTDEC"] = Angle(hint.pop("DEC"), u.deg).to_string(unit=u.deg, sep=" ", precision=0, alwayssign=True, pad=True)
+    with tempfile.TemporaryDirectory() as d:
+        h = fits.Header()
+        for k, v in hint.items():
+            if k.upper() not in ("CTYPE1", "CTYPE2", "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2", "CDELT1", "CDELT2"):
+                h[k] = v
+        p = Path(d) / "probe.fits"
+        fits.PrimaryHDU(np.asarray(img, np.float32), h).writeto(p)
+        return solve_image(p, astap=astap, radius_deg=radius_deg, fov_deg=fov_deg, timeout=timeout)
+
+
+def plate_solve_summary(res: SolveResult, shape, truth_wcs: WCS | None = None) -> dict:
+    """Kurzbefund einer Loesung: geloest?, Pixelskala ["/px], Bildmitte und — mit ``truth_wcs`` — Versatz der Bildmitte zur Wahrheit ["]."""
+    ny, nx = shape
+    if res.wcs is None or res.source != "ASTAP":
+        return dict(solved=False, source=res.source, notes=list(res.notes))
+    ra, dec = (float(v) for v in res.wcs.pixel_to_world_values(nx / 2, ny / 2))
+    scale = float(np.sqrt(abs(np.linalg.det(res.wcs.pixel_scale_matrix)))) * 3600.0
+    out = dict(solved=True, source=res.source, scale_arcsec=round(scale, 3), center_ra=ra, center_dec=dec)
+    if truth_wcs is not None:
+        r0, d0 = (float(v) for v in truth_wcs.pixel_to_world_values(nx / 2, ny / 2))
+        out["offset_arcsec"] = round(float(np.hypot((ra - r0) * np.cos(np.radians(d0)), dec - d0)) * 3600.0, 2)
+    return out
+
+
+def defocus_solve_ladder(img, truth_wcs: WCS, hint: dict | None = None, blurs=(0, 4, 8, 12, 20, 30), kinds=("gauss", "donut"), astap: str = ASTAP_DEFAULT, radius_deg: float = 5.0,
+                         timeout: int = 180, progress=None):
+    """Loest ein scharfes Bild in wachsender kuenstlicher Unschaerfe und zeigt, wo ASTAP aufgibt (Tabelle ``kind, blur_px, solved, offset_arcsec, seconds``).
+
+    Warum: Bevor man in der Nacht defokussiert, soll bekannt sein, ob ASTAP solche Bilder noch loest (KONZEPT §12.1). Wie: :func:`varphot.synthetic.defocus_image` (Gauss oder Kreisring) ->
+    :func:`solve_array` -> :func:`plate_solve_summary` gegen ``truth_wcs`` (die WCS des scharfen Bildes). Feldhoehe aus ``truth_wcs`` fuer ``-fov``.
+    Grenzen: eine Faltung ist kein echtes Defokussieren; gilt fuer das Sternfeld des Bildes. Validierung: ``tests/test_core.py`` (Attrappe), LCO δ Cep (KONZEPT §12.1).
+    """
+    import time
+
+    import pandas as pd
+
+    from .synthetic import defocus_image
+    ny, nx = np.asarray(img).shape
+    scale = float(np.sqrt(abs(np.linalg.det(truth_wcs.pixel_scale_matrix)))) * 3600.0
+    fov = ny * scale / 3600.0
+    rows = []
+    for kind in kinds:
+        for b in blurs:
+            arr = defocus_image(img, b, kind) if b else np.asarray(img, float)
+            t0 = time.time()
+            res = solve_array(arr, hint, astap=astap, radius_deg=radius_deg, fov_deg=fov, timeout=timeout)
+            s = plate_solve_summary(res, (ny, nx), truth_wcs)
+            rows.append(dict(kind=kind, blur_px=b, solved=s["solved"], offset_arcsec=s.get("offset_arcsec"), seconds=round(time.time() - t0, 1)))
+            if progress:
+                progress(rows[-1])
+    return pd.DataFrame(rows)
