@@ -6,6 +6,39 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0] — 2026-11-10
+
+### Neu
+- **Generische Sternkarte** (NB02 Schritt 5): alle 88 IAU-Sternbilder unterstützt
+  statt hardcodierter Cepheus/Cygnus/Lacerta-Visualisierung
+- **`data/const_topology.json`**: gebündelte Sternbild-Topologie (88 Konstellationen,
+  601 Sternbezeichnungen nach Bayer/Flamsteed), kein Netz nötig
+- **`data/constellation_lines.json`**: generierter Positionscache aus SIMBAD
+  (600/601 Sterne aufgelöst, 88/88 Sternbilder mit mind. 1 Linie)
+- **`tools/make_const_data.py`**: einmaliger SIMBAD-Datenaufbau via Harvard-Mirror
+  (direkter HTTP/ADQL-POST, kein astroquery TAP); vollständiges Greek-Letter-Mapping
+  (`xi`→`ksi`, `the`→`tet`, `mu`→`mu.`, `nu`→`nu.`, `pi`→`pi.`) + Special-Cases
+  für Flamsteed-Nummern, Doppelsterne (Albireo-Muster), Variablenstern-Prefix (`V*`)
+- **NB02 Schritt 4**: HTML-Tabelle mit Sensorzentrum/Zielstern, WCSAxes-Gitternetz
+- **Markdown-Beschreibungen** vor jeder Code-Zelle in allen 6 Notebooks
+- **NB01 Preflight-Check**: prüft alle benötigten Pakete und Binaries (ASTAP, astroalign)
+- **Code-Zellen zugeklappt** (`source_hidden: true`) in allen Notebooks für bessere Übersicht
+- **`docs/images/`**: Demo-Bilder (Sternkarte, Lichtkurve) für README
+- **README.md**: vollständig neu — Pipeline-Übersicht, Zielsterne-Tabelle, Paketstruktur,
+  PSF-Erklärung, `varphot_demo.py`-Doku, Hardware-Referenz
+
+### Geändert
+- ASTAP-Pfad korrigiert: `/Applications/astap` → `/Applications/ASTAP.app/Contents/MacOS/astap`
+- ipykernel: `.venv` als Jupyter-Kernel registriert
+- NB02 Sternbild-Zelle: gnomische Projektion, automatischer SIMBAD-Setup beim ersten Start
+
+### Getestet
+- Synthetische Pipeline (macOS M4, Python 3.13.18): 46 Quellen, 8 Comps,
+  Check-Streuung 0,0101 mag, Lomb-Scargle-Periode 5,384 d (Soll 5,366 d)
+- `make_const_data.py`: Harvard-Mirror SIMBAD, 600/601 Sterne, 88/88 Sternbilder
+
+---
+
 ## [0.1.0] — 2026-11-10
 
 ### Neu
