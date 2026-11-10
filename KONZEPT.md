@@ -538,3 +538,23 @@ FWHM im Rohbild ≥ 8–10 px bei Bayer-Kameras (§5.5.1). Mit NB07-Profil gilt 
 (3) **NB03 liest den Plan** (`VARPHOT_PLAN`): `comp_v_range` unten = `V_comp_min`, bei Bayer-/RGB-Methoden `comp_bv_abs` (0,3–1,0, Handbuch §6.3.1), bei `TB`/`TR`/`B`/`R` keine Gaia-Ergänzung. (4) **NB06 liest den Plan** (Meldefilter, `OBSTYPE`). (5) Methode `monorgb` (§11.12).
 **Grenzen:** Das Ziel muss in seiner hellsten Phase geplant werden; die Skalierung setzt Linearität und gleiche Bedingungen voraus; Gauß-FWHM ist bei stark defokussierten (ringförmigen) Sternen ungenau; Probebilder sind nur mit synthetischen Daten und nicht mit echten Aufnahmen getestet.
 **Offen:** Feldgröße aus dem Aufbau (Brennweite/Sensor) in NB03; Mondstreulicht-Modell; echte Probebilder.
+
+### 12.1 Defokussieren und Plate-Solving (Probelauf 2026-11-10)
+
+**Frage:** Hellere Ziele (δ Cep) werden bewusst unscharf gestellt (Sättigung, Szintillation, bei Bayer-Kameras FWHM ≥ 8–10 px im Rohbild). Löst ASTAP solche Bilder noch?
+**Versuch** (`tools/defocus_solve_test.py`): ein scharfes LCO-Bild von δ Cep (0,57″/px, Stern-FWHM laut Header 3,8 px, 2042 × 3054 px) mit `varphot.synthetic.defocus_image` verunschärft (Gauß-Filter und Kreisring „Donut“ mit 37 % Obstruktion, wie ein Schmidt-Cassegrain), ohne WCS neu geschrieben, mit ASTAP gelöst; Vergleich der Bildmitte mit der WCS des Originals.
+
+| zusätzliche Breite (px) | Gesamt-FWHM (px) | Gauß | Donut |
+|---|---|---|---|
+| 0 | 3,8 | gelöst, 0,3″ | gelöst, 0,3″ |
+| 4 | 5,5 | gelöst, 0,4″ | gelöst, 0,4″ |
+| 8 | 8,9 | gelöst, 0,4″ | gelöst, 0,4″ |
+| 12 | 12,6 | gelöst, 0,4″ | gelöst, 0,4″ |
+| 20 | 20,4 | gelöst, 0,3″ | **nicht gelöst** |
+| 30 | 30,2 | **nicht gelöst** | nicht gelöst |
+| 45 | 45,2 | nicht gelöst | nicht gelöst |
+
+**Lesart:** Bis etwa FWHM 12 px (rund das Dreifache der Ausgangsbreite) löst ASTAP unverändert genau; das deckt die Bayer-Regel (≥ 8–10 px) ab. Echte Donuts (Ringe) sind schwerer als Gauß-Unschärfe: ab ~20 px Ringdurchmesser kein Ergebnis.
+**Grenzen:** Eine Faltung des scharfen Bildes ersetzt kein echtes Defokussieren (Rauschen und Sternmuster werden mitgefaltet; Koma, Feldkrümmung und Himmelshelligkeit am Rand fehlen); ein Bild, das *kürzer* belichtet ist als das Probebild, hat weniger Sterne; die Sterndichte hängt vom Feld ab (δ Cep: wenige helle Sterne). Ein Ergebnis für das eigene Feld liefert derselbe Aufruf mit einem eigenen scharfen Bild.
+**Empfehlung für die Praxis:** Probebilder scharf *und* defokussiert aufnehmen (NB00), das defokussierte Bild mit ASTAP lösen (NB02-Aufruf); löst es nicht, ein scharfes Bild derselben Position zum Lösen aufnehmen (die Übertragung der WCS auf die defokussierte Reihe ist noch nicht gebaut).
+**Befund am Rand (offen):** Auf dem echten LCO-Bild liefert `star_metrics` für die hellen, nicht gesättigten Sterne FWHM ≈ 7 px, ein eigener 2D-Gauß-Fit 5,4–5,9 px, die schwachen Sterne 4,5 px, der Header (Median) 3,8 px: **helle Sterne sind breiter** (Flügel). NB00 leitet die Apertur (1,5 × FWHM) aus mittelhellen Sternen ab; bei realen Bildern kann sie dadurch zu groß ausfallen. Noch nicht untersucht, ob das für das Ziel selbst (defokussiert, ungesättigt) gilt.
