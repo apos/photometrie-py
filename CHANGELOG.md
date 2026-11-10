@@ -8,6 +8,14 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Neu
+- **NB07 Kamera-Charakterisierung** (`notebooks/07_kamera_charakterisierung.ipynb`, `varphot/camera.py`): Bayer-Ebenen trennen, Offset und Maximalwert, **Gain per Photon-Transfer-Kurve**
+  je Farbebene (Gegenprobe Einzelpaar-Formel), Ausleserauschen aus Bias-Paar, Full Well, Linearitätsbereich aus Belichtungsreihe (robuste Referenzgerade), Dunkelstrom aus Darks;
+  Vergleich mit Herstellerwerten (Ares-C Pro, Gain 0 LRN), Speichern als Kameraprofil in `PHOTOMETRIE_PY_DATA/` und `observer.json` (nur im Modus `real`).
+  Verfahren nach AAVSO DSLR Observing Manual v1.4 (Anhang A, E, gelesen) und Janesick 2001. **Demo-Modus** mit synthetischen Bildern bekannter Wahrheit (Gain 4,4 → gefunden 4,41).
+  Befund beim Bau: Das Ausleserauschen ist aus dem Achsenabschnitt der Photon-Transfer-Kurve nicht bestimmbar (lieferte 0 statt 3 e⁻) und wird nur aus dem Bias-Paar berechnet.
+- `Camera` um Bayer-Muster, Bittiefe, Maximalwert, Offset, Full Well, Einstellung und Quelle erweitert (alte `observer.json` bleiben lesbar). 11 neue Tests.
+
 ### Geändert
 - **KONZEPT §11 gegen das AAVSO-DSLR-Handbuch v1.4 abgeglichen** (vom Nutzer lokal abgelegt, Kap. 4–6, Anhang A und E im Wortlaut gelesen): maßgebliche
   Transformationsgleichungen 6.11–6.14 und Koeffizientenbestimmung 6.15–6.18, Extinktionserweiterung 6.19–6.22, Einreichungsregeln (Ensemble-Eintrag, `GROUP`,
