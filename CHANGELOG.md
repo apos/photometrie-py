@@ -8,7 +8,14 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+---
+
+## [0.3.0] — 2026-11-10
+
 ### Neu
+- **Echte Testdaten gefunden**: EXOTIC-Beispielsatz HAT-P-32 b (142 FITS, MicroObservatory/Whipple, 2017-12-20,
+  Clear, 60 s, 5,2″/px, ca. 89 MB; <https://github.com/rzellem/EXOTIC_sampledata>). ASTAP löst Bild 1 in 0,2 s
+  (Header ohne WCS, aber mit Standort LATITUDE/LONGITUD). Liegt ausserhalb des Repos; Pipeline-Lauf folgt (P0-3).
 - **Plate Solving mit echten Bildern** (`varphot/astrometry.py`): `solve_image()` ruft ASTAP auf und liest die
   `<bild>.wcs`-Datei (ASTAP schreibt mit `-wcs` NICHT in den FITS-Header); Original bleibt unverändert, Fallback auf
   Header-WCS, sonst `wcs=None`. NB02 mit echtem Bild über `VARPHOT_REF=/pfad/bild.fit`.
@@ -39,6 +46,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (Orion im Feld von M16): `gnomonic()` liefert für die abgewandte Halbkugel NaN.
 - NB02 behauptete, ASTAP schreibe die WCS in den FITS-Header (stimmt nicht, s. o.).
 - Zielposition in NB02 kam aus `CRVAL` (WCS-Referenzpunkt), jetzt aus RA/DEC der Montierung im Header.
+
+### Dokumentation
+- README: Kamera QHY268M ist APS-C (6252×4176 px), nicht Vollformat.
 
 ### Bekannte Fehler
 - `psf_flux()`: PSF-Differenzhelligkeit im synthetischen Demo um ~1,1 mag zu schwach, weil das Ziel defokussiert
@@ -107,4 +117,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - ASTAP-CLI, Katalogabfragen (Gaia/VSP), Registrierung mit echten Bildern,
   AAVSO-Export-Format (siehe KONZEPT.md §8 Test-Strategie)
 
+[Unveröffentlicht]: https://github.com/apos/photometrie-py/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/apos/photometrie-py/releases/tag/v0.3.0
+[0.2.0]: https://github.com/apos/photometrie-py/releases/tag/v0.2.0
 [0.1.0]: https://github.com/apos/photometrie-py/releases/tag/v0.1.0
