@@ -1,8 +1,13 @@
 """Beobachter, Standort und Kamera — einmal erfassen, in jedem Notebook wiederverwenden.
 
-Persoenliche Angaben (Koordinaten des Beobachtungsortes, AAVSO-Code) liegen NUR in einer lokalen
-Datei ausserhalb des Repos (``~/.config/varphot/observer.json``, abweichend ueber ``VARPHOT_CONFIG``).
-Das Repo ist oeffentlich — dort stehen nur Standorte der Testdatensaetze (``BUILTIN_SITES``).
+Persoenliche Angaben (Koordinaten des Beobachtungsortes, AAVSO-Code) liegen NUR ausserhalb des Repos
+(das Repo ist oeffentlich). Suchreihenfolge der Datei ``observer.json``:
+
+1. Umgebungsvariable ``VARPHOT_CONFIG`` (voller Dateipfad),
+2. Datenordner neben dem Repo: ``<Elternordner des Repos>/PHOTOMETRIE_PY_DATA/`` (liegt mit im Nextcloud-Ordner),
+3. ``~/.config/varphot/observer.json``.
+
+Im Repo stehen nur Standorte der Testdatensaetze (``BUILTIN_SITES``).
 
 Der Standort wird gebraucht fuer BJD_TDB (Lichtlaufzeit zum Sonnensystem-Schwerpunkt) und die Luftmasse;
 der AAVSO-Code und die Kameradaten fuer den AAVSO-Export (Formular „Detector Details").
@@ -15,7 +20,9 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-DEFAULT_CONFIG = Path("~/.config/varphot/observer.json")
+DATA_DIRNAME = "PHOTOMETRIE_PY_DATA"
+USER_CONFIG = Path("~/.config/varphot/observer.json")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass
@@ -74,8 +81,20 @@ BUILTIN_SITES: list[Site] = [
 ]
 
 
+def data_dir() -> Path:
+    """Datenordner neben dem Repo (gleicher Elternordner, z. B. im Nextcloud-Ordner)."""
+    return REPO_ROOT.parent / DATA_DIRNAME
+
+
 def config_path(path: str | Path | None = None) -> Path:
-    return Path(path or os.environ.get("VARPHOT_CONFIG") or DEFAULT_CONFIG).expanduser()
+    """Pfad der Konfigurationsdatei (Reihenfolge siehe Modul-Docstring)."""
+    if path:
+        return Path(path).expanduser()
+    if os.environ.get("VARPHOT_CONFIG"):
+        return Path(os.environ["VARPHOT_CONFIG"]).expanduser()
+    if data_dir().is_dir():
+        return data_dir() / "observer.json"
+    return USER_CONFIG.expanduser()
 
 
 def load_config(path: str | Path | None = None) -> tuple[Observer, list[Site]]:

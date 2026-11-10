@@ -1,5 +1,6 @@
 import pytest
 
+from varphot import observer
 from varphot.observer import (BUILTIN_SITES, Camera, Observer, Site, all_sites, config_path,
                               load_config, save_config, upsert_site)
 
@@ -65,3 +66,11 @@ def test_builtin_sites_are_public_testdata_sites():
     for s in BUILTIN_SITES:
         assert "Testdaten" in s.name           # nur oeffentliche Testdaten-Standorte, nichts Persoenliches
         assert isinstance(s.earth_location.lat.deg, float)
+
+
+def test_default_prefers_data_dir_next_to_repo(tmp_path, monkeypatch):
+    monkeypatch.delenv("VARPHOT_CONFIG", raising=False)
+    monkeypatch.setattr(observer, "REPO_ROOT", tmp_path / "PHOTOMETRIE_PY")
+    assert config_path() == observer.USER_CONFIG.expanduser()          # Datenordner fehlt -> ~/.config
+    (tmp_path / observer.DATA_DIRNAME).mkdir()
+    assert config_path() == tmp_path / observer.DATA_DIRNAME / "observer.json"
