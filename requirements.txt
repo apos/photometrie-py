@@ -1,0 +1,26 @@
+# Photometrie-Pipeline — Python 3.13
+# Kern-Astronomie
+astropy>=6.0
+photutils>=3.1
+astroalign>=2.4
+
+# Plate Solving (Python-Wrapper; ASTAP-Binary separat installieren)
+# astap wird per CLI aufgerufen, kein Python-Paket nötig
+
+# Kataloge / Netzwerk
+astroquery>=0.4
+
+# Numerik / Visualisierung
+numpy>=1.26
+scipy>=1.12
+matplotlib>=3.8
+
+# Jupyter / Notebooks
+jupyter
+ipykernel
+ipywidgets
+
+# Hilfspakete
+pandas>=2.1
+tqdm
+Pillow
