@@ -541,6 +541,8 @@ FWHM im Rohbild ≥ 8–10 px bei Bayer-Kameras (§5.5.1). Mit NB07-Profil gilt 
 
 ### 12.1 Defokussieren und Plate-Solving (Probelauf 2026-11-10)
 
+**In NB00 (Schritt 3c):** scharfes Referenzbild (`scharf/`) gegen den geplanten Fokus: FWHM (gesamt, hellere/schwächere Hälfte), Zahl der Sterne, hellster Wert; daraus `defocus_tradeoff` (Spitzenwert ∝ 1/FWHM², Belichtung × (FWHM_def/FWHM_scharf)², S/N der schwachen Sterne ∝ 1/FWHM, Gauß-Näherung) und optional `defocus_needed` (`VARPHOT_T_WANT`: welche FWHM braucht der hellste Stern für die Wunschbelichtung). Plate-Solve-Test: geplanter Fokus und scharfes Bild mit ASTAP (Feldgröße aus dem WCS-Kopf des scharfen Bildes oder aus Brennweite und Sensor), dazu die Leiter künstlicher Unschärfe (`defocus_solve_ladder`, Gauß und Donut). Demo-Modus: synthetisch, ohne ASTAP.
+
 **Frage:** Hellere Ziele (δ Cep) werden bewusst unscharf gestellt (Sättigung, Szintillation, bei Bayer-Kameras FWHM ≥ 8–10 px im Rohbild). Löst ASTAP solche Bilder noch?
 **Versuch** (`tools/defocus_solve_test.py`): ein scharfes LCO-Bild von δ Cep (0,57″/px, Stern-FWHM laut Header 3,8 px, 2042 × 3054 px) mit `varphot.synthetic.defocus_image` verunschärft (Gauß-Filter und Kreisring „Donut“ mit 37 % Obstruktion, wie ein Schmidt-Cassegrain), ohne WCS neu geschrieben, mit ASTAP gelöst; Vergleich der Bildmitte mit der WCS des Originals.
 
