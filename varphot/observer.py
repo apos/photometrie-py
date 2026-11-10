@@ -66,6 +66,8 @@ class Camera:
     saturation_adu: float | None = None           # gemessener Maximalwert [ADU]
     offset_adu: float | None = None               # System-Offset (Bias-Pegel) [ADU]
     full_well_e: float | None = None              # gain * max_adu [e-]
+    linear_min_adu: float | None = None           # unterer Rand des linearen Bereichs [ADU] (NB07, ±1 %)
+    linear_max_adu: float | None = None           # oberer Rand des linearen Bereichs [ADU] — Obergrenze fuer Sterne (NB00 nutzt ihn)
     gain_setting: str = ""                        # Einstellung, auf die sich die Werte beziehen (z. B. "Gain 0, LRN, -10 C")
     source: str = ""                              # "gemessen (NB07, Datum)" oder "Hersteller"
 
