@@ -372,7 +372,7 @@ rot von Johnson B (die blaue Bayer-Farbe hat einen roten Ausläufer) — also di
 | Verschluss | Rolling Shutter | Belichtungszeit ≥ einige Sekunden; Zeitstempel = Mitte der Zeile 0? (prüfen) |
 | Relative QE | Blau-Peak ~465 nm, Grün ~530 nm, Rot ~610 nm (nur Bild) | Kanal ↔ Johnson: Grün ≈ V (nah), Blau/Rot breit |
 
-Modell: Die Angaben gelten für die **Ares-C Pro**; die vom Nutzer genannte „Ares-C" ist zu bestätigen (Pro hat 73 ke⁻, die Basis-IMX533 50 ke⁻ laut Handbuch).
+Modell: **Ares-C Pro mit Kühlung** (vom Nutzer bestätigt 2026-11-10); die Herstellerangaben oben gelten genau für dieses Modell (Pro: 73 ke⁻, Basis-IMX533: 50 ke⁻ laut Handbuch).
 AAVSO-Forum „Player One IMX533 settings" (G, 2023/24, Mono-Version): ein Beobachter empfiehlt Gain 0 im LRN-Modus (kein Nachteil), warnt aber: „A number of observers have discovered that their actual camera behavior deviated in some significant ways from
 the vendor curves" und fand eine nichtlineare Zählrate unter ~2000 ADU (+25 % ADU/s bei 500 ADU) — **Linearität selbst messen**.
 
@@ -432,8 +432,8 @@ Warnung (F): Seestar-Firmware seit 08/2025 soll nichtlineare FITS erzeugen (BAA-
 | Gaia gegen VSP | `tools/compare_gaia_vsp.py` (eigene Messung, Netz) | **eigene Rechnung** |
 | Siril: Lichtkurven, AAVSO-Export | Siril-Doku „Light curves", <https://siril.readthedocs.io/en/latest/photometry/lightcurves.html> | **G** (Auszug über WebFetch) |
 | Siril: Split CFA / Extract Green | Siril-Doku „Split Channels", <https://siril.readthedocs.io/en/latest/processing/extraction.html> | **F** (Suchauszug) |
-| DSLR Observing Manual v1.4 §6.5/§6.7 | <https://aavso.org/wp-content/uploads/2026/07/DSLR-English-1.4.pdf> | **nicht gelesen** (Download per Skript von der AAVSO-Seite gesperrt; im Browser-Pane lässt sich die PDF öffnen, aber nicht als Text auslesen; ein Versuch, sie per eingeschleustem Skript auszulesen, wurde abgelehnt und nicht umgangen) |
+| DSLR Observing Manual v1.4 §6.5/§6.7 | <https://aavso.org/wp-content/uploads/2026/07/DSLR-English-1.4.pdf> (Link von der AAVSO-Handbuchseite <https://aavso.org/manuals/>, Rubrik „DSLR / Mirrorless Cameras“, Eintrag „English (v1.4)“) | **nicht gelesen** (Download per Skript von der AAVSO-Seite gesperrt; im Browser-Pane lässt sich die PDF öffnen, aber nicht als Text auslesen; ein Versuch, sie per eingeschleustem Skript auszulesen, wurde abgelehnt und nicht umgangen) |
 | Standardfelder M 67, NGC 7790; Transform Generator/Applier | AAVSO-Seiten und JAAVSO-Artikel (Suchauszug) | **F** |
 
-**Offen:** (1) DSLR-Handbuch §6.5/§6.7 mit dem Nutzer gegenlesen (der Nutzer legt die PDF lokal ab). (2) Bestätigung der AAVSO zu `OBSTYPE` bei OSC-CMOS. (3) Modell Ares-C vs. Ares-C Pro; Bittiefe/Skalierung im FITS; Sperrfilter im Aufbau.
+**Offen:** (1) DSLR-Handbuch §6.5/§6.7 mit dem Nutzer gegenlesen (der Nutzer legt die PDF lokal ab). (2) Bestätigung der AAVSO zu `OBSTYPE` bei OSC-CMOS. (3) Bittiefe/Skalierung im FITS; Sperrfilter im Aufbau (Modell Ares-C Pro mit Kühlung bestätigt).
 (4) Siril-Befehlsnamen in der installierten Version prüfen. (5) B-/R-Comp-Magnituden: VSP statt Gaia (§11.7).
