@@ -8,6 +8,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Geändert
+- **KONZEPT §11 gegen das AAVSO-DSLR-Handbuch v1.4 abgeglichen** (vom Nutzer lokal abgelegt, Kap. 4–6, Anhang A und E im Wortlaut gelesen): maßgebliche
+  Transformationsgleichungen 6.11–6.14 und Koeffizientenbestimmung 6.15–6.18, Extinktionserweiterung 6.19–6.22, Einreichungsregeln (Ensemble-Eintrag, `GROUP`,
+  `OBSTYPE=DSLR`), Comp-Regeln (B−V 0,3–1,0, S/N ≥ 100), Sättigungsgrenze 75 % des Maximalwerts, FWHM ≥ 8–10 px im Rohbild, beide Grünkanäle mitteln,
+  keine Transformation bei Sternen mit starken Emissionslinien, Kameratests für NB07 (Anhang A/E). Kamenec 2023 bleibt als Variante.
+
 ### Geändert / korrigiert
 - **`v_from_gaia`:** Koeffizienten gegen die Gaia-EDR3-Dokumentation (Tab. 5.7) geprüft — stimmen; der Gültigkeitsbereich war falsch angegeben
   (2,75 statt **5,0** für BP−RP) und σ = 0,03017 statt 0,04. Gegenprobe gegen die AAVSO-Sequenz: 31 Sterne, Streuung 0,029 mag
