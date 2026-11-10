@@ -207,3 +207,16 @@ def test_core_correction_removes_seeing_dependence():
     cor = abs(mags[2.5][1] / mags[4.0][1] - 1)
     assert raw > 0.02                                  # ohne Korrektur: Seeing-abhaengiger Verlust
     assert cor < raw / 3                               # mit Kernmaske klar kleiner
+
+
+def test_read_measurements_keeps_numbers_numeric_with_nan_and_empty_text(tmp_path):
+    """Regression: leere CSV-Felder machten Zahlenspalten zu Text (NB04-Cache-Pfad)."""
+    from varphot import read_measurements
+    df = pd.DataFrame(dict(file=["a", "b"], star_id=["target", "94"], flux=[1.5, np.nan], fwhm_arcsec=[2.0, np.nan],
+                           star_flag=["", "SAT"], frame_flags=["", "NO_SIGNAL"], flux_ring=[np.nan, np.nan]))
+    p = tmp_path / "m.csv"
+    df.to_csv(p, index=False)
+    out = read_measurements(p)
+    assert out["fwhm_arcsec"].dtype.kind == "f" and out["flux"].isna().tolist() == [False, True]
+    assert out["star_flag"].tolist() == ["", "SAT"] and out["frame_flags"].tolist() == ["", "NO_SIGNAL"]
+    assert (out["fwhm_arcsec"].iloc[0] > 1.0)                                         # Vergleich Zahl > Zahl, kein Textfehler
