@@ -10,7 +10,11 @@ def test_testdata_dir_env(tmp_path, monkeypatch):
     monkeypatch.setenv("VARPHOT_TESTDATA", str(tmp_path / "x"))
     assert td.testdata_dir() == tmp_path / "x"
     monkeypatch.delenv("VARPHOT_TESTDATA")
-    assert td.testdata_dir().name == "astro_testdata"
+    from varphot import observer
+    monkeypatch.setattr(observer, "REPO_ROOT", tmp_path / "PHOTOMETRIE_PY")
+    assert td.testdata_dir().name == "astro_testdata"                      # kein Datenordner -> ~/astro_testdata
+    (tmp_path / observer.DATA_DIRNAME).mkdir()
+    assert td.testdata_dir() == tmp_path / observer.DATA_DIRNAME / "testdata"
 
 
 def test_lco_frames_paginates_filters_and_ignores_count(monkeypatch):

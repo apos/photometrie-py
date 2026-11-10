@@ -1,7 +1,7 @@
 # Testdaten — Herkunft, Auswahl, Ergebnisse
 
 Die Bilder liegen **nicht** im Repo (zu groß, eigene Nutzungsbedingungen). Laden mit
-`python tools/download_testdata.py lco-dcep hatp32` (Standardziel `~/astro_testdata`, `VARPHOT_TESTDATA` überschreibt;
+`python tools/download_testdata.py lco-dcep hatp32` (Standardziel `PHOTOMETRIE_PY_DATA/testdata/` neben dem Repo (Nextcloud), `VARPHOT_TESTDATA` überschreibt;
 vorhandene Dateien werden per MD5 bzw. Größe geprüft und nicht erneut geladen).
 
 ## 1. `lco-dcep` — δ Cep, Filter V (Hauptdatensatz, Cepheide)
@@ -61,7 +61,7 @@ nicht; er soll Transit, Clear-Filter und grobe Pixelskala abdecken.
 ## 3. Lizenzen und Nutzungsbedingungen (Stand 2026-11-10, im Wortlaut geprüft soweit zugänglich)
 
 **Versäumnis:** Beide Datensätze wurden geladen, *bevor* die Bedingungen gelesen waren. Das ist nachgeholt; die Regel steht jetzt in
-`docs/entwicklung.md` §2a. Die Daten liegen nur lokal (`~/astro_testdata`), nicht im Repo und nicht in Nextcloud.
+`docs/entwicklung.md` §2a. Die Daten liegen im privaten Nextcloud-Ordner `PHOTOMETRIE_PY_DATA/testdata/` (auf Wunsch des Nutzers, damit sie nicht verloren gehen), **nicht im Repo**. Das ist keine Veröffentlichung; der Ordner darf nicht öffentlich geteilt werden (EXOTIC-Daten ohne Lizenz, LCO nur mit Namensnennung und nicht-kommerziell).
 
 | Datensatz | Quelle der Bedingungen | Wortlaut (Auszug) | Folgen |
 |---|---|---|---|
