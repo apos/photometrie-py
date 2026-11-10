@@ -123,8 +123,12 @@ def save_config(observer: Observer, sites: list[Site], path: str | Path | None =
     """Schreibt die lokale Konfiguration (Verzeichnis wird angelegt, Rechte nur fuer den Benutzer)."""
     p = config_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    d = {"aavso_code": observer.aavso_code, "site_name": observer.site_name,
-         "camera": asdict(observer.camera), "cameras": [asdict(c) for c in observer.cameras], "sites": [asdict(s) for s in sites]}
+    try:                                                             # fremde Schluessel (z. B. ``ai`` der KI-Zweitlesung) bleiben erhalten
+        d = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except (OSError, ValueError):
+        d = {}
+    d.update({"aavso_code": observer.aavso_code, "site_name": observer.site_name,
+              "camera": asdict(observer.camera), "cameras": [asdict(c) for c in observer.cameras], "sites": [asdict(s) for s in sites]})
     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     p.chmod(0o600)
     return p
