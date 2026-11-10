@@ -5,7 +5,9 @@ __pycache__/
 *.fts
 *.fit
 *.png
+!docs/images/*.png
 *.csv
+demo/siril_workspace/
 .env
 venv/
 .venv/
