@@ -18,7 +18,8 @@ from .camera import (bayer_planes, center_roi, pair_stats, gain_from_pair, ptc_f
 from .plan import (ObservingPlan, METHODS, green_plane, star_metrics, fwhm_summary, recommend_exposure, aperture_from_fwhm,
                    night_altitudes, save_plan, load_plan, latest_plan)
 from .transform import (TransformSolution, linfit, catalog_from_vsp_table, instrumental_table, fit_extinction, fit_transform,
-                        transform_target, loo_validation, solution_path)
+                        transform_target, loo_validation, solution_path, transformed_light_curve)
+from .aavso import Observation, build_extended, validate_extended, notes_string, observations_from_lightcurve
 from .camera_presets import PRESETS, CameraPreset, VendorValues, get_preset, preset_choices
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "ObservingPlan", "METHODS", "green_plane", "star_metrics", "fwhm_summary", "recommend_exposure", "aperture_from_fwhm",
     "night_altitudes", "save_plan", "load_plan", "latest_plan",
     "TransformSolution", "linfit", "catalog_from_vsp_table", "instrumental_table", "fit_extinction", "fit_transform",
-    "transform_target", "loo_validation", "solution_path",
+    "transform_target", "loo_validation", "solution_path", "transformed_light_curve",
+    "Observation", "build_extended", "validate_extended", "notes_string", "observations_from_lightcurve",
     "PRESETS", "CameraPreset", "VendorValues", "get_preset", "preset_choices",
 ]

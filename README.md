@@ -87,10 +87,9 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 | 03  | `03_feld_und_comps`    | Referenzbild + AAVSO VSP       | `field_config.json`              |
 | 04  | `04_photometrie_batch` | alle kalibrierten FITS         | `messtabelle.csv`                |
 | 05  | `05_lichtkurve`        | `messtabelle.csv`              | Lichtkurve PNG, `zeitreihe.csv`  |
-| 06  | `06_bericht`           | `zeitreihe.csv`                | AAVSO-kompatibles Exportformat (in Arbeit) |
+| 06  | `06_bericht`           | `zeitreihe.csv` (+ Plan, Beobachter, `field_config.json`) | AAVSO Extended Format, **vor dem Schreiben geprüft** (`exports/`), kein Upload |
 | 08  | `08_transformation` | Messtabellen der 3 Farbkanäle (R, G, B) + Katalog (B, V, R) | Koeffizienten `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv`, Gütetest, Meldung `TG`/`V` … (`transform_*.json`); Demo-Modus |
 | 07  | `07_kamera_charakterisierung` | rohe Bayer-Bilder: Bias, Flat-Paare, Linearitätsreihe, Darks | Kameraprofil je Farbebene (Gain, Rauschen, Full Well, Linearität, Dunkelstrom); Demo-Modus mit synthetischen Bildern |
-| 08  | *geplant* Transformationskoeffizienten | Standardfeld-Bilder | `transform.json` (Farbkamera: TG/TB/TR → V/B/R) |
 
 ---
 
@@ -133,7 +132,9 @@ photometrie-py/
 │   ├── const_topology.json        # 88 IAU-Sternbilder (topologisch, gebündelt)
 │   └── constellation_lines.json   # Sternpositionen aus SIMBAD (generiert)
 ├── tools/
-│   └── make_const_data.py         # Einmaliger SIMBAD-Datenaufbau
+│   ├── make_const_data.py         # Einmaliger SIMBAD-Datenaufbau
+│   ├── split_cfa.py               # Bayer-FITS → R, G, B (WCS angepasst)
+│   └── siril_calibrate_cfa.ssf    # Siril-Kalibrierung im CFA-Bereich (ungetestet)
 ├── demo/               # Synthetischer Demo-Workspace (Siril-Struktur)
 ├── varphot_demo.py     # End-to-End-Test / Regressions-Check
 ├── KONZEPT.md          # Architektur, ADRs, Roadmap (arc42)
@@ -197,7 +198,7 @@ den Bedingungen der jeweiligen Quelle; bei Veröffentlichungen Quelle nennen.
 - **Teleskop**: Celestron C9.25 SCT (235 mm, f/10 → f/7 mit Reducer)
 - **Kamera**: QHY268M (APS-C Mono, 6252×4176 px, 3,76 µm Pixel)
 - **Weitere Kameras** (Vorlagen in `varphot/camera_presets.py`, Messung mit NB07): Player One Ares-C Pro (Farbe, IMX533, gekühlt), Panasonic Lumix S9 (Vollformat, spiegellos, RAW → Siril → FITS)
-- **Filter**: Johnson-Cousins B, V, Rc, Ic (Baader Bessel, 2")
+- **Filter**: Johnson-Cousins B, V, Rc, Ic (Baader Bessel, 2"); zusätzlich ein Standard-RGB-Filterrad (Methode `monorgb`, KONZEPT §11.12)
 - **Plate Solver**: ASTAP (lokal, offline)
 
 Das Paket läuft mit jedem anderen Teleskop/Kamera-Kombination, das kalibrierte FITS mit WCS-Header liefert.

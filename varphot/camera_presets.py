@@ -87,6 +87,18 @@ PRESETS: dict[str, CameraPreset] = {
         sources=["https://help.na.panasonic.com/answers/features-and-specifications-lumix-s-series-model-dc-s9k/",
                  "https://www.newsshooter.com/2024/05/22/panasonic-lumix-s9/"],
     ),
+    "qhy268m": CameraPreset(
+        key="qhy268m", model="QHY268M", cam_type="CMOS",
+        sensor="Sony IMX571 (APS-C, Mono), gekuehlt; 6252 x 4176 px (nicht Vollformat)",
+        format_px=(6252, 4176), pixel_um=3.76, pixel_status="F", bayer_pattern="", bayer_status="G", bit_depth=None, bit_status="?",
+        raw_input="fits", obstype="CCD",
+        settings={"Standard": VendorValues(dark_current_e_per_s=0.0005, dark_temp_c=-20.0, status="F",
+                                           source="Haendlerangaben (Suchauszuege): Dunkelstrom 0,0005 e-/px/s bei -20 C; Gain/Rauschen je Modus nicht uebernommen — messen")},
+        notes=["Monochrom: keine Bayer-Ebenen; NB07 wertet dann vier verschachtelte Teilbilder aus (fuer Gain/Rauschen ausreichend)",
+               "Mit Standardfiltern (Johnson-Cousins B, V, Rc, Ic, z. B. Baader Bessel): OBSTYPE CCD, Filter B/V/R; mit RGB-Astroimaging-Filtern: TB/TG/TR, nach der AAVSO-Forum-Zusammenfassung OBSTYPE DSLR (KONZEPT §11.12)",
+               "Bittiefe/Gain-Modi nicht verifiziert (QHY-Modi: Photographic/High-Gain/Extended Full Well) -> messen"],
+        sources=["https://archive.aavso.org/node/88672"],
+    ),
     "eigene": CameraPreset(
         key="eigene", model="", cam_type="CMOS", sensor="", format_px=(0, 0), pixel_um=None, pixel_status="?",
         bayer_pattern="", bayer_status="?", bit_depth=None, bit_status="?", raw_input="fits", obstype="CCD",

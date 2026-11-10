@@ -204,3 +204,34 @@ def test_tap_json_falls_back_and_demotes_failed_service(monkeypatch):
     monkeypatch.setattr(V.requests, "post", post)
     assert V._tap_json("SELECT 1 AS x") == [{"x": 1}]
     assert calls == [V.GAIA_TAP, V.GAIA_TAP_ARI] and V._TAP_ORDER[0] == V.GAIA_TAP_ARI   # ESA ans Ende
+
+
+def test_std_fields_registry_and_unknown_name():
+    from varphot.vsp import STD_FIELDS, fetch_std_field
+    assert {"M67", "NGC 7790", "M11", "Melotte 111"} <= set(STD_FIELDS)
+    import pytest
+    with pytest.raises(KeyError):
+        fetch_std_field("Orionnebel")
+
+
+def test_fetch_std_field_parses_via_cache(tmp_path, monkeypatch):
+    import json
+    from varphot import vsp
+    d = {"photometry": [{"auid": "a", "ra": "08:50:18.65", "dec": "11:24:29.0", "label": "87", "comments": None,
+                         "bands": [{"band": "V", "mag": 12.0, "error": 0.01}, {"band": "B", "mag": 12.6, "error": 0.01},
+                                   {"band": "Rc", "mag": 11.7, "error": 0.01}]}]}
+    (tmp_path / "stdfield_M67_16.json").write_text(json.dumps(d))
+    monkeypatch.setattr(vsp.requests, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Netz nicht erwartet")))
+    t = vsp.fetch_std_field("M67", cache_dir=tmp_path)
+    assert len(t) == 1 and abs(t["BV"][0] - 0.6) < 1e-9 and t["Rc"][0] == 11.7
+
+
+def test_comp_bv_abs_rule_rejects_red_and_blue():
+    from varphot.vsp import _stage1_reasons, VSP_CFG
+    tgt = {"BV": 0.6}
+    cfg = {**VSP_CFG, "comp_bv_abs": (0.3, 1.0), "comp_bv_tol": 5.0, "comp_v_range": (5, 12)}
+    row = lambda bv: {"comment": "", "V": 9.0, "B": 9.0 + bv, "V_err": 0.01, "BV": bv}
+    assert not any("B-V" in w and "außerhalb" in w for w in _stage1_reasons(row(0.7), 0.1, True, tgt, cfg))
+    assert any("außerhalb 0.3" in w for w in _stage1_reasons(row(1.4), 0.1, True, tgt, cfg))
+    assert any("außerhalb 0.3" in w for w in _stage1_reasons(row(0.05), 0.1, True, tgt, cfg))
+    assert not any("Handbuch" in w for w in _stage1_reasons(row(1.4), 0.1, True, tgt, {**VSP_CFG, "comp_bv_tol": 5.0, "comp_v_range": (5, 12)}))
