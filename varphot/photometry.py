@@ -25,7 +25,7 @@ def aperture_flux(img, xy, r_ap=None, r_in=None, r_out=None, cfg=None):
     an = CircularAnnulus(xy, r_in=r_in, r_out=r_out)
     sky = ApertureStats(img, an, sigma_clip=None)
     bkg = sky.median
-    st = ApertureStats(img, ap)
+    st = ApertureStats(img, ap, sigma_clip=None)    # Standard-Clipping wuerde helle Sternkerne abschneiden
     flux = st.sum - bkg * ap.area
     peak = st.max - bkg
     if np.any(peak > cfg["sat_adu"]):
