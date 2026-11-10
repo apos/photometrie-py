@@ -22,6 +22,8 @@ CFG = {
     "comp_r_iso_px": 25,
     "comp_n": 8,
     "comp_peak_max": 40000,
+    "comp_halo_px": 60,        # Abstand zum Ziel, innerhalb dessen ein Stern im Halo des defokussierten Ziels liegt
+    "comp_dv_max": 6.0,        # groesste erlaubte Helligkeitsdifferenz Comp - Ziel [mag] (Bildumfang/Linearitaet)
     # Apertur Comps/Check
     "ap_r": 10,
     "ap_r_in": 18,

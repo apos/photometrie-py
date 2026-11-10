@@ -1,4 +1,7 @@
-"""Katalog-Crossmatch und Comp/Check-Auswahl."""
+"""Katalog-Crossmatch und Comp/Check-Auswahl (Altpfad fuer Demo und Unit-Tests; fuer echte Felder gilt ``varphot.vsp.select_comps_catalog``).
+
+Autor: Axel Pospischil. Die Regeln (Rand, Nachbar, Saettigung, Farbe) sind Startwerte aus :data:`varphot.config.CFG`; jeder verworfene Kandidat wird mit Grund gemeldet.
+"""
 import numpy as np
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -34,7 +37,10 @@ def select_comps(m, cat, w, cfg=None, target_id=0):
     edge = cfg["comp_edge_px"]
     r_iso = cfg["comp_r_iso_px"]
 
-    c0 = cat[cat["id"] == target_id][0]
+    hit = cat[cat["id"] == target_id]
+    if len(hit) == 0:
+        raise ValueError(f"Ziel mit id={target_id!r} fehlt im Katalog")
+    c0 = hit[0]
     tx, ty = w.world_to_pixel_values(c0["ra"], c0["dec"])
     tgt = {
         "V": c0["V"], "BV": c0["BV"],
@@ -64,13 +70,15 @@ def select_comps(m, cat, w, cfg=None, target_id=0):
 
 
 def _comp_reject_reason(r, tgt, m, cfg, nx, ny, edge, r_iso, target_id):
+    """Grund, warum ``r`` kein Comp/Check sein darf (``None`` = brauchbar); Reihenfolge der Pruefungen = Reihenfolge der Meldungen."""
     if r["cat_id"] == target_id or r["var"]:
         return "Ziel oder bekannter Veränderlicher"
     dist_tgt = np.hypot(r["x_centroid"] - tgt["x_centroid"], r["y_centroid"] - tgt["y_centroid"])
-    if dist_tgt < 60:
+    if dist_tgt < cfg.get("comp_halo_px", 60):
         return "im Halo des defokussierten Ziels"
-    if abs(r["V"] - tgt["V"]) > 6:
-        return f"Helligkeitsdifferenz {abs(r['V'] - tgt['V']):.1f} mag > 6"
+    dv_max = cfg.get("comp_dv_max", 6.0)
+    if abs(r["V"] - tgt["V"]) > dv_max:
+        return f"Helligkeitsdifferenz {abs(r['V'] - tgt['V']):.1f} mag > {dv_max:g}"
     if abs(r["BV"] - tgt["BV"]) > cfg["comp_bv_tol"]:
         return f"B-V-Differenz {abs(r['BV'] - tgt['BV']):.2f} > {cfg['comp_bv_tol']}"
     if not (edge < r["x_centroid"] < nx - edge and edge < r["y_centroid"] < ny - edge):

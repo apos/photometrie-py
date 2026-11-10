@@ -67,8 +67,15 @@ def solve_image(image: str | Path, astap: str = ASTAP_DEFAULT, radius_deg: float
     cmd = [astap, "-f", str(image), "-r", str(radius_deg), "-s", str(int(max_stars)), "-wcs"]
     if fov_deg:
         cmd += ["-fov", str(fov_deg)]
-    run = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    log = (run.stdout + run.stderr).strip()
+    try:
+        run = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        log = (run.stdout + run.stderr).strip()
+    except subprocess.TimeoutExpired:                  # haengt ASTAP (z. B. leeres Feld), bleibt der Fallback auf die Header-WCS
+        log = ""
+        notes.append(f"ASTAP: Zeitlimit {timeout} s")
+    except OSError as e:
+        log = ""
+        notes.append(f"ASTAP nicht startbar: {e}")
 
     if sidecar.exists() and "Solution found" in log:
         hdr = read_wcs_sidecar(sidecar)

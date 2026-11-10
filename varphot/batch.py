@@ -217,7 +217,7 @@ def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
     ab 4 Comps verworfen. Nullpunkt = Median, mit ``f_c_err`` das mit ``1/sigma^2`` gewichtete Mittel (``sigma_i = 1,0857
     err_i/f_i``). ``mag = -2,5 log10 f_t + zp``. Fehler: ``sd(zp)^2/n`` plus Photonenfehler des Ziels, quadratisch.
 
-    Rueckgabe: ``(mag, err, n_benutzt, zp_streuung)``.
+    Rueckgabe: ``(mag, err, n_benutzt, zp_streuung)``; ohne brauchbaren Comp (Fluss <= 0, V unbekannt) oder bei Fluss des Ziels <= 0 ``(nan, nan, 0, nan)``.
 
     Grenzen: ``zp_streuung`` enthaelt die Katalogfehler der Comp-V (bei Gaia-abgeleitetem V roter Sterne gross) und ist kein
     reines Rauschmass. Keine Farbterm-Korrektur (siehe KONZEPT.md §11). Kein Ausfall-Ersatz bei < 3 Comps (Aufrufer prueft).
@@ -228,7 +228,9 @@ def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
     dies ist eine vereinfachte Variante (Median/gewichtetes Mittel statt der vollen Matrixloesung von Honeycutt).
     """
     f_c, v_c = np.asarray(f_c, float), np.asarray(v_c, float)
-    ok = f_c > 0
+    ok = (f_c > 0) & np.isfinite(v_c)
+    if not ok.any() or not f_t > 0:                     # kein brauchbarer Comp oder Ziel ohne Fluss: kein Ergebnis statt Warnungen und Unsinn
+        return float("nan"), float("nan"), 0, float("nan")
     zp = v_c[ok] + 2.5 * np.log10(f_c[ok])
     keep = np.ones(len(zp), bool)
     if len(zp) >= 4:
@@ -298,7 +300,7 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
     out = []
     for f, g in df[df["frame_flags"] == ""].groupby("file"):
         g = g.set_index("star_id")
-        comp_ids = [i for i in g.index if roles.get(i) == "comp" and np.isfinite(g.loc[i, "flux"])]
+        comp_ids = [i for i in g.index if roles.get(i) == "comp" and np.isfinite(g.loc[i, "flux"]) and np.isfinite(V.get(i, np.nan))]
         if len(comp_ids) < 3 or not np.isfinite(g.loc[target_id, "flux"]) or g.loc[target_id, "flux"] <= 0:
             continue
         fc = g.loc[comp_ids, "flux"].to_numpy()

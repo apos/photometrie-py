@@ -17,8 +17,8 @@ from pathlib import Path
 
 try:
     import requests
-except ImportError:
-    raise SystemExit("Fehlende Abhängigkeit: pip install requests")
+except ImportError as e:
+    raise SystemExit("Fehlende Abhängigkeit: pip install requests") from e
 
 ROOT   = Path(__file__).resolve().parent.parent
 TOPO   = ROOT / "data" / "const_topology.json"

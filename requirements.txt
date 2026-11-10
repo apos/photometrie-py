@@ -27,5 +27,7 @@ tqdm
 Pillow
 -e .
 pytest
+pytest-cov
+ruff
 nbstripout
 requests

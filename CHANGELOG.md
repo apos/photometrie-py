@@ -8,7 +8,14 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+## [0.4.0] — 2026-11-10
+
+Schwerpunkte: Transformation und AAVSO-Export, Planung (NB00), Inhaltsprüfung, lokale KI-Zweitlesung, Kamera-Charakterisierung (NB07), Transformationskoeffizienten (NB08), breitere Tests (79 → 91 % Abdeckung, 196 → 210+ Tests).
+
 ### Neu
+- **Lokale KI als zweite Leserin des Berichts** (`varphot/aireview.py`, NB01 Vorbedingungen, NB06 Schritt 6): Weg zur KI in fester Reihenfolge — (1) stärkerer Rechner im Heimnetz (Adressen der Reihe nach, z. B. LAN dann WireGuard): Opencode-Prüfung per `ssh` (Aufruf **noch nicht eingebaut**), sonst Ollama dort;
+  (2) lokal: Opencode (nur mit **lokalem** Modell — die `opencode/*`-Modelle sind Cloud und werden nicht benutzt), dann Ollama. Nur Ziele im privaten Netz (`is_private_host`); Konfiguration im Schlüssel `ai` der privaten `observer.json` (`save_config` erhält ihn); `VARPHOT_AI=off`, `VARPHOT_AI_REVIEW=0`.
+  Ohne Weiterleitungen, ohne Proxy (Tests). Ausweichen auf `curl`/`nc`, wenn macOS dem Python das lokale Netz sperrt („No route to host“). Prompt mit fester Prüfliste (ohne Liste meldeten alle getesteten Modelle „Keine Auffälligkeiten“); Probelauf und Grenzen (Fehlalarme, Übersehenes): KONZEPT §11.14. Nur Anmerkungen, nie Zahlen.
 - **Inhaltsprüfung des AAVSO-Exports** (`check_plausibility`, NB06 Schritt 4b): `ERROR` blockiert die Datei, `WARN` steht als „Offene Punkte“ im Bericht; **Reifegrad-Tabelle** (`varphot/maturity.py`) nennt nicht an echten Daten geprüfte Funktionen; `OBSTYPE` bei Farbkamera/RGB-Filter wird abgefragt (`VARPHOT_OBSTYPE`, `VARPHOT_OBSTYPE_CONFIRMED`).
 - **Automatisiert:** Sequenz-ID (`CHART`) aus der VSP-Antwort (NB03 → NB06, vorher von Hand); Feldgröße aus Sensor und Brennweite (`field_of_view_deg`, NB00 → Plan → NB03); transformierter Check-Stern (`transformed_with_check`, KMAG in NB06, Warnung bei Abweichung > 0,05 mag).
 - **AAVSO-Export (NB06, `varphot/aavso.py`):** Extended Format v1.2 schreiben und gegen dessen Regeln prüfen (Pflichtparameter, 15 Felder, Feldlängen, Filtercodes, Ensemble-Regel, JD, Leerzeilen; Beispiele der Format-Seite als Tests). Datei nur bei fehlerfreier Prüfung; kein Upload.
@@ -23,7 +30,15 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **NB08 Transformationskoeffizienten** (`notebooks/08_transformation.ipynb`, `varphot/transform.py`): `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv` nach AAVSO DSLR Observing Manual v1.4 Gl. 6.15–6.18 (gelesen) aus Standardsternen mit Geraden und Sigma-Clipping (`linfit`);
   mittlere instrumentelle Magnituden je Kanal aus den NB04-Messtabellen mit Abzug der Bildnullpunkte (`instrumental_table`); Extinktion k aus dem Nullpunktgang (`fit_extinction`); Anwendung `transform_target` (Gl. 6.11–6.14, Extinktion 6.19–6.21);
   **Leave-one-out-Gütetest** (`loo_validation`: transformiert gegen nicht transformiert) mit Entscheidung `TG`/`V` je Band; Katalog aus CSV oder AAVSO-VSP (`catalog_from_vsp_table`); Ergebnis `transform_<Kamera>_<Einstellung>.json`.
-  Demo-Modus mit synthetischem Standardfeld: Koeffizienten auf ±0,003 wiedergefunden (Tbv 1,489 statt 1,493). 9 neue Tests. Nicht mit echten Standardfeld-Aufnahmen geprüft; NB05/NB06 wenden die Transformation noch nicht an.
+  Demo-Modus mit synthetischem Standardfeld: Koeffizienten auf ±0,003 wiedergefunden (Tbv 1,489 statt 1,493). 9 neue Tests. Nicht mit echten Standardfeld-Aufnahmen geprüft (NB05 Schritt 6 und NB06 wenden sie an, s. o.).
+
+### Behoben / Robustheit (Durchsicht des gesamten Codes, zweifach)
+- `ensemble_mag` liefert ohne brauchbaren Comp (Fluss ≤ 0, V unbekannt) oder bei Ziel ohne Fluss `(nan, nan, 0, nan)` statt Warnungen und Unsinn; `light_curve` schließt Comps ohne endliches V aus.
+- `solve_image`: Zeitüberschreitung oder nicht startbares ASTAP führt zum Fallback auf die Header-WCS (vorher Absturz des Notebooks).
+- `select_comps` (Altpfad): fehlendes Ziel meldet `ValueError` statt `IndexError`; die festen Zahlen 60 px und 6 mag stehen als `comp_halo_px`/`comp_dv_max` in `CFG`.
+- `aperture_flux`: Sättigungshinweis als `warnings.warn` statt `print`. `ThreadingHTTPServer`-Tests ohne `getfqdn` (blockierte bis 35 s).
+- Werkzeug: `ruff` (Konfiguration in `pyproject.toml`), `pytest-cov`; Befunde (Schleifenvariable in Lambda, nicht genutzte Variable, fehlendes `check=`, `raise … from`) behoben.
+- Neue Tests: `test_aireview.py`, `test_core.py` (Cache, Comp-Auswahl und ihre Verwerfungsgründe, Photometrie, PSF, Plots, ASTAP-Attrappe, Zeit, VSP/SIMBAD gemockt), `test_pipeline_extra.py` (`run_batch` mit echten FITS, Download-Ablauf).
 
 ### Behoben
 - **NB04-Cache-Pfad:** Eine bereits berechnete `messtabelle_roh_*.csv` wurde mit `keep_default_na=False` gelesen; leere Felder (NaN) blieben leere Zeichenketten und machten Zahlenspalten zu Text

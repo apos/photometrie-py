@@ -33,7 +33,7 @@ def aperture_flux(img, xy, r_ap=None, r_in=None, r_out=None, cfg=None):
     flux = st.sum - bkg * ap.area
     peak = st.max - bkg
     if np.any(peak > cfg["sat_adu"]):
-        print(f"WARNUNG: Peak {float(np.max(peak)):.0f} ADU — Sättigung/Nichtlinearität prüfen")
+        warnings.warn(f"Peak {float(np.max(peak)):.0f} ADU > {cfg['sat_adu']} — Sättigung/Nichtlinearität prüfen", UserWarning, stacklevel=2)
     return flux, np.sqrt(np.abs(st.sum)), bkg
 
 
