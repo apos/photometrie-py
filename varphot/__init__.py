@@ -13,6 +13,8 @@ from .timeutil import mid_exposure, bjd_tdb, airmass, site_from_header
 from .batch import (read_frame, measure_frame, run_batch, qc_frames, ensemble_mag, light_curve,
                     stars_from_field_config, scintillation_mag)
 from .periodfit import harmonic_fit
+from .camera import (bayer_planes, center_roi, pair_stats, gain_from_pair, ptc_fit, read_noise_e, full_well_e,
+                     linearity_curve, dark_current_e_per_s)
 
 __all__ = [
     "CFG",
@@ -25,4 +27,6 @@ __all__ = [
     "mid_exposure", "bjd_tdb", "airmass", "site_from_header", "field_from_wcs",
     "read_frame", "measure_frame", "run_batch", "qc_frames", "ensemble_mag", "light_curve",
     "stars_from_field_config", "scintillation_mag", "harmonic_fit",
+    "bayer_planes", "center_roi", "pair_stats", "gain_from_pair", "ptc_fit", "read_noise_e", "full_well_e",
+    "linearity_curve", "dark_current_e_per_s",
 ]

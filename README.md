@@ -87,7 +87,7 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 | 04  | `04_photometrie_batch` | alle kalibrierten FITS         | `messtabelle.csv`                |
 | 05  | `05_lichtkurve`        | `messtabelle.csv`              | Lichtkurve PNG, `zeitreihe.csv`  |
 | 06  | `06_bericht`           | `zeitreihe.csv`                | AAVSO-kompatibles Exportformat (in Arbeit) |
-| 07  | *geplant* Kamera-Charakterisierung | Flats/Bias/Darks | Kameraprofil (Gain, Rauschen, Linearität) |
+| 07  | `07_kamera_charakterisierung` | rohe Bayer-Bilder: Bias, Flat-Paare, Linearitätsreihe, Darks | Kameraprofil je Farbebene (Gain, Rauschen, Full Well, Linearität, Dunkelstrom); Demo-Modus mit synthetischen Bildern |
 | 08  | *geplant* Transformationskoeffizienten | Standardfeld-Bilder | `transform.json` (Farbkamera: TG/TB/TR → V/B/R) |
 
 ---

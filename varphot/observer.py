@@ -60,6 +60,14 @@ class Camera:
     dark_temp_c: float | None = None
     linearity: str = ""
     notes: str = ""
+    # Erweiterung durch NB07 (Kamera-Charakterisierung); alle optional, aeltere Dateien bleiben lesbar
+    bayer_pattern: str = ""                       # "RGGB" usw.; leer = Monochrom
+    bit_depth: int | None = None                  # ADC-Bittiefe (z. B. 14)
+    saturation_adu: float | None = None           # gemessener Maximalwert [ADU]
+    offset_adu: float | None = None               # System-Offset (Bias-Pegel) [ADU]
+    full_well_e: float | None = None              # gain * max_adu [e-]
+    gain_setting: str = ""                        # Einstellung, auf die sich die Werte beziehen (z. B. "Gain 0, LRN, -10 C")
+    source: str = ""                              # "gemessen (NB07, Datum)" oder "Hersteller"
 
 
 @dataclass
