@@ -11,10 +11,12 @@ from .wcscheck import check_wcs, gaia_field, WCSCheck
 from .observer import Observer, Site, Camera
 from .timeutil import mid_exposure, bjd_tdb, airmass, site_from_header
 from .batch import (read_frame, measure_frame, run_batch, qc_frames, ensemble_mag, light_curve,
-                    stars_from_field_config, scintillation_mag)
+                    stars_from_field_config, scintillation_mag, read_measurements)
 from .periodfit import harmonic_fit
 from .camera import (bayer_planes, center_roi, pair_stats, gain_from_pair, ptc_fit, read_noise_e, full_well_e,
                      linearity_curve, dark_current_e_per_s, detect_saturation, exposure_from_header, iso_from_header, histogram_gaps, compression_verdict)
+from .plan import (ObservingPlan, METHODS, green_plane, star_metrics, fwhm_summary, recommend_exposure, aperture_from_fwhm,
+                   night_altitudes, save_plan, load_plan, latest_plan)
 from .camera_presets import PRESETS, CameraPreset, VendorValues, get_preset, preset_choices
 
 __all__ = [
@@ -27,8 +29,10 @@ __all__ = [
     "Observer", "Site", "Camera",
     "mid_exposure", "bjd_tdb", "airmass", "site_from_header", "field_from_wcs",
     "read_frame", "measure_frame", "run_batch", "qc_frames", "ensemble_mag", "light_curve",
-    "stars_from_field_config", "scintillation_mag", "harmonic_fit",
+    "stars_from_field_config", "scintillation_mag", "read_measurements", "harmonic_fit",
     "bayer_planes", "center_roi", "pair_stats", "gain_from_pair", "ptc_fit", "read_noise_e", "full_well_e",
     "linearity_curve", "dark_current_e_per_s", "detect_saturation", "exposure_from_header", "iso_from_header", "histogram_gaps", "compression_verdict",
+    "ObservingPlan", "METHODS", "green_plane", "star_metrics", "fwhm_summary", "recommend_exposure", "aperture_from_fwhm",
+    "night_altitudes", "save_plan", "load_plan", "latest_plan",
     "PRESETS", "CameraPreset", "VendorValues", "get_preset", "preset_choices",
 ]

@@ -81,6 +81,7 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 
 | Nr. | Notebook               | Eingabe                        | Ausgabe                          |
 |-----|------------------------|--------------------------------|----------------------------------|
+| 00  | `00_planung`           | Ziel, Methode, Kamera-Profil, Probebilder | Plan (Belichtung, FWHM, Aperturen, Meldefilter) in `plans/` |
 | 01  | `01_kalibrierung`      | Siril-Workspace, Rohbilder     | kalibrierte FITS in `cal/`       |
 | 02  | `02_plate_solve`       | 1 kalibriertes FITS            | WCS-Header, Sternkarte PNG       |
 | 03  | `03_feld_und_comps`    | Referenzbild + AAVSO VSP       | `field_config.json`              |

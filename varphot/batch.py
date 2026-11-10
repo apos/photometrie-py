@@ -333,6 +333,21 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
     return lc
 
 
+def read_measurements(path) -> pd.DataFrame:
+    """Liest eine Messtabelle (CSV aus NB04) mit den richtigen Typen.
+
+    Warum: ``DataFrame.to_csv`` schreibt fehlende Zahlen (NaN) als leere Felder; mit ``keep_default_na=False`` blieben sie leere Zeichenketten und machten ganze
+    Zahlenspalten zu Text (Fehler im Cache-Pfad von NB04: ``'>' not supported between 'str' and 'float'``). Hier gelten leere Felder in Zahlenspalten als NaN, in den
+    Textspalten (``star_id``, ``star_flag``, ``frame_flags``, ``file``, ``telescope``, ``filter``) als leere Zeichenkette.
+    """
+    text = ["star_id", "star_flag", "frame_flags", "file", "telescope", "filter", "role"]
+    df = pd.read_csv(path, dtype={c: str for c in text})
+    for c in text:
+        if c in df:
+            df[c] = df[c].fillna("")
+    return df
+
+
 def stars_from_field_config(record: dict, extra_roles=("comp", "check")) -> pd.DataFrame:
     """Sterntabelle (``id, role, ra, dec, V, V_err``) aus einer NB03-``field_config.json`` (Ziel + Comps/Check)."""
     z = record["ziel"]

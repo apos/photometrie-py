@@ -269,6 +269,7 @@ Abhängigkeiten: **P0 blockiert P1; P1 blockiert P2.**
 | P1 | M | Farbkamera: CFA-Kanäle (R, G, B) aus Roh-Bayer-Bildern extrahieren (Siril), Messtabelle je Kanal — siehe §11 | P0 |
 | P2 | M | AAVSO Extended Format erzeugen und validieren (Filter `TG`/`TB`/`TR` bzw. `V`/`B`/`R` mit `TRANS`), Einreichen | P1 |
 | P2 | L | Transformationskoeffizienten aus Standardfeld (M 67 / NGC 7790) für die Farbkamera; Export `TRANS=YES` — siehe §11 | P1 |
+| P1 | M | **NB00 Planung und Probebilder** (Ziel, Methode, FWHM/Sättigung aus Probebildern, Plan) — **umgesetzt 2026-11-10** (`varphot/plan.py`, Demo-Modus; mit echten Probebildern steht aus) — siehe §12 | P0 |
 | P1 | M | **NB07 Kamera-Charakterisierung** (Gain, Ausleserauschen, Linearität, Dunkelstrom je Bayer-Kanal) — **umgesetzt 2026-11-10** (`varphot/camera.py`, Demo-Modus mit bekannter Wahrheit getestet; Messung mit echten Ares-C-Bildern steht aus) — siehe §11.8 | P0 |
 | P2 | L | **NB08 Transformationskoeffizienten** aus Standardfeld (Kameraprofil `transform.json`) — siehe §11.8 | NB07 |
 | P2 | M | Beispieldaten One-Shot-Color beschaffen/aufnehmen (§11.9) | P1 |
@@ -471,3 +472,26 @@ Prüfstatus: G = Panasonic-Spezifikation gelesen (<https://help.na.panasonic.com
 
 **Offen:** (1) Bestätigung der AAVSO zu `OBSTYPE` bei OSC-CMOS (Handbuch kennt nur DSLR/„one shot color CCD“). (2) Bittiefe/Skalierung im FITS; Sperrfilter im Aufbau (Modell Ares-C Pro mit Kühlung bestätigt). (3) Siril-Befehlsnamen in der installierten Version prüfen. (4) B-/R-Comp-Magnituden: VSP statt Gaia (§11.7); Comp-Regeln für die Farbkamera nach Handbuch §6.3.1 (B−V 0,3–1,0, S/N ≥ 100) in NB03 abbilden.
 (4) Siril-Befehlsnamen in der installierten Version prüfen. (5) B-/R-Comp-Magnituden: VSP statt Gaia (§11.7).
+
+
+---
+
+## 12. Beobachtungsplanung und Probebilder (NB00)
+
+Stand 2026-11-10. Idee des Nutzers: vor einer Aufnahmereihe erst **Probebilder** für FWHM und Sättigungsabstand aufnehmen, verbunden mit einer **Planung** (Ziel und Methode: DSLR, Farbkamera oder Monochrom + Filter);
+die Werte werden gespeichert und von den Folge-Notebooks genutzt.
+
+**Warum:** Die schwersten Fehler der bisherigen Auswertung (gesättigtes Ziel bei δ Cep, §5.5; zu scharfe Sterne bei Bayer-Kameras, §11.2) entstehen bei der Aufnahme und sind danach nicht mehr zu beheben.
+
+**Ablauf (`notebooks/00_planung.ipynb`, `varphot/plan.py`):**
+1. **Ziel, Methode, Kamera:** Ziel über SIMBAD (V, Koordinaten), Methode `mono` / `osc` / `dslr` → Meldefilter (`V`, `TG`/`TB`/`TR`) und `OBSTYPE` (§11.2, vorläufig), Kamera-Profil aus NB07 (Offset, Maximalwert, **gemessene Linearitätsgrenze**) oder Vorlage.
+2. **Sichtbarkeit:** Standort aus NB01; Zeitfenster mit Sonne < −12° und Ziel > 30° (ohne Mond/Wetter).
+3. **Probebilder** (3–5 Aufnahmen desselben Feldes, unterschiedlich belichtet): hellster Stern (Spitzenwert, gesättigt?) und FWHM aus ungesättigten Sternen (Gauß-Anpassung, `photutils.psf.fit_fwhm`); bei Bayer-Kameras auf der Grünebene (beide Grün gemittelt), Rohbild-FWHM = 2 × Ebenen-FWHM.
+4. **Empfehlung:** längste Belichtung bis zur Obergrenze (lineare Skalierung, Minimum über die ungesättigten Probebilder; Korrektur auf die hellste Phase des Veränderlichen), empfohlen 80 %; Aperturen 1,5 × FWHM, Himmelsring nach Handbuch; Warnungen.
+5. **Plan speichern** (`PHOTOMETRIE_PY_DATA/plans/<Ziel>-<Methode>-<Kamera>-<Einstellung>.json`): Ziel, Methode, Meldefilter, `OBSTYPE`, Kamera/Einstellung, FWHM (Ebene/Rohbild), Aperturen, Grenzen, Belichtung, Warnungen. **NB04** übernimmt die Aperturen (`VARPHOT_PLAN=<Datei>`), NB06 soll Meldefilter und `OBSTYPE` daraus nehmen.
+
+**Regeln (AAVSO DSLR Observing Manual v1.4, im Wortlaut gelesen):** Sterne unter 75 % des Maximalwerts (§4.5.2; 14 bit ≈ 12 300 ADU); Aperturradius 1,2–1,5 × FWHM des größten Sterns (§6.1.1); Himmelsring innen „several pixels“ über der Apertur, Fläche mindestens gleich, besser größer (§6.1.2);
+FWHM im Rohbild ≥ 8–10 px bei Bayer-Kameras (§5.5.1). Mit NB07-Profil gilt statt der 75 % die **gemessene** Linearitätsgrenze (`linear_max_adu`).
+
+**Grenzen:** Das Ziel muss in seiner hellsten Phase geplant werden; die Skalierung setzt Linearität und gleiche Bedingungen voraus; Gauß-FWHM ist bei stark defokussierten (ringförmigen) Sternen ungenau; Probebilder sind nur mit synthetischen Daten und nicht mit echten Aufnahmen getestet.
+**Offen:** Mondphase/-abstand in der Sichtbarkeit; Kontrolle von Comps (nicht nur der hellste Stern) gegen die Obergrenze; Plan in NB03 (Feldgröße aus dem Aufbau) und NB06 (Meldefilter/`OBSTYPE`) verwenden.
