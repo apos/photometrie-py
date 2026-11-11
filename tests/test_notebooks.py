@@ -42,9 +42,12 @@ def test_every_code_cell_compiles(path):
 def test_main_notebooks_start_with_form_and_explain_how(path):
     nb = json.loads(path.read_text(encoding="utf-8"))
     first = "".join(nb["cells"][0]["source"])
-    assert "So geht" in first or "So arbeiten" in first or path.name.startswith("00")           # kurze Anleitung gleich am Anfang
+    assert "So bedienen Sie dieses Notebook" in first and "Fall" in first                              # kurze Anleitung und Fallunterscheidung am Anfang
+    assert "Wann:" in first                                                                            # wann im Ablauf / was herauskommt
     text = "\n".join("".join(c["source"]) for c in nb["cells"])
-    assert "Ab hier automatisch" in text or path.name.startswith("00")                          # Entscheidungen zuerst, Automatik danach
+    assert "Ab hier automatisch" in text                                                               # Entscheidungen zuerst, Automatik danach
+    if not path.name.startswith("00"):
+        assert "Formular — was eintragen" in text                                                      # jedes Formular wird Feld fuer Feld erklaert
 
 
 def test_nb00_demo_runs_end_to_end(tmp_path, monkeypatch):
