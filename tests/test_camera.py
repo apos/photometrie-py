@@ -177,3 +177,14 @@ def test_histogram_gaps_low_noise_not_reliable():
     r = histogram_gaps(_plane_values(500, 1.0))
     assert r["reliable"] is False
     assert compression_verdict([r, r])["suspect"] is None
+
+
+def test_camera_kind_labels_mono_and_color():
+    from varphot import PRESETS
+    from varphot.observer import Camera, camera_kind
+    assert camera_kind(Camera(model="QHY268M", cam_type="CMOS")) == "Mono"
+    assert camera_kind(Camera(model="X", cam_type="CMOS", bayer_pattern="RGGB")) == "Farbe (Bayer RGGB)"
+    assert camera_kind(Camera(model="Y", cam_type="DSLR")) == "Farbe (DSLR)"
+    assert camera_kind(PRESETS["qhy268m"]) == "Mono"
+    assert camera_kind(PRESETS["ares-c-pro"]) == "Farbe (Bayer RGGB)"
+    assert camera_kind(PRESETS["lumix-s9"]).startswith("Farbe")
