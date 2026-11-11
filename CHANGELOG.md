@@ -15,6 +15,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Werkzeuge für exakte Testdurchführungen:** `tools/run_notebook.py` (Notebook headless über den Kernel ausführen, Fortschritt live, Kopie mit Ausgaben als Beleg, Quellnotebook bleibt unverändert), `tools/make_own_series.py` (aus den LCO-Testdaten eine simulierte eigene Reihe ohne WCS bauen), `tools/benchmark_registration.py` (Registrierung gegen die WCS im Kopf). NB02: Apertur über `VARPHOT_AP_MODE`/`VARPHOT_AP_R` vorbelegbar.
 
 ### Behoben
+- **ASTAP-Sidecar unter Linux** (`read_wcs_sidecar`): Das Linux-Build schreibt die `.wcs` als Textzeilen mit Zeilenende ohne Auffüllung auf 80 Zeichen (Mac: feste 80-Zeichen-Karten); das Lesen scheiterte mit `TypeError: '<' not supported between 'str' and 'int'`. Beide Formate werden gelesen, Test `test_read_wcs_sidecar_both_formats`. Gefunden beim Plate-Solving im Datalore-Agent (Linux) am 2026-11-11.
 - `ai_review(text, None)` liefert ein Ergebnis mit Fehlermeldung statt einer Ausnahme (kein KI-Weg verfügbar darf den Bericht nie blockieren).
 
 ## [0.6.0] — 2026-11-11

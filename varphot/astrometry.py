@@ -37,8 +37,13 @@ def _wcs_from_header(hdr: fits.Header) -> WCS | None:
 
 
 def read_wcs_sidecar(path: Path) -> fits.Header:
-    """Liest eine ASTAP-``.wcs``-Datei (Karten ohne Zeilenumbruch) als Header."""
-    return fits.Header.fromstring(path.read_bytes().decode("ascii", "replace"))
+    """Liest eine ASTAP-``.wcs``-Datei als Header.
+
+    Das Mac-Build schreibt feste 80-Zeichen-Karten ohne Zeilenende, das Linux-Build Textzeilen mit Zeilenende
+    und ohne Auffuellung auf 80 Zeichen. Beide Formate werden gelesen (bei Zeilenenden ``sep="\\n"``).
+    """
+    text = path.read_bytes().decode("ascii", "replace")
+    return fits.Header.fromstring(text, sep="\n" if "\n" in text else "")
 
 
 def solve_image(image: str | Path, astap: str = ASTAP_DEFAULT, radius_deg: float = 10.0,
