@@ -104,3 +104,17 @@ Brauchbar für: Siril-Konvertierung (SIRIL-01), CFA-Trennung und Plate-Solve (OS
 ## 5. Noch fehlend
 
 Eine Farbkamera-Reihe mit **Standardsternfeld** für die Transformation TG/TB/TR (KONZEPT.md §11.6); die Algol-Reihe hat nur das Weitfeld ohne Kalibrierbilder, SA 98 nur Mono-Filter.
+
+## 6. Wiederherstellung aller Testdaten (Stand 2026-11-11)
+
+Die Testdaten liegen nicht im Git. Sie sollen sich jederzeit wiederherstellen lassen:
+
+| Datensatz | Ziel | Wiederherstellung | Quelle |
+|---|---|---|---|
+| `lco-dcep` (156 Dateien) | `PHOTOMETRIE_PY_DATA/testdata/lco-dcep` | `python tools/download_testdata.py lco-dcep` | <https://archive.lco.global>, API `https://archive-api.lco.global/frames/` (siehe Abschnitt 1) |
+| `lco-sa98` (40 Dateien) | `…/testdata/lco-sa98` | `python tools/download_testdata.py lco-sa98` | LCO-Archiv, `OBJECT=SA98` (siehe Abschnitt 3a) |
+| `hatp32` (142 Dateien) | `…/testdata/hatp32` | `python tools/download_testdata.py hatp32` | <https://github.com/rzellem/EXOTIC_sampledata> (Ordner `HatP32Dec202017`) |
+| `algol-cr2` (42 CR2) | `…/testdata/algol-cr2/Serie01 … Serie15` | **manuell**: Google-Drive-Ordner im Browser laden | <https://drive.google.com/open?id=14Uu8lbT8lsyQHkMpte9BzvhaSOaE-Wbz> (Beitrag von Wolfgang Vollmann, 2017-12-17, <https://mintaka.aavso.org/node/83258>) |
+| M16-Benchmark | `demo/real_m16/m16_ha_benchmark.fit` (gitignoriert) | **manuell**: Datei laden und dorthin kopieren | <https://drive.google.com/file/d/1mSqAAH1YLHKuj4KW_6Xo-nNw9OAa0sfb/view> (`benchmarkimage.fit` der Cosmic Clarity Suite von Seti Astro, macOS) |
+
+Prüfung am 2026-11-11: Der Lauf von `download_testdata.py` gegen die Live-Quellen bestätigte alle Dateien von `lco-dcep` (156/156), `lco-sa98` (40/40) und `hatp32` (142/142) als vorhanden und unverändert (MD5 bzw. Größe). Die beiden Google-Drive-Seiten (Algol-Ordner, M16-Benchmark) waren erreichbar (HTTP 200, Titel passend); ihr Inhalt wurde nicht geladen. M16-Benchmark: 257 065 920 Bytes, SHA-256 `23802ab342ede62becdf26bbe20a931f96b82e7a9826e189b51a77d0c4904a6c`. Weitergabe der Daten nur nach den Bedingungen in Abschnitt 3 (Algol- und M16-Daten ohne Lizenzangabe: nicht weitergeben).
