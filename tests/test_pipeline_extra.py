@@ -152,3 +152,23 @@ def test_run_batch_registers_frames_without_wcs(tmp_path):
         run_batch([tmp_path / "a.fits"], stars, cfg=cfg, wcs_mode="register")
     with pytest.raises(ValueError, match="wcs_mode"):
         run_batch([tmp_path / "a.fits"], stars, cfg=cfg, wcs_mode="egal")
+
+
+def test_one_noisy_comp_does_not_discard_the_frame():
+    """Regression 2026-11-11: ein einzelner Comp mit S/N < 10 verwarf das ganze Bild (34 statt ~93 brauchbare Bilder am LCO-Satz)."""
+    from varphot.batch import light_curve, qc_frames
+    rows = []
+    for f in ("a", "b", "c", "d"):
+        for sid, fl, err in (("t", 5e4, 50.0), ("c1", 4e4, 40.0), ("c2", 3e4, 30.0), ("c3", 2e4, 20.0), ("c4", 1e4, 10.0), ("faint", 900.0, 200.0)):      # "faint": S/N 4,5
+            rows.append(dict(file=f, star_id=sid, flux=fl, flux_err=err, star_flag="", fwhm_arcsec=2.0, jd_mid=2458000.0 + "abcd".index(f), airmass=1.2, exptime=10.0, sky=10.0, peak=100.0, n_sat=0))
+    roles = {"t": "target", "c1": "comp", "c2": "comp", "c3": "comp", "c4": "comp", "faint": "comp"}
+    out = qc_frames(pd.DataFrame(rows), roles, cfg={"snr_min": 10, "transp_min": 0.6, "fwhm_max_arcsec": 4.0})
+    assert (out.drop_duplicates("file")["frame_flags"] == "").all()
+    flux = {"t": 5e4, "c1": 4e4, "c2": 3e4, "c3": 2e4, "c4": 1e4, "faint": 900.0}
+    stars = pd.DataFrame({"id": list(roles), "role": list(roles.values()), "V": [20.5 - 2.5 * np.log10(flux[k]) for k in roles]})       # gleicher Nullpunkt 20,5 mag: kein Comp faellt als Ausreisser heraus
+    lc = light_curve(out, stars, "t")
+    assert len(lc) == 4 and (lc["n_comps"] == 4).all()                                    # der verrauschte Comp ist nicht im Ensemble
+    few = out.copy()
+    few.loc[few["star_id"].isin(["c2", "c3", "c4"]), "flux_err"] *= 1000                  # nur noch 1 brauchbarer Comp
+    flagged = qc_frames(few.drop(columns=["frame_flags", "role", "transparency"]), roles, cfg={"snr_min": 10, "min_comps": 3})
+    assert (flagged.drop_duplicates("file")["frame_flags"] == "NO_SIGNAL").all()
