@@ -28,6 +28,11 @@ DATASETS = {
         source="Las Cumbres Observatory, oeffentliches Archiv (https://archive.lco.global), BANZAI-reduziert",
         n_frames=156, size_mb=1100,
     ),
+    "lco-sa98": dict(
+        title="Landolt-Standardfeld SA98, Filter B und V, LCO 1-m-Teleskop elp1m006 (Kamera fa08), Nacht 2025-01-01, je 20 Bilder",
+        source="Las Cumbres Observatory, oeffentliches Archiv (https://archive.lco.global), BANZAI-reduziert, Programm CLN2024B-007",
+        n_frames=40, size_mb=1500,
+    ),
     "hatp32": dict(
         title="HAT-P-32 b Transit, MicroObservatory (CfA), 2017-12-20, 142 Bilder",
         source="https://github.com/rzellem/EXOTIC_sampledata (Beispielsatz des Programms EXOTIC)",
@@ -125,6 +130,9 @@ def download_dataset(name: str, dest: Path | None = None, dry_run: bool = False,
     dest = Path(dest or testdata_dir() / name)
     if name == "lco-dcep":
         jobs = [(f["filename"], f["url"], f["version_set"][0]["md5"], None) for f in lco_frames()]
+    elif name == "lco-sa98":
+        frames = [f for filt in ("B", "V") for f in lco_frames("SA98", filt, "elp1m006-fa08-20250101-")]
+        jobs = [(f["filename"], f["url"], f["version_set"][0]["md5"], None) for f in sorted(frames, key=lambda f: f["filename"])]
     else:
         jobs = [(f["name"], f["download_url"], None, f["size"]) for f in hatp32_files()]
     progress(f"{name}: {len(jobs)} Dateien -> {dest}")
