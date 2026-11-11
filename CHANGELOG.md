@@ -9,6 +9,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unveröffentlicht]
 
 ### Neu
+- `tools/check_osc_raw.py`: Roh-Bayer-Reihe → Siril-Umwandlung → CFA-Trennung → Plate-Solve je Kanal (an der Algol-Reihe: 126/126 gelöst).
 - **Testdatensatz `lco-sa98`** (Landolt-Feld SA 98, B und V, 40 Bilder, LCO 1 m) für die Transformation; `docs/testdaten.md` beschreibt außerdem die Algol-Reihe (Canon 450D, Roh-Bayer, lokal, nicht ladbar).
 - **Werkzeuge für exakte Testdurchführungen:** `tools/run_notebook.py` (Notebook headless über den Kernel ausführen, Fortschritt live, Kopie mit Ausgaben als Beleg, Quellnotebook bleibt unverändert), `tools/make_own_series.py` (aus den LCO-Testdaten eine simulierte eigene Reihe ohne WCS bauen), `tools/benchmark_registration.py` (Registrierung gegen die WCS im Kopf). NB02: Apertur über `VARPHOT_AP_MODE`/`VARPHOT_AP_R` vorbelegbar.
 

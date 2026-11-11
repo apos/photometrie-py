@@ -95,8 +95,11 @@ Die Katalogwerte der Landolt-Sterne gehören nicht zum Paket (Quelle: Landolt 19
 | Siril-Umwandlung | `convert` liefert CFA-FITS ohne Debayern: `BAYERPAT RGGB`, `FOCALLEN 28`, `EXPTIME 13`, `DATE-OBS` gesetzt (geprüft an Serie01) |
 | Bedingungen | **Keine Lizenz angegeben.** Nur lokal (Nextcloud-Datenordner), nicht ins Repo, nicht weitergeben. |
 
-Erwartung (nicht geprüft): Algol-Minimum nach grober Rechnung ~21:50 UT, die Reihe deckt den Abstieg ab. Offen: ASTAP-Plate-Solve bei 38″/px und 45°-Feld; keine Darks/Flats im Paket.
-Brauchbar für: Siril-Konvertierung (SIRIL-01), CFA-Trennung und Methode `osc`/`monorgb` (OSC-01) — noch nicht ausgeführt.
+Ergebnis (`tools/check_osc_raw.py`, 2026-11-11): Siril wandelt alle 42 Bilder in 2 s (RAW → CFA-FITS, `BAYERPAT RGGB`); `split_cfa` liefert 126 Dateien (R, G, B, je 2145×1428 px). ASTAP löst **alle 126**
+(42 je Kanal, je ~0,4 s) mit Naeherungsposition aus dem Objektnamen (Algol RA 47,042°, Dez +40,956°), `-fov 30.3` und der Weitfeld-Sterndatenbank **W08**; Skala 75,2–75,7″/px je Halbbild (Median 75,4″/px, rechnerisch aus EXIF 76,4″ — 1,3 % Abweichung),
+Algol liegt in allen Kanälen an derselben Pixelstelle (Abweichung ≤ 1 px). Die Lage von Algol wandert über die Reihe um 280 px in x und 455 px in y — jedes Bild braucht eine eigene WCS (Registrierung/Plate-Solve je Bild).
+Ohne Naeherungsposition wurde nicht getestet. Nicht getestet: Siril-Kalibrierung (keine Darks/Flats), Photometrie, Transformation. Die Reihe hat in Algols Lichtkurve nach grober Rechnung den Abstieg zum Minimum (~21:50 UT) bis etwa 20:52 UT (nicht gegen eine Ephemeride geprüft).
+Brauchbar für: Siril-Konvertierung (SIRIL-01), CFA-Trennung und Plate-Solve (OSC-01).
 
 ## 5. Noch fehlend
 
