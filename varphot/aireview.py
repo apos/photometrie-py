@@ -344,6 +344,8 @@ def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout:
     Ollama: ``POST /api/chat`` (ohne Streaming, Temperatur 0,2). Opencode (lokal): ``opencode run --model … <Nachricht>`` in einem leeren Wegwerf-Ordner (kein Zugriff auf Projektdateien), mit Zeitlimit.
     Jeder Fehler (Zeitlimit, Verbindung, leere Antwort) kommt als ``ReviewResult.error`` zurueck, nie als Ausnahme — die Zweitlesung darf den Export nicht blockieren.
     """
+    if backend is None:                                              # kein Weg gefunden: als Ergebnis melden, nicht als Ausnahme (die Zweitlesung darf den Export nie blockieren)
+        return ReviewResult(error="kein KI-Weg verfuegbar (detect_backends/choose_backend lieferten keinen)")
     t0 = time.time()
     res = ReviewResult(backend=backend.label(), model=backend.model or "")
     try:
