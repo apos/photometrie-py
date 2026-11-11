@@ -71,7 +71,33 @@ nicht; er soll Transit, Clear-Filter und grobe Pixelskala abdecken.
 
 Software, die wir nur lesen und zitieren: `astronomyk/seestar_photometry` ist laut GitHub GPL-3.0 — Code wird nicht übernommen.
 
-## 4. Noch fehlend: Farbkamera (One-Shot-Color)
+## 3a. `lco-sa98` — Landolt-Standardfeld SA 98, Filter B und V (Transformation, NB08)
 
-Für das Konzept TG/TB/TR (KONZEPT.md §11) fehlt ein Satz mit Roh-Bayer-Bildern eines Veränderlichen. Kandidaten:
-siehe KONZEPT.md §11.6.
+| | |
+|---|---|
+| Quelle | Las Cumbres Observatory, öffentliches Archiv <https://archive.lco.global>, `OBJECT=SA98`, `public=true`, `reduction_level=91` (BANZAI) |
+| Auswahl | Teleskop 1m0-08 (`elp1m006`), Kamera `fa08`, Beobachtungstag 2025-01-01, Filter B (20) und V (20) = 40 Bilder, 1,5 GB (aus 150 SA98-Bildern des Archivs; die anderen Nächte/Teleskope haben nur 2–18 Bilder je Filter) |
+| Programm | CLN2024B-007 |
+| Bilder | 4096×4096 px, 0,389″/px (Feld 26,5′), Belichtung 1,0 s, `GAIN` 1,0, `RDNOISE` 7,8, `SATURATE` 126000, `WCSERR` 0 (WCS im Kopf) |
+| Feld | RA 06:52:01, Dez −00:24 (Landolt SA 98); Luftmasse in den geprüften Bildern 1,39–1,50 |
+| Bedingungen | Öffentliche LCO-Daten; Namensnennung (Las Cumbres Observatory) |
+
+Laden: `python tools/download_testdata.py lco-sa98`. Mono-Daten: sie decken die Transformationsrechnung (B/V) mit Standardsternen ab, **nicht** die Farbkamera.
+Die Katalogwerte der Landolt-Sterne gehören nicht zum Paket (Quelle: Landolt 1992/2009 bzw. AAVSO-VSP-Standardfeld); der Abgleich ist noch nicht gebaut.
+
+## 4. `algol-cr2` — β Per (Algol), Canon EOS 450D, Roh-Bayer (nicht automatisch ladbar)
+
+| | |
+|---|---|
+| Quelle | Öffentlicher Google-Drive-Ordner „Beta Persei (Algol)“ (Eigentümer wolfgangvollmann50), verlinkt im AAVSO-Forum, Beitrag „Need DSLR images to illustrate an eclipsing binary“ (<https://mintaka.aavso.org/node/83258>); vom Nutzer heruntergeladen |
+| Umfang | 42 CR2-Dateien (Serie01–Serie15, je 12,5 MB, zusammen 527 MB), 2015-01-13, 18:20–21:52 Ortszeit (FITS-Zeit 17:20–20:52 UT) |
+| Aufnahme | Canon EOS 450D, Objektiv 28 mm (28–75 mm), f/2,8, ISO 400, 13 s, 4272×2848 px (Siril: 4290×2856), Pixel 5,2 µm → ~38″/px, Feld ~45°×30° |
+| Siril-Umwandlung | `convert` liefert CFA-FITS ohne Debayern: `BAYERPAT RGGB`, `FOCALLEN 28`, `EXPTIME 13`, `DATE-OBS` gesetzt (geprüft an Serie01) |
+| Bedingungen | **Keine Lizenz angegeben.** Nur lokal (Nextcloud-Datenordner), nicht ins Repo, nicht weitergeben. |
+
+Erwartung (nicht geprüft): Algol-Minimum nach grober Rechnung ~21:50 UT, die Reihe deckt den Abstieg ab. Offen: ASTAP-Plate-Solve bei 38″/px und 45°-Feld; keine Darks/Flats im Paket.
+Brauchbar für: Siril-Konvertierung (SIRIL-01), CFA-Trennung und Methode `osc`/`monorgb` (OSC-01) — noch nicht ausgeführt.
+
+## 5. Noch fehlend
+
+Eine Farbkamera-Reihe mit **Standardsternfeld** für die Transformation TG/TB/TR (KONZEPT.md §11.6); die Algol-Reihe hat nur das Weitfeld ohne Kalibrierbilder, SA 98 nur Mono-Filter.

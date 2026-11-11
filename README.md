@@ -183,13 +183,14 @@ Die Pipeline wird an echten, öffentlichen Bildern geprüft. Sie liegen **nicht*
 
 ```bash
 python tools/download_testdata.py --list
-python tools/download_testdata.py lco-dcep hatp32
+python tools/download_testdata.py lco-dcep hatp32 lco-sa98
 ```
 
 | Name | Inhalt | Quelle |
 |---|---|---|
 | `lco-dcep` | δ Cep (Cepheide), Filter V, 156 Bilder, 0,4-m-Teleskop (McDonald), 2018–2020, BANZAI-reduziert, 1,1 GB | Las Cumbres Observatory, öffentliches Archiv <https://archive.lco.global> (Programme FTPEPO2014A-004, LCOEPO2018B-001) |
 | `hatp32` | HAT-P-32 b Transit, Clear-Filter, 142 Bilder, MicroObservatory (CfA), 89 MB | <https://github.com/rzellem/EXOTIC_sampledata> (Beispielsatz des Programms EXOTIC) |
+| `lco-sa98` | Landolt-Standardfeld SA 98, B und V, 40 Bilder, LCO 1 m (Transformation), 1,5 GB | <https://archive.lco.global> (öffentliches LCO-Archiv) |
 
 Mit `lco-dcep` ist die Pipeline durchgelaufen: 98 von 156 Bildern brauchbar, Lomb-Scargle-Periode 5,363 d
 (Literatur 5,366 d). Auswahl, Aussortierung und Befunde: [docs/testdaten.md](docs/testdaten.md). Die Daten unterliegen
