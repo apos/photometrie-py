@@ -16,7 +16,7 @@ from pathlib import Path
 
 PACKAGES = [("numpy", "numpy"), ("scipy", "scipy"), ("pandas", "pandas"), ("matplotlib", "matplotlib"), ("astropy", "astropy"), ("photutils", "photutils"), ("astroquery", "astroquery"),
             ("requests", "requests"), ("ipywidgets", "ipywidgets"), ("ipyfilechooser", "ipyfilechooser")]
-ASTAP_PATHS = ["/Applications/ASTAP.app/Contents/MacOS/astap", "/usr/local/bin/astap_cli", "/usr/bin/astap_cli", "/opt/astap/astap", "/usr/bin/astap", "/usr/local/bin/astap"]
+ASTAP_PATHS = ["/Applications/ASTAP.app/Contents/MacOS/astap", "/usr/local/bin/astap", "/usr/local/bin/astap_cli", "/usr/bin/astap_cli", "/opt/astap/astap", "/usr/bin/astap"]
 SIRIL_PATHS = ["/Applications/Siril.app/Contents/MacOS/siril", "/usr/bin/siril", "/usr/local/bin/siril"]
 MIN_PYTHON = (3, 12)
 

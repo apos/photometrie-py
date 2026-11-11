@@ -17,11 +17,11 @@ from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 
 ASTAP_MAC = "/Applications/ASTAP.app/Contents/MacOS/astap"
-ASTAP_CANDIDATES = [ASTAP_MAC, "/usr/local/bin/astap_cli", "/usr/bin/astap_cli", "/usr/local/bin/astap", "/usr/bin/astap", "/opt/astap/astap"]
+ASTAP_CANDIDATES = [ASTAP_MAC, "/usr/local/bin/astap", "/usr/local/bin/astap_cli", "/usr/bin/astap_cli", "/usr/bin/astap", "/opt/astap/astap"]
 
 
 def find_astap(env=None) -> str:
-    """Pfad zu ASTAP: Umgebungsvariable ``VARPHOT_ASTAP``, sonst der erste vorhandene Kandidat (macOS-App, dann Linux: ``astap_cli`` vor dem GUI-Programm), sonst ``PATH``.
+    """Pfad zu ASTAP: Umgebungsvariable ``VARPHOT_ASTAP``, sonst der erste vorhandene Kandidat (macOS-App, dann ``/usr/local/bin/astap`` — im Datalore-Image ein Wrapper, der die Sterndatenbank ``/opt/astap_db`` angibt —, dann ``astap_cli``), sonst ``PATH``.
 
     Warum: Derselbe Code laeuft auf dem Mac und im Linux-Container (Datalore); ein fester Mac-Pfad liess dort jede Aufloesung mit "ASTAP nicht gefunden" scheitern.
     Ohne Treffer kommt der Mac-Pfad zurueck (die Fehlermeldung nennt ihn dann).
