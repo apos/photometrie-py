@@ -6,7 +6,7 @@ import pytest
 from astropy.io import fits
 
 from varphot import gnomonic, solve_image
-from varphot.astrometry import ASTAP_DEFAULT
+from varphot.astrometry import ASTAP_DEFAULT, read_wcs_sidecar
 
 ROOT = Path(__file__).resolve().parent.parent
 M16 = ROOT / "demo" / "real_m16" / "m16_ha_benchmark.fit"   # lokal, nicht im Repo (.gitignore)
@@ -109,3 +109,36 @@ def test_clipping_finds_at_least_all_lines_of_the_old_endpoint_rule_and_more():
                 assert new or not old                      # nie weniger als vorher
                 extra += int(new and not old)
     assert extra >= 5                                      # gemessen 2026-11-10: 8 zusätzliche Linien
+
+
+def _wcs_header() -> fits.Header:
+    h = fits.Header()
+    h["SIMPLE"] = True
+    h["BITPIX"] = -32
+    h["NAXIS"] = 2
+    h["NAXIS1"] = 9252
+    h["NAXIS2"] = 6946
+    h["CTYPE1"] = "RA---TAN"
+    h["CTYPE2"] = "DEC--TAN"
+    h["CRVAL1"] = 274.7535148268
+    h["CRVAL2"] = -13.87065703067
+    h["PLTSOLVD"] = True
+    return h
+
+
+@pytest.mark.parametrize("linux_format", [False, True], ids=["mac-80-Zeichen-Karten", "linux-Textzeilen"])
+def test_read_wcs_sidecar_both_formats(tmp_path, linux_format):
+    """Regression: das Linux-ASTAP schreibt die .wcs mit Zeilenenden ohne Auffuellung (TypeError beim Lesen)."""
+    h = _wcs_header()
+    if linux_format:
+        text = "\n".join(c.image.rstrip() for c in h.cards) + "\nEND\n"
+    else:
+        text = "".join(c.image for c in h.cards) + "END".ljust(80)
+    f = tmp_path / "bild.wcs"
+    f.write_bytes(text.encode("ascii"))
+    got = read_wcs_sidecar(f)
+    assert got["NAXIS"] == 2 and isinstance(got["NAXIS"], int)
+    assert got["NAXIS1"] == 9252
+    assert got["CTYPE1"] == "RA---TAN"
+    assert got["CRVAL1"] == pytest.approx(274.7535148268)
+    assert got["PLTSOLVD"] is True
