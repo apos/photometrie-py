@@ -48,6 +48,8 @@ def test_main_notebooks_start_with_form_and_explain_how(path):
     assert "Ab hier automatisch" in text                                                               # Entscheidungen zuerst, Automatik danach
     if not path.name.startswith("00"):
         assert "Formular — was eintragen" in text                                                      # jedes Formular wird Feld fuer Feld erklaert
+    assert text.count("bind(") >= (2 if path.name.startswith("00") else 1)                             # Sofort-Hinweis nach jeder Auswahl (varphot.hints); NB00: Schritt 0b und Schritt 1
+    assert "nach jeder Auswahl sofort ein Hinweis" in text                                             # und die Anleitung nennt es
 
 
 def test_nb00_demo_runs_end_to_end(tmp_path, monkeypatch):
