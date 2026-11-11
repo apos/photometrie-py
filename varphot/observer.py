@@ -150,6 +150,18 @@ def upsert_camera(cameras: list, cam: Camera) -> list:
     return [c for c in cameras if (c.model, c.gain_setting) != (cam.model, cam.gain_setting)] + [cam]
 
 
+def camera_kind(cam) -> str:
+    """Art der Kamera fuer Auswahllisten: ``Mono``, ``Farbe (Bayer RGGB)`` oder ``Farbe (DSLR)``.
+
+    Gilt fuer :class:`Camera` und :class:`varphot.camera_presets.CameraPreset` (beide haben ``bayer_pattern`` und ``cam_type``). Ein Profil ohne Bayer-Muster
+    und ohne DSLR-Typ gilt als Mono — ein altes Farbkamera-Profil, dessen Muster NB07 noch nicht gemessen hat, wird deshalb als Mono angezeigt.
+    """
+    pattern = (getattr(cam, "bayer_pattern", "") or "").strip()
+    if pattern:
+        return f"Farbe (Bayer {pattern})"
+    return "Farbe (DSLR)" if (getattr(cam, "cam_type", "") or "").upper().startswith("DSLR") else "Mono"
+
+
 def camera_label(cam: Camera) -> str:
     """Anzeigename eines Profils: ``Modell — Einstellung`` (fehlende Teile entfallen)."""
     return " — ".join(x for x in (cam.model, cam.gain_setting) if x) or "(leer)"
