@@ -313,3 +313,8 @@ def test_local_opencode_can_be_disabled(tmp_path, monkeypatch):
     _fake_opencode(tmp_path, monkeypatch, ["ollama/qwen2.5:7b"])
     cfg = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:9", "opencode": False, "opencode_model": None}, "models": []}
     assert [b.kind for b in A.detect_backends(cfg)] == ["ollama"]
+
+
+def test_review_without_backend_returns_error_not_exception():
+    r = A.ai_review("x", None)
+    assert r.text == "" and "kein KI-Weg" in r.error

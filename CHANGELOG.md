@@ -8,6 +8,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unveröffentlicht]
 
+### Neu
+- **Werkzeuge für exakte Testdurchführungen:** `tools/run_notebook.py` (Notebook headless über den Kernel ausführen, Fortschritt live, Kopie mit Ausgaben als Beleg, Quellnotebook bleibt unverändert), `tools/make_own_series.py` (aus den LCO-Testdaten eine simulierte eigene Reihe ohne WCS bauen), `tools/benchmark_registration.py` (Registrierung gegen die WCS im Kopf). NB02: Apertur über `VARPHOT_AP_MODE`/`VARPHOT_AP_R` vorbelegbar.
+
+### Behoben
+- `ai_review(text, None)` liefert ein Ergebnis mit Fehlermeldung statt einer Ausnahme (kein KI-Weg verfügbar darf den Bericht nie blockieren).
+
 ## [0.6.0] — 2026-11-11
 
 **Notebook-Umbau und fachliche Prüfung** (Konzept §12.2–§12.4, §13): vier Phasen-Notebooks (00 Planung, 01 Vorbereitung, 02 Messung, 03 Bericht) mit einer gemeinsamen Sitzung; Eigendatenweg lauffähig.
