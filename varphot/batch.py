@@ -227,7 +227,7 @@ def qc_frames(df: pd.DataFrame, roles: dict, cfg=None) -> pd.DataFrame:
     return df
 
 
-def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
+def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0, n_bootstrap: int = 0):
     """Magnitude des Ziels aus dem Nullpunkt-Ensemble der Comps (robust, optional gewichtet).
 
     Warum: Ein einzelner Comp bringt dessen Rauschen und Katalogfehler in die Lichtkurve; ein Ensemble mittelt beides und
@@ -237,12 +237,18 @@ def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
     ab 4 Comps verworfen. Nullpunkt = Median, mit ``f_c_err`` das mit ``1/sigma^2`` gewichtete Mittel (``sigma_i = 1,0857
     err_i/f_i``). ``mag = -2,5 log10 f_t + zp``. Fehler: ``sd(zp)^2/n`` plus Photonenfehler des Ziels, quadratisch.
 
+    ``n_bootstrap > 0``: Bootstrap-Resampling der Comps (B Ziehungen mit Zuruecklegen aus den nach Ausreisser-Test
+    verbliebenen Comps). Ersetzt den klassischen ``sd^2/n``-Term durch ``sigma_boot^2``. Faengt korrelierte Fehler besser ab
+    als der klassische Term (der unabhaengige Fehler voraussetzt); unterschaetzt den gemeinsamen Modus (alle Comps
+    gleichzeitig gedaempft), aber liefert in der Praxis realistischere Fehler als ``sd/sqrt(n)`` (vgl. KONZEPT §70).
+    Rechenaufwand: O(B * n_comps), B = 200 dauert < 0,1 s bei 10 Comps.
+
     Rueckgabe: ``(mag, err, n_benutzt, zp_streuung)``; ohne brauchbaren Comp (Fluss <= 0, V unbekannt) oder bei Fluss des Ziels <= 0 ``(nan, nan, 0, nan)``.
 
     Grenzen: ``zp_streuung`` enthaelt die Katalogfehler der Comp-V (bei Gaia-abgeleitetem V roter Sterne gross) und ist kein
     reines Rauschmass. Keine Farbterm-Korrektur (siehe KONZEPT.md §11). Kein Ausfall-Ersatz bei < 3 Comps (Aufrufer prueft).
 
-    Validierung: ``tests/test_batch.py`` (Ausreisser, Gewichtung, Fehlerterm).
+    Validierung: ``tests/test_batch.py`` (Ausreisser, Gewichtung, Fehlerterm, Bootstrap).
 
     Quellen: Idee der Ensemble-Photometrie nach Honeycutt, R. K. 1992, PASP 104, 435, doi:10.1086/133015 (geprueft, Zitat);
     dies ist eine vereinfachte Variante (Median/gewichtetes Mittel statt der vollen Matrixloesung von Honeycutt).
@@ -266,14 +272,23 @@ def ensemble_mag(f_t, f_c, v_c, f_c_err=None, f_t_err=None, clip: float = 3.0):
         zp0 = float(np.median(zp_k))
     sd = float(np.std(zp_k, ddof=1)) if len(zp_k) > 1 else np.nan
     mag = float(-2.5 * np.log10(f_t) + zp0)
-    var = (sd ** 2 / len(zp_k) if np.isfinite(sd) else 0.0)
+    if n_bootstrap > 0 and len(zp_k) >= 2:
+        rng = np.random.default_rng()
+        n = len(zp_k)
+        boot = rng.integers(0, n, size=(n_bootstrap, n))
+        boot_mags = -2.5 * np.log10(f_t) + np.median(zp_k[boot], axis=1)
+        sigma_boot = float(boot_mags.std())
+        var = sigma_boot ** 2
+    else:
+        var = (sd ** 2 / len(zp_k) if np.isfinite(sd) else 0.0)
     if f_t_err is not None and f_t > 0:
         var += (1.0857 * f_t_err / f_t) ** 2
     return mag, float(np.sqrt(var)), int(len(zp_k)), sd
 
 
 def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site=None,
-                aperture_m: float | None = None, core_correct: bool = False) -> pd.DataFrame:
+                aperture_m: float | None = None, core_correct: bool = False,
+                n_bootstrap: int = 0) -> pd.DataFrame:
     """Lichtkurve des Ziels (eine Zeile je brauchbarem Bild) mit BJD_TDB, Magnitude, Fehler, Check-Stern.
 
     Warum: Fasst Messtabelle (:func:`run_batch`), Bildflags (:func:`qc_frames`) und Ensemble (:func:`ensemble_mag`) zur
@@ -332,7 +347,8 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
                 frac = float(np.median(g.loc[bright, "flux_ring"] / g.loc[bright, "flux"]))
                 f_t, f_t_err, corrected = g.loc[target_id, "flux_ring"] / frac, g.loc[target_id, "flux_ring_err"] / frac, True
         m, e, n, sd = ensemble_mag(f_t, fc, [V[i] for i in comp_ids],
-                                   f_c_err=g.loc[comp_ids, "flux_err"].to_numpy(), f_t_err=f_t_err)
+                                   f_c_err=g.loc[comp_ids, "flux_err"].to_numpy(), f_t_err=f_t_err,
+                                   n_bootstrap=n_bootstrap)
         row = dict(file=f, jd_mid=g["jd_mid"].iloc[0], mag=m, mag_err=e, n_comps=n, zp_scatter=sd,
                    airmass=g["airmass"].iloc[0], fwhm_arcsec=g["fwhm_arcsec"].iloc[0],
                    target_sat=bool(g.loc[target_id, "n_sat"] > 0), core_corrected=corrected, transparency=g["transparency"].iloc[0],
