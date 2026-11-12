@@ -209,6 +209,52 @@ def test_core_correction_removes_seeing_dependence():
     assert cor < raw / 3                               # mit Kernmaske klar kleiner
 
 
+def test_saturation_detected_on_cfa_g_channel():
+    """measure_frame() erkennt gesättigte Sterne im G-Kanal korrekt (Pfad nach CFA-Trennung, #68).
+
+    Der G-Kanal ist ein normales Graustufenbild (halbe Auflösung); SATURATE-Schwelle
+    aus dem Original-CFA-Header bleibt gültig weil G-Pixel maximal SATURATE erreichen können.
+    """
+    sat = 60000.0
+    w = make_wcs()
+    pos = [(337.29, 58.41), (337.30, 58.42), (337.28, 58.40)]
+    stars = pd.DataFrame({"id": ["target", "c1", "c2"], "role": ["target", "comp", "comp"],
+                          "ra": [p[0] for p in pos], "dec": [p[1] for p in pos], "V": [4.0, 9.5, 10.0]})
+    cfg = {"ap_r": 10, "ap_r_in": 16, "ap_r_out": 24, "sat_adu": sat, "core_r": 3.0, "snr_min": 5}
+    fl = [4e6, 1.2e4, 8e3]
+    g_img = _sat_frame(w, fwhm=4.0, flux=list(zip([p[0] for p in pos], [p[1] for p in pos], fl)), sat=sat)
+    rows = measure_frame(g_img, w, stars, {"GAIN": 1.0, "RDNOISE": 3.0, "SATURATE": sat}, cfg)
+    r = {x["star_id"]: x for x in rows}
+    assert r["target"]["n_sat"] > 0, "gesättigter Stern im G-Kanal: n_sat = 0"
+    assert r["c1"]["n_sat"] == 0, "schwacher Comp irrtümlich als SAT markiert"
+
+
+def test_core_correction_on_cfa_g_channel():
+    """Kernkorrektur auf G-Kanal (wie nach CFA-Trennung) reduziert Seeing-Abhängigkeit (#68).
+
+    Identisch zu test_core_correction_removes_seeing_dependence(), aber explizit als
+    Regressionstest für den OSC/CFA-Pfad dokumentiert.
+    """
+    sat = 60000.0
+    w = make_wcs()
+    pos = [(337.29, 58.41), (337.30, 58.42), (337.28, 58.40), (337.31, 58.40)]
+    stars = pd.DataFrame({"id": ["target", "c1", "c2", "c3"], "role": ["target", "comp", "comp", "comp"],
+                          "ra": [p[0] for p in pos], "dec": [p[1] for p in pos], "V": [4.0, 9.0, 9.5, 10.0]})
+    fl = [4e6, 1.5e4, 1e4, 6e3]
+    cfg = {"ap_r": 10, "ap_r_in": 16, "ap_r_out": 24, "sat_adu": sat, "core_r": 3.0, "snr_min": 5}
+    mags = {}
+    for fwhm in (2.5, 4.0):
+        g_img = _sat_frame(w, fwhm, [(a, d, f) for (a, d), f in zip(pos, fl)], sat=sat)
+        rows = measure_frame(g_img, w, stars, {"GAIN": 1.0, "RDNOISE": 3.0, "SATURATE": sat}, cfg)
+        r = {x["star_id"]: x for x in rows}
+        assert r["target"]["n_sat"] > 0
+        frac = np.median([r[c]["flux_ring"] / r[c]["flux"] for c in ("c1", "c2")])
+        mags[fwhm] = (r["target"]["flux"], r["target"]["flux_ring"] / frac)
+    raw = abs(mags[2.5][0] / mags[4.0][0] - 1)
+    cor = abs(mags[2.5][1] / mags[4.0][1] - 1)
+    assert raw > 0.02 and cor < raw / 3, "Kernkorrektur auf G-Kanal wirkt nicht (#68)"
+
+
 def test_read_measurements_keeps_numbers_numeric_with_nan_and_empty_text(tmp_path):
     """Regression: leere CSV-Felder machten Zahlenspalten zu Text (NB04-Cache-Pfad)."""
     from varphot import read_measurements
