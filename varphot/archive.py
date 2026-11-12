@@ -95,7 +95,6 @@ def archive_session(
     copy_messtabelle: bool = False,
     copy_masters: bool = False,
     excel: bool = True,
-    pdf: bool = False,
 ) -> Path:
     """Archiviert eine abgeschlossene Sitzung.
 
@@ -103,7 +102,9 @@ def archive_session(
     ``copy_messtabelle``: messtabelle.csv ebenfalls kopieren (groß, Standard: nein).
     ``copy_masters``: Pfade der Kalibrationsmaster in projekt.json eintragen (Standard: nein, nie kopieren).
     ``excel``: Excel-Export der Zeitreihe (Standard: ja).
-    ``pdf``: PDF-Export des Berichts über Pandoc (Standard: nein, nur wenn Pandoc vorhanden).
+
+    Nach jedem Archivlauf wird automatisch ein kumulatives PDF aller Nächte dieses Ziels erstellt.
+    Pandoc + XeLaTeX müssen installiert sein (macOS: brew install pandoc && brew install --cask mactex).
 
     Rückgabe: Pfad des erstellten Archivordners.
     """
@@ -187,12 +188,11 @@ def archive_session(
         except Exception as exc:
             print(f"⚠ Excel-Export fehlgeschlagen: {exc}")
 
-    # --- PDF via Pandoc
-    if pdf:
-        _try_pandoc(bericht_path, dest)
-
     # --- Ziel-Index aktualisieren
     _update_index(archive_root / target_safe, target_safe, date_str, filt, lc)
+
+    # --- Kumulatives PDF aller Nächte dieses Ziels
+    write_object_summary_pdf(archive_root / target_safe, target_safe)
 
     print(f"✓ Archiviert in: {dest}")
     print(f"  {len(copied)} Dateien: {', '.join(copied[:6])}" + (" …" if len(copied) > 6 else ""))
@@ -349,17 +349,72 @@ def _update_index(target_dir: Path, target_safe: str, date_str: str, filt: str, 
     index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _try_pandoc(md_path: Path, dest: Path) -> None:
-    """Versucht Pandoc-PDF-Export; überspringt stumm wenn Pandoc fehlt."""
-    if shutil.which("pandoc") is None:
-        print("ℹ PDF-Export übersprungen (Pandoc nicht gefunden — `brew install pandoc` oder `apt install pandoc`)")
-        return
-    pdf_path = dest / (md_path.stem + ".pdf")
-    r = subprocess.run(
-        ["pandoc", str(md_path), "-o", str(pdf_path), "--pdf-engine=xelatex"],
-        capture_output=True, text=True,
-    )
-    if r.returncode == 0:
-        print(f"✓ PDF: {pdf_path}")
-    else:
-        print(f"⚠ Pandoc-PDF fehlgeschlagen: {r.stderr[:200]}")
+def _pandoc_or_hint() -> str | None:
+    """Gibt Pandoc-Pfad zurück oder druckt Installationshinweis und gibt None zurück."""
+    p = shutil.which("pandoc")
+    if p is None:
+        print(
+            "⚠ PDF-Zusammenfassung übersprungen: Pandoc nicht gefunden.\n"
+            "  Installation:\n"
+            "    macOS : brew install pandoc && brew install --cask mactex\n"
+            "    Linux : apt install pandoc texlive-xetex\n"
+            "  Danach NB05 erneut ausführen."
+        )
+    return p
+
+
+def write_object_summary_pdf(target_dir: Path, target_safe: str) -> Path | None:
+    """Erstellt/aktualisiert die kumulative PDF-Zusammenfassung aller Nächte eines Ziels.
+
+    Liest ``index.md`` und alle ``*/bericht.md`` aus ``target_dir``, fügt sie zu einem
+    einzigen Markdown-Dokument zusammen und erzeugt daraus
+    ``<target_dir>/<target_safe>_beobachtungen.pdf``.
+
+    Gibt den PDF-Pfad zurück oder ``None`` wenn Pandoc fehlt.
+    """
+    if _pandoc_or_hint() is None:
+        return None
+
+    index_path = target_dir / "index.md"
+    if not target_dir.is_dir():
+        return None
+
+    # Alle Nacht-Berichte chronologisch sortiert
+    nacht_berichte = sorted(target_dir.glob("*/bericht.md"))
+
+    if not nacht_berichte and not index_path.exists():
+        return None
+
+    parts: list[str] = []
+    if index_path.exists():
+        parts.append(index_path.read_text(encoding="utf-8"))
+
+    for bp in nacht_berichte:
+        parts.append("\n\n---\n\n")
+        parts.append(bp.read_text(encoding="utf-8"))
+
+    combined_md = "\n".join(parts)
+
+    # Pandoc braucht relative Pfade für Bilder → temporäres MD-File im target_dir
+    tmp_md = target_dir / "_zusammenfassung_tmp.md"
+    tmp_md.write_text(combined_md, encoding="utf-8")
+
+    pdf_path = target_dir / f"{target_safe}_beobachtungen.pdf"
+    try:
+        r = subprocess.run(
+            ["pandoc", str(tmp_md), "-o", str(pdf_path),
+             "--pdf-engine=xelatex",
+             f"--resource-path={target_dir}",
+             "-V", "geometry:margin=2cm",
+             "-V", "fontsize=11pt"],
+            capture_output=True, text=True, cwd=str(target_dir),
+        )
+        if r.returncode == 0:
+            print(f"✓ PDF-Zusammenfassung: {pdf_path}")
+        else:
+            print(f"⚠ Pandoc-PDF fehlgeschlagen: {r.stderr[:300]}")
+            pdf_path = None
+    finally:
+        tmp_md.unlink(missing_ok=True)
+
+    return pdf_path

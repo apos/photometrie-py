@@ -53,6 +53,11 @@ def software_checks(ai: bool = True) -> list[Check]:
     for name, paths, exe, hint in (("ASTAP", ASTAP_PATHS, "astap", "noetig fuer Plate-Solving echter Bilder (NB02)"), ("Siril", SIRIL_PATHS, "siril", "optional: Kalibrierung (NB01), Kanaltrennung")):
         found = find_program(paths, exe)
         out.append(Check(f"Programm {name}", found is not None, found or f"nicht gefunden ({hint})", optional=name == "Siril"))
+    pandoc = shutil.which("pandoc")
+    out.append(Check(
+        "Programm Pandoc", pandoc is not None,
+        pandoc or "nicht gefunden — macOS: brew install pandoc && brew install --cask mactex  |  Linux: apt install pandoc texlive-xetex  (noetig fuer PDF-Zusammenfassung in NB05)",
+    ))
     dd = data_dir()
     out.append(Check("Datenordner", dd.is_dir(), str(dd) if dd.is_dir() else f"{dd} fehlt (Messdaten, Plaene, Beobachter liegen sonst in ~/.config/varphot)", optional=True))
     cp = config_path()
