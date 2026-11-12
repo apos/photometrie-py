@@ -47,7 +47,7 @@ def _converted_cells():
     for p in sorted(NB_DIR.glob("*.ipynb")):
         for i, c in enumerate(json.loads(p.read_text(encoding="utf-8"))["cells"]):
             src = "".join(c["source"])
-            if c["cell_type"] == "code" and src.startswith("from varphot import nbui as ui"):
+            if c["cell_type"] == "code" and src.startswith(ui.CARD_PREFIX):
                 yield pytest.param(src, id=f"{p.stem}[{i}]")
 
 
@@ -58,3 +58,25 @@ def test_every_nbui_cell_renders(src, monkeypatch):
     monkeypatch.setattr(d, "display", lambda obj, *a, **k: shown.append(obj.data))
     exec(compile(src, "<nb>", "exec"), {"__name__": "__nb__", "METHOD": "osc"})
     assert shown and shown[0].startswith("<div") and "<style>" in shown[0]
+
+
+def test_result_blocks_render_tones_bars_and_table():
+    import numpy as np
+    import pandas as pd
+    h = ui.result("warn", "Titel", "rechts", [ui.stats([("a", "1", "x", "ok")]), ui.status_rows([("none", "T", "optional", "Folge")]),
+                                              ui.bars([("A", 8, 8, "8,0 h", "bis 59°", "ok"), ("B", 0, 8, "0 h", "nie", "none")], "Kopf")])
+    assert "Titel" in h and "optional" in h and "width:100%" in h and "nie" in h
+    t = ui.table(pd.DataFrame({"x": [1.5, np.nan, 2.0], "ok": [True, False, True]}))
+    assert "1,5" in t and "–" in t and t.count("✓") == 2 and t.count("✗") == 1 and "<th" in t
+    assert "weitere Zeilen" in ui.table(pd.DataFrame({"a": range(40)}), max_rows=10)
+    assert "Wert" in ui.table(pd.Series({"a": 1.0, "b": 2.5}))
+
+
+def test_say_picks_tone_from_first_symbol(monkeypatch):
+    import IPython.display as d
+    shown = []
+    monkeypatch.setattr(d, "display", lambda obj, *a, **k: shown.append(obj.data))
+    ui.say("⚠ Achtung")
+    ui.say("✓ gut", "und mehr")
+    ui.say("neutral")
+    assert ui.TONES["warn"] in shown[0] and ui.TONES["ok"] in shown[1] and "gut und mehr" in shown[1] and ui.TONES["info"] in shown[2]

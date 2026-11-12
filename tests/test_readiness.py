@@ -40,9 +40,9 @@ def test_ai_rows_are_optional_and_failures_do_not_break(monkeypatch):
 
 def test_render_html_marks_blockers_and_optionals():
     html = R.render_html([R.Check("a", True, "ok"), R.Check("b", False, "fehlt", optional=True)], "T")
-    assert "✓" in html and "·" in html and "✗" not in html and "erfuellt" in html
+    assert "optional" in html and "Hindernis" not in html.replace("Hindernis (", "") and "erfüllt" in html
     html = R.render_html([R.Check("c", False, "weg")], "T")
-    assert "✗" in html and "fehlt (✗)" in html
+    assert "Hindernis" in html and "Vorbedingung fehlt" in html
 
 
 # ------------------------------------------------------------------------------------------------ NB07/NB08
@@ -132,3 +132,11 @@ def test_defocus_solve_ladder_with_fake_astap(tmp_path):
     seen = []
     t = defocus_solve_ladder(np.random.default_rng(0).normal(100, 5, (80, 100)), _truth(), blurs=(0, 8), kinds=("gauss", "donut"), astap=_fake_astap(tmp_path), progress=seen.append)
     assert list(t["kind"]) == ["gauss", "gauss", "donut", "donut"] and t["solved"].all() and len(seen) == 4 and (t["offset_arcsec"] < 0.5).all()
+
+
+def test_render_std_fields_ranks_bars_and_names_recommendation():
+    import pandas as pd
+    sf = pd.DataFrame([dict(field="NGC 7790", hours=8.0, alt_max=59.3, ok=True), dict(field="NGC 3532", hours=0.0, alt_max=-5.0, ok=False)])
+    html = R.render_std_fields(sf, "NGC 7790")
+    assert "NGC 7790" in html and "8,0 h" in html and "Empfohlen für NB08" in html and "nie über 30°" in html and "−5" not in html
+    assert "kein Standardfeld" in R.render_std_fields(sf, None)
