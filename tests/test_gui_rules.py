@@ -80,3 +80,20 @@ def test_preview_page_builds(tmp_path):
     out = tmp_path / "v.html"
     mod.main(out)
     assert "vp-t" in out.read_text(encoding="utf-8") and out.stat().st_size > 20_000
+
+
+VAGUE = [r"[Nn]ächste Zelle ausführen", r"wie unten beschrieben", r"Zelle unten ausführen", r"(?m)^[#* ]*Auswahl übernehmen\s*$", r'"Felder ausfüllen"',
+         r"Weiter mit der nächsten Zelle", r"vor der nächsten Zelle", r"Zelle darunter ausführen\W*$"]
+
+
+def test_instructions_name_their_object_instead_of_vague_pointers():
+    """„Nächste Zelle ausführen“, „Auswahl übernehmen“ oder „Felder ausfüllen“ sagen nicht, welche Zelle, was übernommen wird, welche Felder: Gegenstand und Ziel nennen (docs/gui.md §2)."""
+    texts = {}
+    for path in NOTEBOOKS:
+        for i, c in enumerate(_cells(path)):
+            src = "".join(c["source"])
+            if c["cell_type"] == "markdown" or src.startswith("from varphot import nbui as ui"):
+                texts[f"{path.name}[{i}]"] = src
+    texts["varphot/hints.py"] = (ROOT / "varphot" / "hints.py").read_text(encoding="utf-8")
+    hits = [(where, pat) for where, src in texts.items() for pat in VAGUE if re.search(pat, src)]
+    assert not hits, f"unklare Formulierungen: {hits}"

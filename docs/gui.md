@@ -18,6 +18,7 @@ Gilt für alle Notebooks (`notebooks/*.ipynb`) und jede neue Oberfläche in dies
 | Orientierung | Schrittleiste (`ui.stepper`) zeigt, wo man ist; Schritte laufen **fortlaufend ab 1**, Unterschritte `1.1`, `1.2` (kein `b` ohne `a`) |
 | Handlung | Aufgaben sind **ausformulierte Sätze**, abhakbar (`ui.tasks`); keine Kürzel, keine Stichworte ohne Verb |
 | Kontext | Der eigene Aufbau (Fall A bis D) ist hervorgehoben (`ui.cases`), die anderen grau |
+| Konkrete Anweisungen | Jede Anweisung nennt **Gegenstand und Ziel**: welche Zelle (z. B. „die Code-Zelle direkt unter dieser Karte“), welche Felder, was übernommen oder ausgeführt wird. Nicht erlaubt: „Nächste Zelle ausführen“, „Auswahl übernehmen“, „Felder ausfüllen“, „wie unten beschrieben“ (Test `test_instructions_name_their_object_instead_of_vague_pointers`) |
 | Details | Seltenes steht zugeklappt (`ui.details`) |
 | Bedeutung durch Farbe | grün = erledigt/passt, blau = aktuell/Info, orange = prüfen, rot = Fehler; Farbe nie als einziger Hinweis |
 | Lesbarkeit | Text/Hintergrund mindestens Kontrast 4,5 (WCAG AA), feste Farben und ausdrückliche Hintergründe, damit helle und dunkle Notebook-Designs lesbar bleiben |
@@ -36,6 +37,7 @@ Gilt für alle Notebooks (`notebooks/*.ipynb`) und jede neue Oberfläche in dies
 |---|---|
 | Keine Markdown-Tabellen, keine Textwände | `tests/test_gui_rules.py` |
 | Schrittnummern ab 1 lückenlos, passend zur Schrittleiste | `tests/test_gui_rules.py` |
+| Anweisungen nennen Gegenstand und Ziel (keine „nächste Zelle“, „Auswahl übernehmen“) | `tests/test_gui_rules.py` |
 | Kontrast aller Farbpaare (`nbui.CONTRAST_PAIRS`) | `tests/test_gui_rules.py` |
 | Jeder Baustein hat eine Vorschau | `tests/test_gui_rules.py` |
 | Jede umgebaute Zelle rendert, Abhaken und Hervorhebung stimmen | `tests/test_nbui.py` |
@@ -46,7 +48,7 @@ Gilt für alle Notebooks (`notebooks/*.ipynb`) und jede neue Oberfläche in dies
 - [ ] Mockup (bei offener Gestaltung drei Varianten) gezeigt und freigegeben
 - [ ] Umsetzung entspricht dem Mockup, Abweichungen benannt
 - [ ] Keine Markdown-Tabelle, kein Absatz über 600 Zeichen
-- [ ] Schritte fortlaufend ab 1, Aufgaben als ganze Sätze, eigener Fall hervorgehoben
+- [ ] Schritte fortlaufend ab 1, Aufgaben als ganze Sätze mit Gegenstand und Ziel, eigener Fall hervorgehoben
 - [ ] Neuer Baustein: Eintrag in `tools/gui_preview.py`, Test grün
 - [ ] Vorschau im Browser angesehen, in Datalore geprüft (falls dort genutzt)
 - [ ] `CHANGELOG.md` ergänzt
