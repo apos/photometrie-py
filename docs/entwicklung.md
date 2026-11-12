@@ -80,6 +80,8 @@ Musterbeispiele im Code: `varphot/batch.py` (`light_curve`, `measure_frame`, `sc
 - Externe Programme und Dienste werden durch **Attrappen** ersetzt: ASTAP/Opencode/`curl` als kleine Shell-Skripte im Test-Ordner, Ollama als `http.server` auf einem freien Port (siehe `tests/test_aireview.py`, `tests/test_core.py`).
 - Abdeckung prüfen: `pytest --cov=varphot --cov-report=term-missing` (Stand 2026-11-10: 91 %; nicht abgedeckt sind vor allem Netz-Wiederholungen, Plot-Randfälle und Notebook-nahe Hilfen). Vor jedem PR: `ruff check varphot tools tests` und alle Tests.
 
+- **Oberfläche:** Darstellungsregeln, Mockup-Pflicht und die zugehörigen Tests stehen in [`docs/gui.md`](gui.md); `pytest tests/test_gui_rules.py tests/test_nbui.py` prüft sie.
+
 ## 5. Zahlen und Aussagen
 
 - Berichte nennen, was **nicht** geprüft ist, ebenso wie das Geprüfte. Willkürliche Schwellen (z. B. QC-Grenzen) heißen

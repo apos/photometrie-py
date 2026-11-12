@@ -24,10 +24,16 @@ STEPS = {
 }
 SHORT_CASES = {"mono": ("A", "Mono + Filter"), "monorgb": ("B", "Filterrad"), "osc": ("C", "Farbkamera"), "dslr": ("D", "DSLR")}
 
-TEXT, MUTED, LINE, SURF = "#1b1b1b", "#5f6368", "#d9d9d9", "#f5f5f4"
+TEXT, MUTED, FAINT, LINE, SURF = "#1b1b1b", "#5f6368", "#666666", "#d9d9d9", "#f5f5f4"
 ACC, ACC_BG, OK, OK_BG, OK_LINE, OK_TX = "#1565c0", "#e3f2fd", "#2e7d32", "#e8f5e9", "#a5d6a7", "#1b5e20"
 NOTE = {"info": (ACC_BG, "#0d47a1", "#90caf9", "info"), "warn": ("#fff3e0", "#7a3d00", "#ffcc80", "alert"),
         "ok": (OK_BG, OK_TX, OK_LINE, "check"), "error": ("#ffebee", "#8e1b1b", "#ef9a9a", "alert")}
+
+CONTRAST_PAIRS = [("Text auf Weiß", TEXT, "#ffffff"), ("Zusatztext auf Weiß", MUTED, "#ffffff"), ("Zusatztext auf Fläche", MUTED, SURF), ("Blasser Text auf Weiß", FAINT, "#ffffff"),
+                  ("Blasser Text auf Fläche", FAINT, SURF), ("Erledigt-Text", OK_TX, OK_BG), ("Haken-Kreis", OK, OK_BG), ("Aktiver Schritt", "#ffffff", ACC), ("Hinweis Info", NOTE["info"][1], NOTE["info"][0]),
+                  ("Hinweis Warnung", NOTE["warn"][1], NOTE["warn"][0]), ("Hinweis Ok", NOTE["ok"][1], NOTE["ok"][0]), ("Hinweis Fehler", NOTE["error"][1], NOTE["error"][0]),
+                  ("Kachel hervorgehoben", "#0d47a1", ACC_BG)]
+"""Alle verwendeten Text/Hintergrund-Paare; ``tests/test_nbui.py`` verlangt für jedes mindestens WCAG AA (Kontrast 4,5)."""
 
 _PATHS = {
     "photo": '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/>',
@@ -44,13 +50,13 @@ _PATHS = {
 CSS = f"""<style>
 .vp-t{{position:relative;display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid {LINE};border-radius:8px;cursor:pointer;margin:0 0 6px;background:#fff;color:{TEXT};font:14px/1.5 sans-serif}}
 .vp-t input{{position:absolute;opacity:0;pointer-events:none}}
-.vp-t .b{{width:20px;height:20px;border-radius:50%;border:2px solid #9e9e9e;flex:none;margin-top:1px;box-sizing:border-box;color:#fff;display:flex;align-items:center;justify-content:center}}
+.vp-t .b{{width:20px;height:20px;border-radius:50%;border:2px solid #8a8a8a;flex:none;margin-top:1px;box-sizing:border-box;color:#fff;display:flex;align-items:center;justify-content:center}}
 .vp-t .b svg{{opacity:0}}
 .vp-t input:checked+.b{{background:{OK};border-color:{OK}}}
 .vp-t input:checked+.b svg{{opacity:1}}
 .vp-t input:checked~.x{{color:{OK_TX}}}
 .vp-t:has(input:checked){{background:{OK_BG};border-color:{OK_LINE}}}
-.vp-t:hover{{border-color:#757575}}
+.vp-t:hover{{border-color:#666666}}
 .vp-t .s{{display:block;font-size:12px;color:{MUTED};margin-top:2px}}
 .vp-d summary{{cursor:pointer;font-weight:500}}
 </style>"""
@@ -92,8 +98,8 @@ def stepper(nb: str, current: int | None = None) -> str:
             dot = f'<div style="width:26px;height:26px;border-radius:50%;margin:0 auto 4px;background:{ACC};color:#fff;font-size:13px;font-weight:600;line-height:26px">{i}</div>'
             lab = f'<div style="font-size:12px;font-weight:600">{escape(name)}</div>'
         else:
-            dot = f'<div style="width:26px;height:26px;border-radius:50%;margin:0 auto 4px;background:{SURF};border:1px solid #bdbdbd;color:#757575;font-size:13px;line-height:24px;box-sizing:border-box">{i}</div>'
-            lab = f'<div style="font-size:12px;color:#757575">{escape(name)}</div>'
+            dot = f'<div style="width:26px;height:26px;border-radius:50%;margin:0 auto 4px;background:{SURF};border:1px solid #bdbdbd;color:{FAINT};font-size:13px;line-height:24px;box-sizing:border-box">{i}</div>'
+            lab = f'<div style="font-size:12px;color:{FAINT}">{escape(name)}</div>'
         cells.append(f'<div style="flex:1;text-align:center;min-width:0">{dot}{lab}</div>')
     return f'<div style="display:flex;align-items:flex-start;padding:12px 8px 4px">{"".join(cells)}</div>'
 
@@ -137,8 +143,8 @@ def cases(active: str | None, texts: dict[str, str], title: str = "Ihr Aufbau") 
     out = []
     for key, (letter, name) in SHORT_CASES.items():
         on = key == active
-        bg, fg, line = (OK_BG, OK_TX, OK_LINE) if on else (SURF, "#757575", "#e0e0e0")
-        mark = f' <span style="font-weight:400">· Ihr Fall</span>' if on else ""
+        bg, fg, line = (OK_BG, OK_TX, OK_LINE) if on else (SURF, FAINT, "#e0e0e0")
+        mark = ' <span style="font-weight:400">· Ihr Fall</span>' if on else ""
         out.append(f'<div style="border-radius:8px;padding:8px 10px;background:{bg};color:{fg};border:1px solid {line};font-size:12px;line-height:1.45">'
                    f'<b style="font-weight:600">{letter} {name}</b>{mark}<br>{_md(texts.get(key, ""))}</div>')
     head = f'<div style="font-size:13px;font-weight:600;margin:6px 0">{escape(title)}</div>' if title else ""
@@ -150,8 +156,8 @@ def fields(rows: list[tuple[str, str, str]], heads: tuple[str, str] = ("Testlauf
     out = []
     for name, test, own in rows:
         out.append(f'<div style="padding:9px 0;border-top:1px solid {LINE}"><div style="font-size:14px;font-weight:600;margin-bottom:3px">{_md(name)}</div>'
-                   f'<div style="display:grid;grid-template-columns:110px 1fr;gap:2px 10px;font-size:13px"><span style="color:#8a8f94">{escape(heads[0])}</span><span>{_md(test)}</span>'
-                   f'<span style="color:#8a8f94">{escape(heads[1])}</span><span>{_md(own)}</span></div></div>')
+                   f'<div style="display:grid;grid-template-columns:110px 1fr;gap:2px 10px;font-size:13px"><span style="color:{FAINT}">{escape(heads[0])}</span><span>{_md(test)}</span>'
+                   f'<span style="color:{FAINT}">{escape(heads[1])}</span><span>{_md(own)}</span></div></div>')
     return f'<div style="margin:4px 0 8px">{"".join(out)}</div>'
 
 
@@ -218,7 +224,7 @@ def header(nb: str, title: str, ergebnis: str, *, wann: str = "", flow: list[tup
         fl = stepper(nb)
     fall = cases(method, texts, fall_title) if (method is not None and texts) else ""
     return (f'<div style="padding:14px 16px;border:1px solid {LINE};border-radius:12px;background:#fff;margin-bottom:6px">'
-            f'<div style="font-size:18px;font-weight:700;margin-bottom:4px"><span style="color:#9e9e9e;font-weight:400;font-size:13px;margin-right:6px">NB{nb}</span>{_md(title)}</div>'
+            f'<div style="font-size:18px;font-weight:700;margin-bottom:4px"><span style="color:{FAINT};font-weight:400;font-size:13px;margin-right:6px">NB{nb}</span>{_md(title)}</div>'
             f'{sub}{res}{fl}{"".join(blocks)}{fall}</div>')
 
 

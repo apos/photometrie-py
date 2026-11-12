@@ -21,3 +21,6 @@ data/fields/
 # Abdeckungsbericht
 .coverage
 htmlcov/
+
+# Erzeugte GUI-Vorschau (tools/gui_preview.py)
+build/
