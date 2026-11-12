@@ -18,7 +18,7 @@ strip:                  ## Notebook-Outputs entfernen (vor git commit)
 	uv run nbstripout notebooks/*.ipynb
 
 sync-datalore: strip    ## Notebook-Zellen zu Datalore synchronisieren (Tunnel muss laufen)
-	$(PYTHON) tools/sync_datalore.py
+	@$(PYTHON) tools/sync_datalore.py
 
 init-datalore:          ## Einmalig: Datalore-Session einrichten (OAuth-Login)
 	mkdir -p $(SESSION)

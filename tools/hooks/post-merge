@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # Git post-merge Hook: Notebook-Zellen automatisch zu Datalore synchronisieren.
 # Wird ausgelöst nach: git merge, git pull (wenn Änderungen übernommen wurden).
-# Installation: make install-hooks
+# Kein manuelles Setup nötig — git config core.hooksPath tools/hooks (automatisch via Makefile/conftest).
 
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-# Nur synchronisieren wenn sich Notebook-Dateien geändert haben
 CHANGED=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null | grep 'notebooks/.*\.ipynb' || true)
-if [ -z "$CHANGED" ]; then
-    exit 0
-fi
+if [ -z "$CHANGED" ]; then exit 0; fi
 
 echo "[datalore-sync] Notebooks geändert — synchronisiere …"
-make sync-datalore 2>&1 | sed 's/^/[datalore-sync] /'
+# make -s: unterdrückt Befehlsecho, nur Python-Ausgabe bleibt sichtbar
+make -s sync-datalore 2>&1 | sed 's/^/[datalore-sync] /'
