@@ -719,44 +719,126 @@ Verhalten bei zu wenigen Comps (`varphot/workflow.py`, `select_field`):
 Frage des Autors: Soll NB00 dem Nutzer ein geeignetes Sternfeld in der Nähe **auf gleicher Höhe über dem Horizont** vorschlagen, und verfälscht das das Ergebnis? Zwei Fälle sind zu trennen:
 
 - **Fall a, Standardfeld für NB08** (Koeffizienten): sinnvoll. Die Extinktion zweiter Ordnung wächst mit der Luftmasse X; gemessen werden die Koeffizienten am besten bei ähnlichem X wie die Zielaufnahmen, **und** an mehreren Luftmassen (§11.8, Schritt 3). Vorschlag: Die Tabelle in NB00 Schritt 3.2 sortiert zusätzlich nach Überlappung von Höhe und Zeitfenster mit dem Ziel. Das verfälscht nichts; es verringert eine Systematik. Der Rang bleibt Empfehlung, kein Zwang.
-- **Fall b, Comp-Feld, wenn das Zielfeld keine geeigneten Comps enthält** (§11.5 „Slewing zum Comp-Feld“): nur als Ausnahme. Comps im **selben Bild** bleiben die beste Lösung, weil Ziel und Comp gleichzeitig durch dieselbe Atmosphäre gemessen werden (ΔX ≈ 0, Transparenz und Zeropoint-Drift heben sich auf, §11.5). Ein Nachbarfeld auf gleicher Höhe hält ΔX klein, **hebt aber die Gleichzeitigkeit nicht auf**: Transparenzschwankungen zwischen den Aufnahmen gehen als Fehler ein. Damit ist es *nicht falsch, aber ungenauer* und braucht die All-Sky-Gleichung (§11.5; `fit_extinction`, `transform_target(dX, k)` vorbereitet, Workflow fehlt).
+- **Fall b, Comp-Feld, wenn das Zielfeld keine geeigneten Comps enthält** (§11.5 „Slewing zum Comp-Feld“): nur als Ausnahme. Comps im **selben Bild** bleiben die beste Lösung, weil Ziel und Comp gleichzeitig durch dieselbe Atmosphäre gemessen werden (ΔX ≈ 0, Transparenz und Zeropoint-Drift heben sich auf, §11.5). Ein Nachbarfeld auf gleicher Höhe hält ΔX klein, **hebt aber die Gleichzeitigkeit nicht auf**: Transparenzschwankungen zwischen den Aufnahmen gehen als Fehler ein. Damit ist es *nicht falsch, aber ungenauer* und braucht die All-Sky-Gleichung (§11.5; `fit_extinction`, `transform_target(dX, k)` vorbereitet); der Workflow dafür ist in §16 als Konzept ausgearbeitet.
 
 Entwurf für Fall b (alle Zahlen Startwerte, ungeprüft): Suche in der AAVSO-Sequenz nach Feldern innerhalb weniger Grad mit `|ΔX| < 0,05` zum Ziel und Comps nach §14.1; schneller Wechsel zwischen Ziel- und Comp-Feld, damit Transparenzänderungen klein bleiben; ein eigener Check-Stern im Comp-Feld; Ausgabe mit dem Hinweis „zweite Wahl, größere Unsicherheit“.
 
-## 15. Himmelshelligkeit: Lanternfish-SQM (Konzept, nicht implementiert; Stand 2026-11-12)
+## 15. Himmelshelligkeit: SQM-Messgerät Lanternfish (Konzept, nicht implementiert; Stand 2026-11-12)
 
-### 15.1 Gerät (Herstellerangaben, Seite gelesen 2026-11-12; `[Lanternfish]`)
+**Abgrenzung:** Dieses Kapitel hält fest, **was die Auswertung braucht** und **wie sie die Werte nutzen würde**. Gerät, Schnittstelle (SLP), Zeitsynchronisation, Netzanbindung und Treiber (INDI) sind Sache des BM-Projekts `sqm-lanternfish`; die Montage am PiFinder gehört zum PFSM-Projekt. Dort wird dafür gesorgt, dass die Anforderungen in §15.3 erfüllt sind (Anforderungsliste: BM `sqm-lanternfish/00005_anforderungen-aus-der-photometrie`). Quelle des Geräts: `[Lanternfish]`.
 
-Handmessgerät für die Himmelshelligkeit in MPSAS (mag/arcsec²), Gesichtsfeld **18° (FWHM)**, UV/IR-Sperrfilter mit etwa 97–98 % Durchlass von 400 bis 730 nm, Messintervall frei einstellbar ab 10 s (Standard 300 s), Gerätetemperatur wird mitgeschrieben (über 30 °C ungenau), Speicher für über ein Jahr, Export als CSV und PNG, **JSON-API** für Live-Werte und Verlauf, Entwicklerprotokoll SLP (391 Befehle, HTTP/USB/UDP), WLAN als Access Point oder im Heimnetz. Eine Genauigkeit nennt die Seite nicht; der Kalibrierwert ist je Gerät verschieden. Eine Anbindung an ASCOM, Alpaca, INDI oder N.I.N.A. ist dort nicht erwähnt.
-
-### 15.2 Aufbau des Autors und was daraus folgt
-
-Das Gerät ist **mit dem PiFinder gekoppelt und immer auf das aktuelle Gesichtsfeld ausgerichtet** (Angabe des Autors, 2026-11-12). Damit gilt: Richtung und Höhe stimmen mit der Aufnahme überein; der Wert ist für die Zielrichtung aussagekräftig. (Eine frühere Einschätzung in dieser Sitzung, das Gerät blicke zum Zenit, war falsch und ist damit zurückgenommen.) Bleibende Grenzen:
-- 18° sind viel größer als das Bildfeld (etwa 1–2,5°): Das Gerät mittelt über die Umgebung, also auch Horizontnähe, Mond, Lichtglocke und helle Sterne bzw. Milchstraße im Gesichtsfeld.
-- Das Band 400–730 nm ist breitbandig, nicht V, B oder R; der Wert ist mit dem Bildhimmel (`sky`) nur über einen Offset vergleichbar.
-- Zeitauflösung (10 s bis 300 s) und Uhr des Geräts: Die Zeitbasis (Abgleich mit UTC) ist **nicht geklärt** und für die Zuordnung zu Belichtungen entscheidend.
-- Die Gerätetemperatur beeinflusst die Messung (Herstellerhinweis), eine Kompensation ist nicht beschrieben.
-
-### 15.3 Nutzen und Nicht-Nutzen
+### 15.1 Nutzen und Nicht-Nutzen
 
 | Nutzen | Nicht-Nutzen |
 |---|---|
-| **Planung (NB00):** erwartete Himmelshelligkeit am Zielort → S/N und Belichtung (Himmelsrauschen gegen Ausleserauschen) | **Keine Korrektur der Magnituden:** der Himmel wird in der Apertur-Photometrie subtrahiert und geht nur ins Rauschen ein |
+| **Planung (NB00):** erwartete Himmelshelligkeit in Zielrichtung → S/N und Belichtung (Himmelsrauschen gegen Ausleserauschen) | **Keine Korrektur der Magnituden:** Der Himmel wird in der Apertur-Photometrie subtrahiert und geht nur ins Rauschen ein |
 | **Qualität (NB02):** Zeitreihe als zusätzlicher Kanal neben der Transparenz; Sprünge deuten auf Wolken, Dunst, Mond, Dämmerung | **Keine Extinktion, kein Seeing:** k kommt weiter aus dem Gang des Nullpunkts mit der Luftmasse (`fit_extinction`) |
-| **Dokumentation (NB03/NB05):** Himmelshelligkeit je Nacht im Bericht und optional in `NOTES` | |
+| **Dokumentation (NB03/NB05):** Himmelshelligkeit je Nacht im Bericht und optional in `NOTES` | **Kein Absolutwert am Ziel:** Das Gesichtsfeld des Geräts ist größer als das Bildfeld (siehe Projekt); gilt als Trend, nicht als Himmelshelligkeit im Bildfeld |
+| **Wolken-Flag für den All-Sky-Workflow (§16):** zeigt, ob eine Nacht photometrisch war | |
 
-### 15.4 Anbindung (Entwurf)
+### 15.2 Anbindung in der Auswertung (Entwurf)
 
-1. **Quelle:** JSON über HTTP vom Gerät (LAN oder Access Point), oder CSV-Export als Rückfall ohne Verbindung. Die Endpunkte stammen aus der SLP-Dokumentation (`lunaticoastro.com/slp_docs/`, **noch nicht gelesen**); bekannt ist nur ein Beispiel `http://<IP>/slp/get/d/SQMFactRefVal`.
-2. **Modul `varphot/sqm.py`** (neu): `read_sqm_csv(...)`/`read_sqm_json(...)` → Tabelle `t_utc, mpsas, temp_c`; `sqm_at(jd, tabelle)` interpoliert auf die Belichtungsmitte, bei größerem Abstand als das 1,5-fache Intervall `NaN`.
-3. **Messtabelle** (`varphot/batch.py`): Spalten `sqm_mpsas` und `sqm_dt_s` (Abstand zur Messung); Flag `SKY_JUMP` in `frame_flags` (QC, §5.2) bei Abweichung vom Nachtmedian über einem Schwellwert (Startwert 0,3 mag, ungeprüft).
-4. **FITS-Header:** Schreibt die Aufnahmesoftware einen Himmelshelligkeitswert in den Kopf (Schlüsselname je nach Software festlegen, `VARPHOT_SQM_KEY`), hat er Vorrang vor der Zeitreihe.
-5. **Konfiguration:** privater Schlüssel `sqm` in `observer.json` (Quelle, Schwellwert), wie `ai`; NB00 Schritt 1.2 bekommt ein optionales Feld „SQM-Quelle“.
-6. **Notebooks:** NB00 Schritt 3.1 zeigt die aktuelle Himmelshelligkeit neben Mond und Fenster; NB02 plottet SQM neben der Transparenz und zeigt die Flags; NB03 trägt optional einen Hinweis in `NOTES` ein.
-7. **Sicherheit:** Gerät nur im Heimnetz, kurze Zeitüberschreitung, kein Cloud-Zugang; ohne Gerät läuft alles wie bisher.
-8. **Tests:** CSV- und JSON-Beispiele als Testdaten, Interpolation, Abstandsgrenze, Flag.
-9. **Validierung (Idee, ungeprüft):** Bildhimmel (ADU/px) mit Nullpunkt und Pixelmaßstab in mag/arcsec² umrechnen und über eine Nacht gegen das SQM legen; der Offset zeigt den Bandunterschied, die Streuung die Güte.
+1. **Modul `varphot/sqm.py`** (neu): Einlesen einer Messreihe (Zeit UTC, Wert in mpsas, Temperatur) aus Datei oder Abfrage; `sqm_at(jd, reihe)` interpoliert auf die Belichtungsmitte, bei zu großem Zeitabstand `NaN`.
+2. **Messtabelle** (`varphot/batch.py`): Spalten `sqm_mpsas` und `sqm_dt_s` (Abstand zur Messung); Flag `SKY_JUMP` in `frame_flags` (QC, §5.2) bei Abweichung vom Nachtmedian über einem Schwellwert (Startwert 0,3 mag, ungeprüft).
+3. **FITS-Kopf:** Steht ein Himmelshelligkeitswert im Kopf der Aufnahme, hat er Vorrang vor der Zeitreihe (Schlüsselname wird im Projekt `sqm-lanternfish` festgelegt und hier übernommen, `VARPHOT_SQM_KEY`).
+4. **Konfiguration:** privater Schlüssel `sqm` in `observer.json` (Quelle, Schwellwert), wie `ai`; NB00 Schritt 1.2 bekommt ein optionales Feld „SQM-Quelle“.
+5. **Notebooks:** NB00 Schritt 3.1 zeigt die aktuelle Himmelshelligkeit neben Mond und Fenster; NB02 plottet SQM neben der Transparenz und zeigt die Flags; NB03 trägt optional einen Hinweis in `NOTES` ein.
+6. **Ohne Gerät läuft alles wie bisher** (kein Pflichtbestandteil).
+7. **Tests:** Beispielreihen als Testdaten, Interpolation, Abstandsgrenze, Flag.
+8. **Validierung (Idee, ungeprüft):** Bildhimmel (ADU/px) mit Nullpunkt und Pixelmaßstab in mag/arcsec² umrechnen und über eine Nacht gegen das SQM legen; der Offset zeigt den Bandunterschied, die Streuung die Güte.
 
-Reihenfolge: **Phase 1** CSV-Import, Interpolation, Plot (braucht ein echtes Beispiel vom Gerät), **Phase 2** JSON live und Planungsanzeige, **Phase 3** Flag und Berichtseintrag.
+Reihenfolge: **Phase 1** Reihe einlesen, interpolieren, plotten (braucht ein echtes Beispiel vom Gerät), **Phase 2** Planungsanzeige, **Phase 3** Flag und Berichtseintrag.
 
-**Offen:** Beispiel-Export des Geräts, SLP-Dokumentation lesen, Uhr und Zeitbasis des Geräts, Schlüsselname im FITS-Kopf, Schwellwert für `SKY_JUMP` an echten Nächten.
+### 15.3 Anforderungen der Auswertung an Gerät und Anbindung (was wir brauchen)
+
+Die Liste ist die Schnittstelle zum Projekt `sqm-lanternfish`; Ausgestaltung und Nachweis der Erfüllung stehen dort. Zahlen sind Startwerte der Auswertung, ungeprüft.
+
+| Nr. | Anforderung | Warum |
+|---|---|---|
+| S-1 | Jeder Messwert hat einen **Zeitstempel in UTC**, dessen Genauigkeit bekannt und dokumentiert ist | Zuordnung zu Belichtungsmitten (`sqm_at`) |
+| S-2 | **Messabstand höchstens 60 s** während der Aufnahmen | Belichtungen dauern Sekunden bis Minuten; Sprünge sollen erkannt werden |
+| S-3 | **Durchgehender Betrieb über die ganze Nacht** ohne Selbstabschaltung | Lücken zerstören die Zeitreihe |
+| S-4 | Werte **abrufbar von Mac, panama und dem INDI-Rechner** im Heimnetz | Auswertung, Planung und Aufnahme laufen auf verschiedenen Rechnern |
+| S-5 | Je Messung **Wert, Temperatur und Gültigkeit** (kein Wert statt Fantasiewert) | Filtern ungültiger Punkte |
+| S-6 | **Verlauf nachträglich abrufbar** (ganze Nacht) | Lücken schließen, Auswertung am nächsten Tag |
+| S-7 | **Ausrichtung auf das Bildfeld** mit dokumentierter Abweichung | Aussage über die Zielrichtung |
+| S-8 | **Kalibrierung dokumentiert** (Referenzwert, Datum), Größenordnung der Genauigkeit bekannt | Vergleich mit dem Bildhimmel (§15.2, Punkt 8) |
+| S-9 | **Wert in den FITS-Kopf** der Aufnahmen, mit festem Schlüsselnamen | Auswertung ohne Zusatzdatei |
+| S-10 | **Alter des Werts** sichtbar (INDI und Abfrage) | Veraltete Werte erkennen |
+
+## 16. All-Sky-Photometrie: Workflow für Ziele ohne Vergleichssterne im Bild (Konzept, nicht implementiert; Stand 2026-11-12)
+
+### 16.1 Wann und warum
+
+Normalfall der Software ist die **Differenzphotometrie**: Ziel und Comps stehen im selben Bild, ΔX ≈ 0, Transparenz und Zeropoint-Drift heben sich auf (§11.5). Der All-Sky-Workflow wird nur gebraucht, wenn das **nicht geht**: das Zielfeld enthält keine geeigneten Comps (sehr helle Ziele, kleines Feld, Comps gesättigt), oder die Comps müssen aus einem anderen Himmelsareal kommen. Dann sind Ziel und Comps **nicht gleichzeitig** gemessen, und der Absolutwert muss über Standardfeld und Atmosphärenmodell entstehen. **Comps im selben Bild bleiben immer die erste Wahl** (§14.4).
+
+### 16.2 Gleichung und Größen
+
+Je Kanal (Grundlage: `[AAVSO-DSLR]` Gl. 6.15–6.25, `[Kloppenborg2012]`; vorbereitet in `varphot/transform.py`):
+
+```
+V = v_inst + ZP(t) + Tv_bv·(B−V) + k·X  (+ k''·(B−V)·X)
+```
+
+`v_inst` instrumentelle Magnitude, `X` Luftmasse, `k` Extinktion erster Ordnung, `k''` zweiter Ordnung (bei X über etwa 2, §11.5), `Tv_bv` Farbterm aus NB08, `ZP(t)` Zeropoint, der über die Nacht **driftet** (Transparenz, Kameratemperatur). Der Zeropoint ist die eigentliche Unbekannte: Er wird an **Standardfeld-Messungen** bestimmt und auf die Zeit der Zielaufnahme **interpoliert**.
+
+### 16.3 Voraussetzungen und Stand
+
+| Voraussetzung | Stand |
+|---|---|
+| Photometrische Nacht (klar, stabile Transparenz) | im Beobachtungsplan zu sichern; Prüfmaß siehe §16.6 |
+| Standardfeld (z. B. M 67, NGC 7790) in derselben Nacht bei **mindestens zwei, besser mehreren Luftmassen**, vor, zwischen und nach den Zielblöcken | Katalog vorhanden (`fetch_std_field`); **Aufnahmeplanung fehlt** |
+| **Transformationskoeffizienten** (`Tv_bv` usw.) für genau diesen Aufbau | NB08 nur im Demo-Modus gelaufen, **keine echten Koeffizienten** |
+| Extinktion `k` je Kanal | `fit_extinction()` vorhanden (Luftmassenbereich ≥ 0,3, mindestens 4 Bilder) |
+| **Zeropoint-Reihe `ZP(t)`** mit Interpolation zwischen den Standardfeld-Blöcken | **fehlt** |
+| Comps mit **AAVSO-B- und V-Werten** im Comp-Feld, Check-Stern dort; Gaia ist gesperrt (§11.7) | Auswahl vorhanden (§14), Comp-Feld-Suche fehlt |
+| **Konstante Einstellungen** (Gain, Filter, Fokus, Defokus, Apertur), Flats, Kameratemperatur | Profil aus NB07 vorhanden; Prüfung „Einstellungen konstant“ fehlt |
+| Zeitbasis der Aufnahmen (UTC) und Luftmasse je Bild | vorhanden (`airmass`, `jd_mid`) |
+| Wolken-/Transparenzkanal (Bildtransparenz, später SQM, §15) | `LOW_TRANSPARENCY` vorhanden, SQM nicht |
+| Workflow in NB02 (Blöcke, Zeropoint, Anwendung auf das Ziel, Fehlerbudget) | **nicht implementiert** |
+
+### 16.4 Ablauf einer Nacht (Aufnahme)
+
+1. **Planung in NB00:** Zeitplan mit Blöcken. Das Standardfeld wird so gewählt, dass seine **Höhe und sein Zeitfenster** die des Ziels überlappen (§14.4, Fall a); die Tabelle in NB00 Schritt 3.2 wird dafür um diese Spalte erweitert.
+2. **Blöcke** in fester Reihenfolge, Klammerung der Zielblöcke durch Standardfeld-Blöcke: `S1 (niedrige Luftmasse) → T1 → S2 (hohe Luftmasse) → T2 → S3 …`. Mindestens ein Standardfeld-Block vor und einer nach den Zielblöcken, insgesamt mindestens zwei Luftmassen.
+3. **Je Block:** gleiche Einstellungen wie beim Ziel, mindestens drei Belichtungszeiten je Kanal im Standardfeld (§11.8), mindestens 10 bis 15 Standardsterne mit (B−V) = 0,3 bis 1,5.
+4. **Wechselrhythmus** Ziel ↔ Comp-Feld (falls Comps aus einem anderen Areal): so schnell wie Nachführung und Plate-Solve erlauben; jede zusätzliche Minute vergrößert den Transparenzfehler.
+5. **Kalibrierbilder** (Darks, Flats) wie bei NB01; **eine Sitzung** pro Nacht, Blöcke als Rolle in der Sitzung (`standard`, `target`, `compfield`).
+
+### 16.5 Auswertung (Entwurf)
+
+1. **Messung je Block** (NB02): instrumentelle Magnituden aller Sterne und Kanäle.
+2. **Zeropoint je Standardfeld-Block:** `ZP_j = Median über Standardsterne von (V_cat − v_inst − Tv_bv·(B−V) − k·X)`; Streuung `σ_ZP,j` aus den Sternen. Dafür braucht es `k` und `Tv_bv`.
+3. **Extinktion:** `fit_extinction()` über die Standardfeld-Bilder (Bouguer-Gerade, `offset = ZP + k·X`); **nur** bei Luftmassenbereich ≥ 0,3 und photometrischer Nacht.
+4. **Interpolation:** `ZP(t)` stückweise linear zwischen benachbarten Blöcken; die Unsicherheit der Interpolation wird mindestens mit der **halben Drift** zwischen den Nachbarblöcken angesetzt (Annahme, an Daten zu prüfen).
+5. **Ziel:** `transform_target(...)` mit `dX`, `k`, `ZP(t)` je Bild (vorbereitet).
+6. **Fehlerbudget** (quadratisch): Photonenrauschen, Szintillation (`scintillation_mag`), Katalogfehler der Standardsterne, Zeropoint-Interpolation, Fehler von `Tv_bv` und `k`. Die Summe wird in `mag_err` ausgewiesen und ist **größer als bei Differenzphotometrie**.
+7. **Check-Stern** im Comp-Feld bzw. ein zweiter Standardstern als Gegenprobe; transformiert wie das Ziel (§14.2).
+
+### 16.6 Qualitätskriterien (Startwerte, ungeprüft)
+
+- **Photometrische Nacht:** Streuung des Zeropoints innerhalb eines Standardfeld-Blocks höchstens 0,02 mag, Drift zwischen Nachbarblöcken höchstens 0,03 mag; zusätzlich kein `LOW_TRANSPARENCY` und (später) kein `SKY_JUMP` im SQM.
+- **Extinktion plausibel:** `k` je Kanal innerhalb des für den Standort Üblichen; Ausreißer erzeugen eine Warnung.
+- **Ergebnis:** Bei Verletzung wird die Nacht als „nicht photometrisch“ gekennzeichnet; die Auswertung bricht nicht ab, die Meldung an die AAVSO unterbleibt als Empfehlung.
+
+### 16.7 Meldung an die AAVSO
+
+`TRANS=YES`, Filter `V`/`B`/`R`, Zusatzangaben in `NOTES` (Koeffizienten, `k`, Standardfeld, Datum). **Offen:** Wie die Comp-Spalten (`CNAME`, `CMAG`) bei All-Sky-Messungen ohne Vergleichsstern im Bild zu füllen sind, ist im Extended-Format-Handbuch **nachzulesen und bei der AAVSO zu bestätigen** (bisher gelesen nur die Ensemble-Konvention `na`, §11.2). Vor der ersten Meldung klären.
+
+### 16.8 Umsetzungsschritte
+
+1. Dieses Konzept abstimmen; Meldeform (§16.7) klären.
+2. NB08 an einer echten photometrischen Nacht ausführen (liefert `Tv_bv`, `k`; ohnehin offen).
+3. NB00: Standardfeld-Spalte „Überlappung mit dem Ziel“ und Zeitplan der Blöcke.
+4. Datenmodell: Rolle und Block-ID je Bild in der Sitzung (`standard`, `target`, `compfield`).
+5. `varphot/allsky.py` (neu): Zeropoint je Block, Interpolation, Fehlerbudget; Tests mit **synthetischen Nächten bekannter Wahrheit** (Drift, `k`, `Tv_bv`), Ergebnis innerhalb der ausgewiesenen Unsicherheit.
+6. NB02: optionaler Abschnitt „All-Sky“; NB03: Export und Hinweise.
+7. Validierung an einer echten Nacht gegen einen Stern mit bekannter Helligkeit.
+
+### 16.9 Grenzen und Risiken
+
+- Die Aufnahmen von Ziel und Standardfeld sind **nicht gleichzeitig**: Transparenzänderungen dazwischen gehen ungeprüft ein; je mehr Blöcke, desto besser die Interpolation, aber desto mehr Zeit weg vom Ziel.
+- `k` schwankt innerhalb einer Nacht; ein Mittelwert ist nur bei stabiler Atmosphäre gerechtfertigt.
+- Kamera-Stabilität (Temperatur, Gain) und Flats gehen direkt in den Zeropoint ein.
+- Gilt nicht für Sterne mit starken Emissions- oder Absorptionslinien und nicht für (V−R) ≥ 1 (§11.2).
+- Der Aufwand ist hoch: ein Standardfeld, mehrere Luftmassen, Wechselbetrieb. Sinnvoll nur für Ziele, bei denen es keine Alternative gibt.
