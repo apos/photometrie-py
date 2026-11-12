@@ -1,6 +1,6 @@
 """Bereitschaft vor der Beobachtung: Software (Python, Pakete, ASTAP, Siril, Datenordner, KI) und Planungsgrundlagen (Kameraprofil NB07, Transformation NB08, Standardfelder).
 
-Autor: Axel Pospischil. Stand 2026-11-10 (NB00 Schritt 0 und 2b, NB01 Vorbedingungen).
+Autor: Axel Pospischil. Stand 2026-11-10 (NB00 Schritt 1.1 und 3.2, NB01 Vorbedingungen).
 
 Warum: Die Pruefung der Vorbedingungen stand nur in NB01; NB00 ist aber der erste Einstieg (Planung vor der Aufnahme) und braucht dieselben Programme. Ausserdem wusste der Plan nicht, ob ein gemessenes
 Kameraprofil (NB07) oder Transformationskoeffizienten (NB08) vorliegen und welches Standardfeld am Beobachtungsort ueberhaupt sichtbar ist. Beides zeigt dieses Modul **vor** der Aufnahmenacht, mit Hinweis,
@@ -63,9 +63,9 @@ def software_checks(ai: bool = True) -> list[Check]:
     cp = config_path()
     if cp.exists():
         obs, sites = load_config()
-        out.append(Check("Beobachter (observer.json)", bool(obs.site_name), f"Standort '{obs.site_name or '—'}', AAVSO-Code {obs.aavso_code or '— (nur zum Einreichen noetig)'}" + ("" if obs.site_name else " — NB00 Schritt 0b ausfuellen"), optional=True))
+        out.append(Check("Beobachter (observer.json)", bool(obs.site_name), f"Standort '{obs.site_name or '—'}', AAVSO-Code {obs.aavso_code or '— (nur zum Einreichen noetig)'}" + ("" if obs.site_name else " — NB00 Schritt 1.2 ausfuellen"), optional=True))
     else:
-        out.append(Check("Beobachter (observer.json)", False, f"{cp} fehlt — NB00 Schritt 0b ausfuellen (Standort, Kamera)", optional=True))
+        out.append(Check("Beobachter (observer.json)", False, f"{cp} fehlt — NB00 Schritt 1.2 ausfuellen (Standort, Kamera)", optional=True))
     if ai:
         try:
             from .aireview import detect_backends, preflight_lines
