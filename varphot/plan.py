@@ -318,7 +318,7 @@ class ObservingPlan:
     field_checks: list = field(default_factory=list)   # je Katalogstern: id, Rolle, V, hellster Pixel, t_max, S/N
     moon: dict = field(default_factory=dict)      # Beleuchtung/Abstand im Beobachtungsfenster
     aperture_info: dict = field(default_factory=dict)  # Befund der Aperturwahl (Methode, r_growth, r_snr, S/N-Verhaeltnis, Handbuchradius)
-    fwhm_sharp_px: float | None = None            # FWHM des scharfen Referenzbildes (NB00 Schritt 3c)
+    fwhm_sharp_px: float | None = None            # FWHM des scharfen Referenzbildes (NB00 Schritt 5.3)
     defocus_factor: float | None = None           # FWHM(geplanter Fokus)/FWHM(scharf)
     plate_solve: dict = field(default_factory=dict)  # Ergebnis des Plate-Solve-Tests (getestet, geloest, Skala, Leiter der Unschaerfe)
     readiness: dict = field(default_factory=dict)  # Status NB07 (Kameraprofil), NB08 (Transformation), gewaehltes Standardfeld

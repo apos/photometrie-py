@@ -1,6 +1,6 @@
 """Aperturradius aus den Daten: Wachstumskurve und S/N-Optimum statt einer festen Regel.
 
-Autor: Axel Pospischil. Stand 2026-11-10 (NB00 Schritt 4, KONZEPT §12.2).
+Autor: Axel Pospischil. Stand 2026-11-10 (NB00 Schritt 6, KONZEPT §12.2).
 
 Warum: Die Regel „1,5 × FWHM“ (AAVSO DSLR-Handbuch §6.1.1) setzt einen Gauss-Stern voraus. Auf echten Bildern haben helle Sterne Fluegel und sind breiter als schwache (LCO δ Cep: FWHM 7,1 gegen 5,2 px);
 ein FWHM-Median, der aus den hellen Sternen stammt, liefert dann eine zu grosse oder zu kleine Apertur. Zwei bekannte Verfahren beantworten das aus den Daten:

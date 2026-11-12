@@ -1,12 +1,4 @@
-"""Sofort-Hinweise unter den Formularen der Notebooks und Notebook-Header-Rendering.
-
-render_nb_header() erzeugt den farbigen Workflow-Header am Anfang jedes Notebooks
-(drei Schritt-Kacheln + „Ihr Fall"-Zeile). Aufruf z. B. in NB01:
-
-    from IPython.display import HTML, display
-    from varphot.hints import render_nb_header, CASES
-    from varphot import Session
-    display(HTML(render_nb_header("01", "Titel", "Ergebnis ...", SCHRITTE, Session.current().method)))
+"""Sofort-Hinweise unter den Formularen der Notebooks (Notebook-Köpfe und Schrittkarten: :mod:`varphot.nbui`).
 
 
 Warum: Eine Tabelle am Anfang orientiert, aber erst die **Rueckmeldung direkt nach der Auswahl** gibt dem Nutzer Sicherheit („das ist richtig so“) oder warnt („das passt nicht zusammen“). Jedes Formular
@@ -50,90 +42,7 @@ def bind(panel, watched: Iterable, fn: Callable[[], Iterable[Hint]]) -> None:
     _update()
 
 
-# ---------------------------------------------------------------- Notebook-Header
-
-_STEP_COLORS = [
-    ("#1565c0", "#e3f2fd"),   # Schritt 1 — blau
-    ("#ef6c00", "#fff3e0"),   # Schritt 2 — orange
-    ("#2e7d32", "#e8f5e9"),   # Schritt 3 — grün
-]
-_CASE_COLORS = {
-    "mono":    ("#1565c0", "#e3f2fd"),
-    "monorgb": ("#6a1b9a", "#f3e5f5"),
-    "osc":     ("#2e7d32", "#e8f5e9"),
-    "dslr":    ("#bf360c", "#fbe9e7"),
-}
-
-
-def render_nb_header(
-    nb_num: str,
-    title: str,
-    ergebnis: str,
-    schritte: list[tuple[str, str]],
-    method: str | None = None,
-) -> str:
-    """Farbiger Workflow-Header für den Anfang eines Notebooks.
-
-    ``schritte``: Liste von (Kurzname, Beschreibung) — genau 3 Einträge.
-    ``method``: aktuelle Methode aus Session (``"mono"``, ``"osc"`` …) → hebt den passenden Fall hervor.
-    Gibt einen HTML-String zurück, der mit ``display(HTML(...))`` angezeigt wird.
-    """
-    # --- Schritt-Kacheln
-    tiles = ""
-    for i, (name, desc) in enumerate(schritte[:3]):
-        bar, bg = _STEP_COLORS[i % len(_STEP_COLORS)]
-        tiles += (
-            f'<div style="padding:12px 14px;background:{bg};border-radius:6px;border-top:3px solid {bar};">'
-            f'<div style="font-weight:600;color:{bar};font-size:12px;margin-bottom:5px;">{name}</div>'
-            f'<div style="font-size:12px;color:#1b1b1b;">{desc}</div>'
-            f'</div>'
-        )
-
-    # --- „Ihr Fall"-Zeile (optional)
-    fall_html = ""
-    if method is not None:
-        badges = ""
-        for m, (letter, desc) in CASES.items():
-            bar, bg = _CASE_COLORS.get(m, ("#555", "#eee"))
-            if m == method:
-                badges += (
-                    f'<span style="display:inline-flex;align-items:center;gap:5px;'
-                    f'padding:3px 10px 3px 6px;border-radius:14px;background:{bar};color:#fff;'
-                    f'font-size:12px;font-weight:600;">'
-                    f'<span style="display:inline-block;width:18px;height:18px;border-radius:50%;'
-                    f'background:#fff;color:{bar};text-align:center;line-height:18px;font-weight:700;font-size:11px;">'
-                    f'{letter}</span> {desc}</span> '
-                )
-            else:
-                badges += (
-                    f'<span style="display:inline-flex;align-items:center;gap:5px;'
-                    f'padding:3px 10px 3px 6px;border-radius:14px;background:#e0e0e0;color:#757575;'
-                    f'font-size:12px;opacity:0.7;">'
-                    f'<span style="display:inline-block;width:18px;height:18px;border-radius:50%;'
-                    f'background:#bdbdbd;color:#757575;text-align:center;line-height:18px;font-weight:700;font-size:11px;">'
-                    f'{letter}</span> {desc}</span> '
-                )
-        fall_html = (
-            f'<div style="margin-top:10px;padding:8px 12px;background:#f5f5f5;border-radius:6px;">'
-            f'<span style="font-size:11px;font-weight:600;color:#757575;text-transform:uppercase;'
-            f'letter-spacing:.5px;margin-right:8px;">Ihr Fall (aus NB00)</span>'
-            f'<span style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;">{badges}</span>'
-            f'</div>'
-        )
-
-    return (
-        f'<div style="padding:16px 18px;border-radius:8px;background:#fafafa;'
-        f'border:1px solid #e0e0e0;font-family:sans-serif;margin-bottom:4px;">'
-        f'<div style="font-size:17px;font-weight:700;color:#1a1a2e;margin-bottom:5px;">'
-        f'<span style="color:#9e9e9e;font-weight:400;font-size:13px;margin-right:6px;">NB{nb_num}</span>'
-        f'{title}</div>'
-        f'<div style="font-size:12px;color:#555;margin-bottom:12px;">'
-        f'<b>Ergebnis:</b> {ergebnis}</div>'
-        f'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">{tiles}</div>'
-        f'{fall_html}'
-        f'</div>'
-    )
-
+# ---------------------------------------------------------------- Kamera-Legende
 
 def render_camera_legend() -> str:
     """Erklärungs-HTML für den Unterschied zwischen Kamera-Profil und -Vorlage (NB00)."""
@@ -191,7 +100,7 @@ def nb00_hints(mode: str, method: str, filt: str, cam_kind: str, workspace: str 
 
 
 def nb00_observer_hints(site_name: str, is_test_site: bool, is_new: bool, aavso_code: str, cam_label: str, cam_kind: str) -> list[Hint]:
-    """Hinweise zum Formular „Beobachter, Standort, Kamera“ (Schritt 0b)."""
+    """Hinweise zum Formular „Beobachter, Standort, Kamera“ (Schritt 1.2)."""
     h: list[Hint] = []
     if is_test_site:
         h.append(("ok", "<b>Testdaten-Standort:</b> fest vorgegeben — <b>nichts ändern, nicht speichern</b>, wenn Sie nur die Testdaten ausprobieren."))
@@ -278,7 +187,7 @@ def nb03_hints(real: bool, aavso_code: str, mode: str, band: str, tf_file: str, 
         if code:
             h.append(("ok", f"<b>Eigene Beobachtungen:</b> Beobachtercode <b>{code}</b> geht in die Datei."))
         else:
-            h.append(("error", "<b>Eigene Beobachtungen, aber kein Beobachtercode.</b> Zuerst in NB00 (Schritt 0b) den AAVSO-Code eintragen und speichern."))
+            h.append(("error", "<b>Eigene Beobachtungen, aber kein Beobachtercode.</b> Zuerst in NB00 (Schritt 1.2) den AAVSO-Code eintragen und speichern."))
         if lco:
             h.append(("warn", "Das sind <b>LCO-Testdaten</b> — Häkchen entfernen, sonst wird die Datei mit Ihrem Code gekennzeichnet."))
     else:
