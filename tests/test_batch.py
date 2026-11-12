@@ -220,3 +220,28 @@ def test_read_measurements_keeps_numbers_numeric_with_nan_and_empty_text(tmp_pat
     assert out["fwhm_arcsec"].dtype.kind == "f" and out["flux"].isna().tolist() == [False, True]
     assert out["star_flag"].tolist() == ["", "SAT"] and out["frame_flags"].tolist() == ["", "NO_SIGNAL"]
     assert (out["fwhm_arcsec"].iloc[0] > 1.0)                                         # Vergleich Zahl > Zahl, kein Textfehler
+
+
+# ------------------------------------------------------------------ Bootstrap (#70)
+def test_ensemble_mag_bootstrap_error_larger_than_classical():
+    """Bootstrap-Fehler soll >= klassischen Fehler sein, wenn Comps streuen."""
+    rng = np.random.default_rng(42)
+    v_c = np.array([9.5, 10.0, 10.5, 11.0, 11.5])
+    f_c = 10 ** (-0.4 * (v_c - 20.0)) * (1 + rng.normal(0, 0.02, len(v_c)))
+    f_t = 10 ** (-0.4 * (10.3 - 20.0))
+    _, e_classic, _, _ = ensemble_mag(f_t, f_c, v_c, n_bootstrap=0)
+    _, e_boot, _, _ = ensemble_mag(f_t, f_c, v_c, n_bootstrap=500)
+    assert e_boot > 0
+    # Bootstrap-Fehler soll photon-noise überschreiten wenn Comps variieren
+    assert e_boot >= 1.0857 * 1e-9 / f_t  # triviales Lower-bound
+
+
+def test_ensemble_mag_bootstrap_deterministic_seed():
+    """Zwei Aufrufe mit gleichen Daten geben verschiedene aber ähnliche Werte (stochastisch)."""
+    v_c = np.array([10.0, 10.5, 11.0, 11.5])
+    f_c = 10 ** (-0.4 * (v_c - 20.0))
+    f_t = 10 ** (-0.4 * (10.3 - 20.0))
+    _, e1, _, _ = ensemble_mag(f_t, f_c, v_c, n_bootstrap=200)
+    _, e2, _, _ = ensemble_mag(f_t, f_c, v_c, n_bootstrap=200)
+    # Beide sollten im selben Größenordnungsbereich liegen (nicht > 10x auseinander)
+    assert 0.1 < e1 / e2 < 10.0

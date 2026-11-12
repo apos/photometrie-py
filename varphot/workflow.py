@@ -290,7 +290,7 @@ def aperture_from_image(img, hdr, fwhm_guess: float = 4.0, bayer: str | None = N
     return optimal_aperture(work, df, fs["fwhm"], gain=float(hdr.get("GAIN", 1.0) or 1.0), read_noise_e=float(hdr.get("RDNOISE", 0.0) or 0.0))
 
 
-def measure(sess: Session, plan=None, wcs_mode: str | None = None, ap: dict | None = None, core_r: float | None = 1.5, workers: int = 4, progress=None, site=None, aperture_m: float | None = None) -> dict:
+def measure(sess: Session, plan=None, wcs_mode: str | None = None, ap: dict | None = None, core_r: float | None = 1.5, workers: int = 4, progress=None, site=None, aperture_m: float | None = None, n_bootstrap: int = 200) -> dict:
     """Photometrie der ganzen Reihe → Bildflags → Lichtkurve; schreibt ``messtabelle.csv`` und ``zeitreihe.csv`` in den Ergebnisordner der Sitzung.
 
     ``wcs_mode``: ``auto`` (Standard: Kopf, wo vorhanden, sonst Registrierung gegen das Referenzbild), ``header``, ``register``. ``ap``: Aperturradien (Standard: Plan, sonst aus dem Referenzbild). ``core_r``: Kernmaske
@@ -343,7 +343,7 @@ def measure(sess: Session, plan=None, wcs_mode: str | None = None, ap: dict | No
     if site is None:
         notes.append("Kein Standort — BJD_TDB und Szintillation entfallen (NB00/Einrichtung: Standort speichern)")
     sat = bool(((tab["star_id"] == "target") & (tab["n_sat"] > 0)).any()) if "n_sat" in tab else False
-    lc = light_curve(tab, stars, "target", site=site, aperture_m=aperture_m if site is not None else None, core_correct=bool(core_r) and sat and "flux_ring" in tab and tab["flux_ring"].notna().any())
+    lc = light_curve(tab, stars, "target", site=site, aperture_m=aperture_m if site is not None else None, core_correct=bool(core_r) and sat and "flux_ring" in tab and tab["flux_ring"].notna().any(), n_bootstrap=n_bootstrap)
     fl = tab.drop_duplicates("file")[["file", "frame_flags", "wcs_source", "reg_match", "reg_rms_px", "transparency", "fwhm_arcsec"]] if "wcs_source" in tab else tab.drop_duplicates("file")[["file", "frame_flags"]]
     tab.to_csv(out / "messtabelle.csv", index=False)
     lc.to_csv(out / "zeitreihe.csv", index=False)

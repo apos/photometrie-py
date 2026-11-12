@@ -262,6 +262,8 @@ def check_plausibility(observations: list[Observation], obstype: str = "CCD", ex
             add("WARN", "fehler_konstant", "alle Fehlerangaben identisch (nicht je Messung berechnet?)")
         if n >= 10 and sorted(errs)[n // 2] < 0.001:
             add("WARN", "fehler_klein", "mittlerer Fehler < 0,001 mag (unrealistisch klein, Szintillation/Photonenrauschen)")
+        if n >= 10 and 0.001 <= sorted(errs)[n // 2] < 0.003:
+            add("INFO", "fehler_scint", f"mittlerer Fehler {sorted(errs)[n // 2]:.3f} mag — ggf. durch korrelierte Comp-Fehler unterschaetzt (vgl. Bootstrap-Option)")
     am = [o.airmass for o in observations if o.airmass is not None and math.isfinite(o.airmass)]
     if am and min(am) < 1.0:
         add("ERROR", "luftmasse", f"Luftmasse {min(am):.3f} < 1")
