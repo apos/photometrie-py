@@ -42,8 +42,8 @@ def test_every_code_cell_compiles(path):
 def test_main_notebooks_start_with_form_and_explain_how(path):
     nb = json.loads(path.read_text(encoding="utf-8"))
     first = "".join(nb["cells"][0]["source"])
-    assert "Fall" in first                                                                            # Fallunterscheidung am Anfang
-    assert "Ergebnis:" in first                                                                        # was das Notebook produziert
+    assert "Fall" in first or "render_nb_header" in first                                              # Fallunterscheidung am Anfang (Text oder render_nb_header-Aufruf)
+    assert "Ergebnis:" in first or "render_nb_header" in first                                        # was das Notebook produziert
     text = "\n".join("".join(c["source"]) for c in nb["cells"])
     assert "Ab hier automatisch" in text                                                               # Entscheidungen zuerst, Automatik danach
     assert text.count("bind(") >= (2 if path.name.startswith("00") else 1)                             # Sofort-Hinweis nach jeder Auswahl (varphot.hints); NB00: Schritt 0b und Schritt 1
