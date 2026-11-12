@@ -130,7 +130,10 @@ def save_config(observer: Observer, sites: list[Site], path: str | Path | None =
     d.update({"aavso_code": observer.aavso_code, "site_name": observer.site_name,
               "camera": asdict(observer.camera), "cameras": [asdict(c) for c in observer.cameras], "sites": [asdict(s) for s in sites]})
     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    p.chmod(0o600)
+    try:
+        p.chmod(0o600)
+    except (PermissionError, NotImplementedError):
+        pass  # chmod not supported on some filesystems (e.g. network mounts in Datalore)
     return p
 
 

@@ -142,3 +142,15 @@ def test_read_wcs_sidecar_both_formats(tmp_path, linux_format):
     assert got["CTYPE1"] == "RA---TAN"
     assert got["CRVAL1"] == pytest.approx(274.7535148268)
     assert got["PLTSOLVD"] is True
+
+
+def test_find_astap_env_and_fallback(tmp_path, monkeypatch):
+    from varphot import astrometry as a
+    assert a.find_astap({"VARPHOT_ASTAP": "/x/astap"}) == "/x/astap"                       # Umgebungsvariable gewinnt immer
+    fake = tmp_path / "astap_cli"
+    fake.write_text("")
+    monkeypatch.setattr(a, "ASTAP_CANDIDATES", [str(tmp_path / "gibt-es-nicht"), str(fake)])
+    assert a.find_astap({}) == str(fake)                                                    # erster vorhandener Kandidat
+    monkeypatch.setattr(a, "ASTAP_CANDIDATES", [str(tmp_path / "gibt-es-nicht")])
+    monkeypatch.setenv("PATH", str(tmp_path / "leer"))
+    assert a.find_astap({}) == a.ASTAP_MAC                                                  # nichts gefunden: Mac-Pfad, die Fehlermeldung nennt ihn

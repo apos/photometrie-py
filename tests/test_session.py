@@ -125,6 +125,17 @@ def test_write_script_and_calibrated_frames(tmp_path):
     assert siril.calibrated_frames(tmp_path / "nix") == []
 
 
+def test_current_requires_explicit_save(tmp_path):
+    """Session.open() allein reicht nicht — NB00 muss danach save() aufrufen (auch im Demo-Modus)."""
+    Session.open(str(tmp_path / "s1"), target="Algol", method="osc", aavso_filter="V", source="demo")
+    with pytest.raises(FileNotFoundError, match="NB00"):
+        Session.current()
+
+    s = Session.open(str(tmp_path / "s2"), target="Algol", method="osc", aavso_filter="V", source="demo")
+    s.save()
+    assert Session.current().workspace == str(tmp_path / "s2")
+
+
 def test_open_keeps_results_unless_target_or_method_changes(tmp_path):
     s = Session.open(str(tmp_path / "w"), target="del Cep", method="mono")
     assert not (tmp_path / "w" / "session.json").exists()                              # angelegt erst beim Speichern
