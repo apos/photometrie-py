@@ -22,8 +22,7 @@ sync-datalore: strip    ## Notebook-Zellen zu Datalore synchronisieren (Tunnel m
 
 init-datalore:          ## Einmalig: Datalore-Session einrichten (OAuth-Login)
 	mkdir -p $(SESSION)
-	$(DL_CLI) init $(DL_HOST)/notebook/$(DL_NB) --scope notebook_api --cwd $(SESSION) || \
-	    $(DL_CLI) init $(DL_HOST)/notebook/$(DL_NB) --scope notebook_with_workspace_view
+	cd $(SESSION) && $(DL_CLI) init $(DL_HOST)/notebook/$(DL_NB) --scope notebook_with_workspace_view
 	@echo "Session gespeichert in $(SESSION)"
 
 install-hooks:          ## Git-Hooks aktivieren (Makefile macht das automatisch; nur zur Kontrolle)
