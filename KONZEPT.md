@@ -438,6 +438,19 @@ Ja — Kamera-Charakterisierung und Transformationskoeffizienten gehören **nich
   Gütetest (Abweichung transformiert minus Katalog), Gültigkeit ((V−R) < 1). Ausgabe: `transform.json` (mit Datum, Aufbau). Neubestimmung bei jeder Änderung des Aufbaus.
 - Die AAVSO-Hilfsmittel *Transform Generator* (Python, G. Myers) und *TransformApplier* (jetzt in VPhot) sind Referenz zum Gegenrechnen (F).
 
+**Workflow: Erstmessung der Transformationskoeffizienten mit M 67 (photometrische Nacht)** `[AAVSO-DSLR]` §6.5, `[Kloppenborg2012]`, `[Landolt]`
+
+Einmalig je Aufbau (Kamera + Einstellung + Sperrfilter + Optik); Wiederholung nach jeder Änderung am optischen Pfad (Filterwechsel, Objektivwechsel, Umbau):
+
+1. **Nacht wählen**: photometrische Bedingungen (Seeing ≤ 3″, kein Dunst, stabile Transparenz); Standardfeld über mehrere Luftmassen sinnvoll (Luftmassenbereich ≥ 0,3 für k-Bestimmung).
+2. **Standardfeld**: M 67 (190 AAVSO-Comps, V = 9–14, günstig April–Mai), NGC 7790 (178 Comps, günstig Herbst), NGC 3532 oder NGC 1252 (Südhimmel). Quelle: `fetch_std_field` (VSP-API, in NB08 eingebaut) oder `AAVSO_STD_FIELDS_URL` = <https://www.aavso.org/apps/vsd/stdfields>.
+3. **Aufnahmen**: mindestens 3 Belichtungszeiten × Kanal (B, G, R oder B, V, Rc je nach Setup) bei ≥ 2 Luftmassen; Stack je Belichtung empfohlen (Signal); mindestens 10–15 Comps mit (B−V) = 0,3–1,5 für eine stabile Regression.
+4. **Kalibrierung**: Siril CFA → Kanäle trennen (`tools/split_cfa.ssf`) → NB04 je Kanal → Messtabellen B/G/R.
+5. **NB08 ausführen** (`MODE="real"`): Messtabellen + Katalog → `fit_transform()` → Koeffizienten + LOO-Gütetest → bei RMS ≤ 0,04 mag (transformiert) **speichern** → `PHOTOMETRIE_PY_DATA/transform_<kamera>_<einstellung>.json`.
+6. **Prüfung**: Tabelle „Meldung je Band" am Ende von NB08 muss `TRANS=YES` für alle genutzten Bänder zeigen; bei `TRANS=NO` oder RMS > 0,06 mag → mehr Sterne, breiterer Farbbereich oder andere Nacht.
+
+*Für eine Mono-Kamera mit RGB-Filterrad (§11.12) gilt derselbe Ablauf mit je einem Bildsatz pro Filter statt Bayer-Kanaltrennung.*
+
 ### 11.9 Beispieldaten (nichts davon geladen; Lizenz und Freigabe vor dem Laden, siehe docs/entwicklung.md §2a)
 
 | Kandidat | Inhalt | Stand |
