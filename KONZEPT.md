@@ -668,3 +668,95 @@ Bisher lag der Schwerpunkt der Prüfungen auf Software und Tests; die fachliche 
 | Perioden-Ergebnis | gegen Literatur (δ Cep 5,366 d) | 5,355–5,375 d (LS) / 5,365–5,373 d (Fourier) je nach Lauf; Fourier-Residuum 0,065–0,107 mag je nach Comp-Auswahl und Apertur (früherer Referenzlauf 0,068 mag) — die Streuung hängt an den Comps (Gaia-abgeleitete V), nicht nur am Verfahren |
 
 **Offen / nicht geprüft:** Transformation und CFA-Trennung mit echten Mehrkanal-Daten; Siril-Skripte; echtes Defokussieren am Teleskop; Seeing-Abhängigkeit der Apertur über eine ganze Nacht; `LS`-Periode bei sehr kurzen/lückenhaften Reihen (Aliase; `analyse_period` nennt die drei höchsten Maxima).
+
+
+## 14. Comp- und Check-Sterne: Auswahl, Rechnung, Grenzen (Stand 2026-11-12)
+
+Dieses Kapitel hält fest, **warum** die Software Vergleichs- und Check-Sterne so wählt und rechnet, und wo die Grenzen liegen. Anlass: Fragen des Autors zu Farbe, Unabhängigkeit des Check-Sterns und Mindestzahl (2026-11-12).
+
+### 14.1 Farbe von Comp und Check
+
+**Warum Farbnähe:** Ohne Transformation bleibt der Farbterm der Kamera in der Differenzmessung stehen, und die Extinktion zweiter Ordnung `C3·(B−V)·X` hebt sich nur bei gleicher Farbe von Ziel und Comp auf (§11.5, dort die Abschätzung ≈ 0,01 mag bei ΔBV = 0,5 und X = 1,5; Grundlage: `[AAVSO-DSLR]` Gl. 6.11–6.14, `[Kloppenborg2012]`). Bei Farbkameras (OSC, DSLR) ist der Farbterm größer zu erwarten; **gemessen** ist er erst, wenn NB08 an echten Daten gelaufen ist (§11.5, offen). „Farbe“ heißt der Farbindex (B−V aus der AAVSO-Sequenz, BP−RP bei Gaia-Sternen), nicht der Spektraltyp.
+
+**Umsetzung** (`varphot/vsp.py`, `select_comps_catalog`):
+- Rangfolge: `|B−V(Comp) − B−V(Ziel)| + 2 · V-Fehler + 0,1 · Abstand zum Ziel [°]`; Comp = die besten 8 (`comp_n`), **Check = der nächstbeste** (Rang 9), Rest `reserve`.
+- Harte Toleranzen: `comp_bv_tol` 0,40 mag (B−V), `gaia_bprp_tol` 0,45 (BP−RP); für Bayer-Kameras zusätzlich ein absoluter B−V-Bereich (`comp_bv_abs`, Handbuch §6.3.1: keine sehr roten oder sehr blauen Comps).
+- Bei zu wenigen Comps lockert `select_field` die Toleranzen stufenweise (§14.3); jede Stufe steht in den Warnungen.
+
+**Grenzen:**
+- Das B−V des Ziels ist **ein** Wert (SIMBAD). Ein Cepheid ändert seine Farbe im Lauf der Pulsation; die Farbnähe gilt nur für diesen Mittelwert. Größe der Farbänderung: aus dem Gedächtnis „einige Zehntel mag“, **nicht geprüft**.
+- Die eigentliche Abhilfe ist die Transformation (NB08, `TRANS=YES`); dann dürfen die Comps die Farbe des Ziels umspannen.
+- Farbnähe ersetzt weder Helligkeitsgrenzen (Sättigung, S/N ≥ 100, §12) noch die Nachbar- und Variabilitätsprüfung (Gaia).
+
+### 14.2 Rechnung des Check-Sterns
+
+Je Bild (`varphot/batch.py`): Der Check ist **nicht im Ensemble**, sein Fluss ist von der Messung des Ziels unabhängig. Seine Magnitude entsteht aus demselben Comp-Ensemble wie die des Ziels (`ensemble_mag(f_check, f_comps, V_comps)`); `check_minus_cat` ist die Abweichung vom Katalogwert. Bei `TRANS=YES` wird der Check mit denselben Koeffizienten transformiert (`transformed_with_check`) und im AAVSO-Export als `KNAME`/`KMAG` gemeldet (§11.2).
+
+| Der Check-Stern prüft | Der Check-Stern prüft **nicht** |
+|---|---|
+| Ensemble-Nullpunkt und Streuung der Comps | Fehler, die **alle Comps gemeinsam** haben (z. B. dieselbe systematische Farbabweichung) |
+| Rauschen und Zeitstabilität (Streuung σ) | Effekte, die nur das Ziel betreffen: Sättigung und Kernmaske (§5.5), veränderliche Farbe |
+| Farbfehler, soweit die Check-Farbe der Ziel-Farbe nahe liegt (deshalb Rang 9 nach Farbnähe) | Fehler im Katalogwert des Check-Sterns selbst |
+
+Folge: Eine kleine Streuung des Check-Sterns ist ein **Hinweis auf Stabilität, kein Beweis für Richtigkeit**. NB02 bewertet σ < 0,05 mag als unauffällig (Startwert). Gibt es keinen Check-Stern, wird ab 5 Comps ein mittelheller Comp abgezweigt (bevorzugt aus der AAVSO-Sequenz, nicht aus Gaia).
+
+### 14.3 Wie viele Comps, und was passiert bei zu wenigen
+
+| Zahl | Bedeutung | Quelle |
+|---|---|---|
+| 3 | Minimum der Ebenenanpassung; unter 3 brauchbaren Comps wird ein Bild als `NO_SIGNAL` markiert und aus der Lichtkurve ausgelassen | `[Kloppenborg2012]`, `varphot/batch.py` |
+| 4 | Ausreißer-Klipp (3 × MAD) greift erst ab 4 Comps; „mindestens 4“ nennt ein Forenbeitrag (Hawkins), **keine offizielle AAVSO-Vorgabe** (§11.2) | `varphot/batch.py`, Forum |
+| ≥ 6 | empfohlen für die Ebenenanpassung; Zielwert von `select_field(min_comps=6)` | `[Kloppenborg2012]` |
+| 8 + 1 | Auswahlziel (`comp_n` = 8 Comps und 1 Check) | `varphot/vsp.py` |
+
+Verhalten bei zu wenigen Comps (`varphot/workflow.py`, `select_field`):
+1. Unter `min_comps` (Standard 6): vier Lockerungsstufen nacheinander, jede als Warnung gemeldet: Gaia-Farbtoleranz 0,9, B−V-Toleranz 0,55, Gaia 1,2 mit B−V 0,7 und Feldrand 0,02°, Helligkeit bis V = 12,5. Vom Nutzer gesetzte Regeln bleiben unverändert.
+2. Zusätzlich werden Gaia-Feldsterne aufgefüllt (V aus G und BP−RP, Fehler 0,05 mag angesetzt); für `TB`/`TR`/`B`/`R` entfällt das (nur AAVSO-Sequenz, Gaia ist für die Transformation gesperrt, §11.7).
+3. Unter 4 Comps und ohne Check-Stern erscheinen Warnungen; **die Auswertung wird nie blockiert**, die Verantwortung liegt beim Beobachter. Die Warnung „kein Check-Stern“ ist seit 2026-11-12 eingebaut und getestet (`tests/test_workflow.py`); sie fehlte vorher bei weniger als 5 Comps.
+
+### 14.4 Planung: Vergleichsfeld auf gleicher Höhe? (Vorschlag, nicht implementiert)
+
+Frage des Autors: Soll NB00 dem Nutzer ein geeignetes Sternfeld in der Nähe **auf gleicher Höhe über dem Horizont** vorschlagen, und verfälscht das das Ergebnis? Zwei Fälle sind zu trennen:
+
+- **Fall a, Standardfeld für NB08** (Koeffizienten): sinnvoll. Die Extinktion zweiter Ordnung wächst mit der Luftmasse X; gemessen werden die Koeffizienten am besten bei ähnlichem X wie die Zielaufnahmen, **und** an mehreren Luftmassen (§11.8, Schritt 3). Vorschlag: Die Tabelle in NB00 Schritt 3.2 sortiert zusätzlich nach Überlappung von Höhe und Zeitfenster mit dem Ziel. Das verfälscht nichts; es verringert eine Systematik. Der Rang bleibt Empfehlung, kein Zwang.
+- **Fall b, Comp-Feld, wenn das Zielfeld keine geeigneten Comps enthält** (§11.5 „Slewing zum Comp-Feld“): nur als Ausnahme. Comps im **selben Bild** bleiben die beste Lösung, weil Ziel und Comp gleichzeitig durch dieselbe Atmosphäre gemessen werden (ΔX ≈ 0, Transparenz und Zeropoint-Drift heben sich auf, §11.5). Ein Nachbarfeld auf gleicher Höhe hält ΔX klein, **hebt aber die Gleichzeitigkeit nicht auf**: Transparenzschwankungen zwischen den Aufnahmen gehen als Fehler ein. Damit ist es *nicht falsch, aber ungenauer* und braucht die All-Sky-Gleichung (§11.5; `fit_extinction`, `transform_target(dX, k)` vorbereitet, Workflow fehlt).
+
+Entwurf für Fall b (alle Zahlen Startwerte, ungeprüft): Suche in der AAVSO-Sequenz nach Feldern innerhalb weniger Grad mit `|ΔX| < 0,05` zum Ziel und Comps nach §14.1; schneller Wechsel zwischen Ziel- und Comp-Feld, damit Transparenzänderungen klein bleiben; ein eigener Check-Stern im Comp-Feld; Ausgabe mit dem Hinweis „zweite Wahl, größere Unsicherheit“.
+
+## 15. Himmelshelligkeit: Lanternfish-SQM (Konzept, nicht implementiert; Stand 2026-11-12)
+
+### 15.1 Gerät (Herstellerangaben, Seite gelesen 2026-11-12; `[Lanternfish]`)
+
+Handmessgerät für die Himmelshelligkeit in MPSAS (mag/arcsec²), Gesichtsfeld **18° (FWHM)**, UV/IR-Sperrfilter mit etwa 97–98 % Durchlass von 400 bis 730 nm, Messintervall frei einstellbar ab 10 s (Standard 300 s), Gerätetemperatur wird mitgeschrieben (über 30 °C ungenau), Speicher für über ein Jahr, Export als CSV und PNG, **JSON-API** für Live-Werte und Verlauf, Entwicklerprotokoll SLP (391 Befehle, HTTP/USB/UDP), WLAN als Access Point oder im Heimnetz. Eine Genauigkeit nennt die Seite nicht; der Kalibrierwert ist je Gerät verschieden. Eine Anbindung an ASCOM, Alpaca, INDI oder N.I.N.A. ist dort nicht erwähnt.
+
+### 15.2 Aufbau des Autors und was daraus folgt
+
+Das Gerät ist **mit dem PiFinder gekoppelt und immer auf das aktuelle Gesichtsfeld ausgerichtet** (Angabe des Autors, 2026-11-12). Damit gilt: Richtung und Höhe stimmen mit der Aufnahme überein; der Wert ist für die Zielrichtung aussagekräftig. (Eine frühere Einschätzung in dieser Sitzung, das Gerät blicke zum Zenit, war falsch und ist damit zurückgenommen.) Bleibende Grenzen:
+- 18° sind viel größer als das Bildfeld (etwa 1–2,5°): Das Gerät mittelt über die Umgebung, also auch Horizontnähe, Mond, Lichtglocke und helle Sterne bzw. Milchstraße im Gesichtsfeld.
+- Das Band 400–730 nm ist breitbandig, nicht V, B oder R; der Wert ist mit dem Bildhimmel (`sky`) nur über einen Offset vergleichbar.
+- Zeitauflösung (10 s bis 300 s) und Uhr des Geräts: Die Zeitbasis (Abgleich mit UTC) ist **nicht geklärt** und für die Zuordnung zu Belichtungen entscheidend.
+- Die Gerätetemperatur beeinflusst die Messung (Herstellerhinweis), eine Kompensation ist nicht beschrieben.
+
+### 15.3 Nutzen und Nicht-Nutzen
+
+| Nutzen | Nicht-Nutzen |
+|---|---|
+| **Planung (NB00):** erwartete Himmelshelligkeit am Zielort → S/N und Belichtung (Himmelsrauschen gegen Ausleserauschen) | **Keine Korrektur der Magnituden:** der Himmel wird in der Apertur-Photometrie subtrahiert und geht nur ins Rauschen ein |
+| **Qualität (NB02):** Zeitreihe als zusätzlicher Kanal neben der Transparenz; Sprünge deuten auf Wolken, Dunst, Mond, Dämmerung | **Keine Extinktion, kein Seeing:** k kommt weiter aus dem Gang des Nullpunkts mit der Luftmasse (`fit_extinction`) |
+| **Dokumentation (NB03/NB05):** Himmelshelligkeit je Nacht im Bericht und optional in `NOTES` | |
+
+### 15.4 Anbindung (Entwurf)
+
+1. **Quelle:** JSON über HTTP vom Gerät (LAN oder Access Point), oder CSV-Export als Rückfall ohne Verbindung. Die Endpunkte stammen aus der SLP-Dokumentation (`lunaticoastro.com/slp_docs/`, **noch nicht gelesen**); bekannt ist nur ein Beispiel `http://<IP>/slp/get/d/SQMFactRefVal`.
+2. **Modul `varphot/sqm.py`** (neu): `read_sqm_csv(...)`/`read_sqm_json(...)` → Tabelle `t_utc, mpsas, temp_c`; `sqm_at(jd, tabelle)` interpoliert auf die Belichtungsmitte, bei größerem Abstand als das 1,5-fache Intervall `NaN`.
+3. **Messtabelle** (`varphot/batch.py`): Spalten `sqm_mpsas` und `sqm_dt_s` (Abstand zur Messung); Flag `SKY_JUMP` in `frame_flags` (QC, §5.2) bei Abweichung vom Nachtmedian über einem Schwellwert (Startwert 0,3 mag, ungeprüft).
+4. **FITS-Header:** Schreibt die Aufnahmesoftware einen Himmelshelligkeitswert in den Kopf (Schlüsselname je nach Software festlegen, `VARPHOT_SQM_KEY`), hat er Vorrang vor der Zeitreihe.
+5. **Konfiguration:** privater Schlüssel `sqm` in `observer.json` (Quelle, Schwellwert), wie `ai`; NB00 Schritt 1.2 bekommt ein optionales Feld „SQM-Quelle“.
+6. **Notebooks:** NB00 Schritt 3.1 zeigt die aktuelle Himmelshelligkeit neben Mond und Fenster; NB02 plottet SQM neben der Transparenz und zeigt die Flags; NB03 trägt optional einen Hinweis in `NOTES` ein.
+7. **Sicherheit:** Gerät nur im Heimnetz, kurze Zeitüberschreitung, kein Cloud-Zugang; ohne Gerät läuft alles wie bisher.
+8. **Tests:** CSV- und JSON-Beispiele als Testdaten, Interpolation, Abstandsgrenze, Flag.
+9. **Validierung (Idee, ungeprüft):** Bildhimmel (ADU/px) mit Nullpunkt und Pixelmaßstab in mag/arcsec² umrechnen und über eine Nacht gegen das SQM legen; der Offset zeigt den Bandunterschied, die Streuung die Güte.
+
+Reihenfolge: **Phase 1** CSV-Import, Interpolation, Plot (braucht ein echtes Beispiel vom Gerät), **Phase 2** JSON live und Planungsanzeige, **Phase 3** Flag und Berichtseintrag.
+
+**Offen:** Beispiel-Export des Geräts, SLP-Dokumentation lesen, Uhr und Zeitbasis des Geräts, Schlüsselname im FITS-Kopf, Schwellwert für `SKY_JUMP` an echten Nächten.

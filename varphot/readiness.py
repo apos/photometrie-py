@@ -123,15 +123,40 @@ def std_field_visibility(site, date=None, min_alt: float = 30.0, fields: dict | 
     return pd.DataFrame(rows).sort_values("hours", ascending=False).reset_index(drop=True)
 
 
-def render_html(checks: list[Check], title: str) -> str:
-    """HTML-Tabelle der Pruefungen fuer Notebooks: ✓ gruen, ✗ rot (Hindernis), · grau (optional fehlt); Fusszeile nennt, ob alle **nicht optionalen** Punkte erfuellt sind."""
-    rows, all_ok = "", True
+def check_rows(checks: list[Check]) -> tuple[list[tuple], bool]:
+    """Prüfungen als Statuszeilen ``(Ton, Titel, Etikett, Text)`` für :func:`varphot.nbui.status_rows`; zweiter Wert: alle nicht optionalen erfüllt."""
+    rows, all_ok = [], True
     for c in checks:
-        icon, color = ("✓", "#4caf50") if c.ok else (("·", "#888") if c.optional else ("✗", "#f44336"))
+        tone, tag = ("ok", "") if c.ok else (("none", "optional") if c.optional else ("error", "Hindernis"))
         all_ok &= c.ok or c.optional
-        rows += (f'<tr><td style="padding:3px 10px;color:{color};font-weight:bold">{icon}</td><td style="padding:3px 10px">{c.label}</td>'
-                 f'<td style="padding:3px 10px;color:#888;font-size:12px">{c.detail}</td></tr>')
-    col = "#4caf50" if all_ok else "#f44336"
-    msg = "Alle notwendigen Vorbedingungen erfuellt." if all_ok else "⚠ Mindestens eine notwendige Vorbedingung fehlt (✗)."
-    return (f'<table style="border-collapse:collapse;font-family:monospace;font-size:13px;margin:6px 0"><tr style="background:#1e1e2e;color:#cdd6f4"><th colspan="3" style="padding:6px 14px;text-align:left">{title}</th></tr>'
-            f'{rows}<tr><td colspan="3" style="padding:6px 10px;color:{col};font-weight:bold">{msg}</td></tr></table>')
+        rows.append((tone, c.label, tag, c.detail))
+    return rows, all_ok
+
+
+def render_html(checks: list[Check], title: str) -> str:
+    """Prüfungen als Karte mit Statuspunkten: grün erfüllt, grau optional fehlt, rot Hindernis; Fußzeile sagt, ob alle **nicht optionalen** Punkte erfüllt sind."""
+    from . import nbui as ui
+    rows, all_ok = check_rows(checks)
+    foot = ui.note("ok", "Alle notwendigen Vorbedingungen erfüllt.") if all_ok else ui.note("error", "Mindestens eine notwendige Vorbedingung fehlt (Hindernis).")
+    return ui.panel(title, [ui.status_rows(rows), f'<div style="padding:0 16px 4px">{foot}</div>'])
+
+
+def render_std_fields(sf, best: str | None = None) -> str:
+    """Standardfelder für NB08 als Rangliste mit Stundenbalken (aus :func:`std_field_visibility`); ``best`` wird als Empfehlung genannt, nicht sichtbare Felder stehen grau."""
+    from . import nbui as ui
+    top = float(sf["hours"].max()) if len(sf) else 0.0
+    rows = []
+    for _, r in sf.iterrows():
+        hours, alt = float(r["hours"]), float(r["alt_max"])
+        side = f"bis {alt:.0f}°".replace("-", "−")
+        if hours <= 0:
+            rows.append((r["field"], 0, top, "0 h", "nie über 30° in dieser Nacht", "none"))
+        else:
+            rows.append((r["field"], hours, top, f"{hours:.1f} h".replace(".", ","), side, "ok" if r["ok"] and hours >= 2 else "warn"))
+    rec = ""
+    if best:
+        r = sf[sf["field"] == best].iloc[0]
+        rec = ui.note("ok", f"Empfohlen für NB08: **{best}**, {r['hours']:.1f} Stunden über 30°, bis {r['alt_max']:.0f}° hoch.".replace(".", ",", 1))
+    else:
+        rec = ui.note("warn", "Heute Nacht ist kein Standardfeld lange genug sichtbar. Anderes Datum prüfen oder ein Feld per eigener CSV verwenden (NB08).")
+    return ui.bars(rows, "Standardfelder für NB08, heute Nacht (Stunden über 30°)") + f'<div style="padding:0 16px 6px">{rec}</div>'

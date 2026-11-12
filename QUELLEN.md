@@ -22,6 +22,8 @@ Kurzreferenz-Schlüssel (z. B. `[AAVSO-DSLR]`) werden im KONZEPT.md als Fußnote
 | `[Landolt]` | **Landolt, A. U.** (ab 1960er, 50 Jahre Forschung): UBVRI-Standardsternfelder. LSU / Indiana University. Zahlreiche Publikationen in AJ und PASP. |
 | `[Bessell1990]` | **Bessell, M. S.** (1990): „UBVRI Passbands". PASP 102, S. 1181. Spezifikationen der Johnson-Cousins-Filter-Passbänder (~160 fotometrische Systeme). |
 | `[Kloppenborg2012]` | **Kloppenborg, B. et al.** (2012): „Citizen Sky: Transforming the Citizen Science Experience". JAAVSO 40. Citizen-Sky-Verfahren, Ebenenanpassung Gl. 6.22–6.25 (`(V−v) = −kv·X + Tv_bv·(B−V) + ZPv`). |
+| `[Honeycutt1992]` | **Honeycutt, R. K.** (1992): „CCD Ensemble Photometry on an Inhomogeneous Set of Exposures". PASP 104, S. 435, doi:10.1086/133015. Idee der Ensemble-Photometrie (im Code als vereinfachte Variante umgesetzt; Zitat geprüft). |
+| `[Lanternfish]` | **Lunatico Astro**: Lanternfish Sky Quality Meter, Produktseite <https://lunaticoastro.com/lanternfish-sky-quality-meter/> (gelesen 2026-11-12) und Users Manual <https://lunaticoastro.com/wp-content/uploads/USERS-MANUAL-LANTERNFISH.pdf> (nur in Suchergebnissen gesehen, nicht gelesen). Daten: Gesichtsfeld, Filter, Intervall, JSON-API, SLP. Genauigkeit nicht angegeben. |
 | `[Fitzpatrick1999]` | **Fitzpatrick, E. L.** (1999): Modellierung der interstellaren Extinktion A(λ)/E(B−V). Astrophysical Journal. Grundlage für wellenlängenabhängige Extinktionskurven. |
 | `[Howlett1998]` | **Howlett, ...** (1998): Spektrale Empfindlichkeit der menschlichen Sehzonen. JAAVSO. |
 | `[Popper1980]` | **Popper, D. M.** (1980): Review Paper zu Sternmassen. NASA ADS. |

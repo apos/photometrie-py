@@ -22,6 +22,8 @@ STEPS = {
     "07": ["Kamera", "Bilder", "Offset", "Gain", "Linearität", "Dunkelstrom", "Ergebnis"],
     "08": ["Eingaben", "Katalog", "Koeffizienten", "Gütetest", "Speichern"],
 }
+CARD_PREFIX = "from varphot import nbui as ui\n\nui.show("
+"""Jede reine Karten-Zelle beginnt so; Tests und Vorschau erkennen daran, welche Zellen allein lauffähig sind."""
 SHORT_CASES = {"mono": ("A", "Mono + Filter"), "monorgb": ("B", "Filterrad"), "osc": ("C", "Farbkamera"), "dslr": ("D", "DSLR")}
 
 TEXT, MUTED, FAINT, LINE, SURF = "#1b1b1b", "#5f6368", "#666666", "#d9d9d9", "#f5f5f4"
@@ -32,7 +34,8 @@ NOTE = {"info": (ACC_BG, "#0d47a1", "#90caf9", "info"), "warn": ("#fff3e0", "#7a
 CONTRAST_PAIRS = [("Text auf Weiß", TEXT, "#ffffff"), ("Zusatztext auf Weiß", MUTED, "#ffffff"), ("Zusatztext auf Fläche", MUTED, SURF), ("Blasser Text auf Weiß", FAINT, "#ffffff"),
                   ("Blasser Text auf Fläche", FAINT, SURF), ("Erledigt-Text", OK_TX, OK_BG), ("Haken-Kreis", OK, OK_BG), ("Aktiver Schritt", "#ffffff", ACC), ("Hinweis Info", NOTE["info"][1], NOTE["info"][0]),
                   ("Hinweis Warnung", NOTE["warn"][1], NOTE["warn"][0]), ("Hinweis Ok", NOTE["ok"][1], NOTE["ok"][0]), ("Hinweis Fehler", NOTE["error"][1], NOTE["error"][0]),
-                  ("Kachel hervorgehoben", "#0d47a1", ACC_BG)]
+                  ("Kachel hervorgehoben", "#0d47a1", ACC_BG), ("Kennzahl Zusatz ok", OK_TX, "#ffffff"), ("Kennzahl Zusatz Warnung", "#7a3d00", "#ffffff"),
+                  ("Kennzahl Zusatz Fehler", "#8e1b1b", "#ffffff"), ("Tabellenkopf", MUTED, SURF), ("Meldung ohne Rahmen", TEXT, "#ffffff")]
 """Alle verwendeten Text/Hintergrund-Paare; ``tests/test_nbui.py`` verlangt für jedes mindestens WCAG AA (Kontrast 4,5)."""
 
 _PATHS = {
@@ -226,6 +229,125 @@ def header(nb: str, title: str, ergebnis: str, *, wann: str = "", flow: list[tup
     return (f'<div style="padding:14px 16px;border:1px solid {LINE};border-radius:12px;background:#fff;margin-bottom:6px">'
             f'<div style="font-size:18px;font-weight:700;margin-bottom:4px"><span style="color:{FAINT};font-weight:400;font-size:13px;margin-right:6px">NB{nb}</span>{_md(title)}</div>'
             f'{sub}{res}{fl}{"".join(blocks)}{fall}</div>')
+
+
+TONES = {"ok": OK, "warn": "#ef6c00", "error": "#c62828", "info": ACC, "none": "#9e9e9e"}
+
+
+def _num(v) -> str:
+    """Zahl für Tabellen: ganze Zahlen ohne Nachkommastellen, sonst bis zu drei Stellen mit Komma, leer als Strich."""
+    try:
+        import math
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            return "–"
+    except Exception:
+        pass
+    if isinstance(v, (int,)) or (hasattr(v, "is_integer") and not isinstance(v, bool) and float(v).is_integer() and abs(float(v)) < 1e15):
+        return str(int(v))
+    if isinstance(v, float) or hasattr(v, "__float__") and not isinstance(v, (str, bool)):
+        return f"{float(v):.3f}".rstrip("0").rstrip(".").replace(".", ",")
+    return escape(str(v))
+
+
+def result(kind: str, title: str, right: str = "", blocks: list[str] = ()) -> str:
+    """Ergebniskarte mit farbigem Statuskopf (``ok``, ``warn``, ``error``, ``info``), Titel links, Zusatz rechts und beliebigen Bausteinen darunter."""
+    bg, fg, line, ic = NOTE[kind]
+    head = (f'<div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:{bg};color:{fg};border-bottom:1px solid {line}">'
+            f'<span style="flex:none">{icon(ic, 20)}</span><span style="flex:1;font-size:15px;font-weight:600">{_md(title)}</span>'
+            f'<span style="font-size:13px">{_md(right)}</span></div>')
+    return f'<div style="border:1px solid {LINE};border-radius:12px;background:#fff;overflow:hidden;margin:6px 0 12px">{head}{"".join(blocks)}</div>'
+
+
+def panel(title: str, blocks: list[str] = (), right: str = "") -> str:
+    """Neutrale Karte mit grauem Kopfband für zusammengehörige Ergebnisse."""
+    head = (f'<div style="display:flex;gap:10px;padding:11px 16px;background:{SURF};border-bottom:1px solid {LINE}"><span style="flex:1;font-size:15px;font-weight:600">{_md(title)}</span>'
+            f'<span style="font-size:13px;color:{MUTED}">{_md(right)}</span></div>')
+    return f'<div style="border:1px solid {LINE};border-radius:12px;background:#fff;overflow:hidden;margin:6px 0 12px">{head}{"".join(blocks)}</div>'
+
+
+def stats(items: list, cols: int | None = None) -> str:
+    """Kennzahl-Kacheln in einer Reihe. Eintrag: ``(Bezeichnung, Wert, Zusatz[, Ton])``; Ton ``ok``/``warn``/``error`` färbt den Zusatz."""
+    cols = cols or min(len(items), 4)
+    cells = []
+    for i, it in enumerate(items):
+        label, value, sub = it[:3]
+        tone = it[3] if len(it) > 3 else None
+        col = {"ok": OK_TX, "warn": "#7a3d00", "error": "#8e1b1b"}.get(tone, MUTED)
+        cells.append(f'<div style="padding:12px 14px;{"border-left:1px solid " + LINE + ";" if i % cols else ""}{"border-top:1px solid " + LINE + ";" if i >= cols else ""}">'
+                     f'<div style="font-size:12px;color:{MUTED}">{_md(label)}</div><div style="font-size:18px;font-weight:600">{_md(value)}</div>'
+                     f'<div style="font-size:12px;color:{col}">{_md(sub)}</div></div>')
+    return f'<div style="display:grid;grid-template-columns:repeat({cols},minmax(0,1fr))">{"".join(cells)}</div>'
+
+
+def status_rows(rows: list) -> str:
+    """Statuszeilen mit Punkt. Eintrag: ``(Ton, Titel, Etikett, Text)``; Ton ``ok``/``warn``/``error``/``none`` (grau = optional/nicht vorhanden)."""
+    out = []
+    for i, (tone, title, tag, text) in enumerate(rows):
+        t = f'<span style="font-weight:400;color:{MUTED}"> · {_md(tag)}</span>' if tag else ""
+        d = f'<div style="font-size:13px;color:{MUTED};margin-top:1px">{_md(text)}</div>' if text else ""
+        out.append(f'<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 16px;{"border-top:1px solid " + LINE if i else ""}">'
+                   f'<span style="width:10px;height:10px;border-radius:50%;background:{TONES[tone]};margin-top:6px;flex:none"></span>'
+                   f'<div style="flex:1"><div style="font-size:14px;font-weight:600">{_md(title)}{t}</div>{d}</div></div>')
+    return f'<div>{"".join(out)}</div>'
+
+
+def bars(rows: list, head: str = "") -> str:
+    """Rangliste mit Balken. Eintrag: ``(Name, Wert, Maximum, Wert-Text, Zusatz, Ton)``; Ton ``ok``/``warn``/``none``; ``none`` zeigt statt des Balkens den Zusatz in Grau."""
+    out = []
+    for name, value, vmax, vtext, side, tone in rows:
+        if tone == "none":
+            mid = f'<span style="color:{FAINT}">{_md(side)}</span>'
+            out.append(f'<span style="color:{FAINT}">{_md(name)}</span>{mid}<span style="color:{FAINT}">{_md(vtext)}</span><span></span>')
+            continue
+        w = 0 if not vmax else max(2, min(100, round(100 * value / vmax)))
+        colr = {"ok": OK, "warn": "#ef6c00"}[tone]
+        out.append(f'<span style="font-weight:600">{_md(name)}</span><div style="height:10px;border-radius:5px;background:{SURF}"><div style="width:{w}%;height:10px;border-radius:5px;background:{colr}"></div></div>'
+                   f'<span>{_md(vtext)}</span><span style="color:{MUTED}">{_md(side)}</span>')
+    h = f'<div style="font-size:13px;font-weight:600;margin-bottom:8px">{_md(head)}</div>' if head else ""
+    return (f'<div style="padding:10px 16px 6px;border-top:1px solid {LINE}">{h}<div style="display:grid;grid-template-columns:130px 1fr 60px 80px;gap:6px 10px;align-items:center;font-size:13px;margin-bottom:6px">'
+            f'{"".join(out)}</div></div>')
+
+
+def table(df, *, max_rows: int | None = 30, index: bool | None = None, row_tone=None) -> str:
+    """Gestaltete Tabelle aus einem pandas-DataFrame (oder einer Series): Kopfband, Linien, rechtsbündige Zahlen, ✓/✗ für Wahrheitswerte.
+
+    ``index``: Zeilenindex als erste Spalte zeigen (Standard: nur wenn er benannt oder kein einfacher Zähler ist). ``row_tone``: Funktion Zeile → ``ok``/``warn``/``error``/``None`` für farbige Zeilen.
+    """
+    import pandas as pd
+    if isinstance(df, pd.Series):
+        df = df.to_frame("Wert")
+        index = True if index is None else index
+    default_index = isinstance(df.index, pd.RangeIndex) and df.index.name is None
+    if index or (index is None and not default_index):
+        df = df.reset_index()
+    total = len(df)
+    shown = df if max_rows is None else df.head(max_rows)
+    numeric = [pd.api.types.is_numeric_dtype(df[c]) and not pd.api.types.is_bool_dtype(df[c]) for c in df.columns]
+    head = "".join(f'<th style="padding:7px 12px;font-weight:600;font-size:12px;color:{MUTED};text-align:{"right" if n else "left"};white-space:nowrap">{escape(str(c))}</th>' for c, n in zip(df.columns, numeric))
+    rows = []
+    for _, r in shown.iterrows():
+        tone = row_tone(r) if row_tone else None
+        bg = {"ok": OK_BG, "warn": NOTE["warn"][0], "error": NOTE["error"][0]}.get(tone, "#fff")
+        cells = []
+        for v, n in zip(r.tolist(), numeric):
+            if isinstance(v, bool) or type(v).__name__ == "bool_":
+                cells.append(f'<td style="padding:7px 12px;color:{OK if v else FAINT};font-weight:600">{"✓" if v else "✗"}</td>')
+            else:
+                cells.append(f'<td style="padding:7px 12px;text-align:{"right" if n else "left"};{"font-variant-numeric:tabular-nums;" if n else ""}white-space:nowrap">{_num(v)}</td>')
+        rows.append(f'<tr style="border-top:1px solid {LINE};background:{bg}">{"".join(cells)}</tr>')
+    more = f'<div style="padding:7px 12px;font-size:12px;color:{MUTED};border-top:1px solid {LINE}">… {total - len(shown)} weitere Zeilen</div>' if total > len(shown) else ""
+    return (f'<div style="border:1px solid {LINE};border-radius:8px;overflow-x:auto;margin:6px 0 12px;background:#fff"><table style="width:100%;border-collapse:collapse;font-size:13px;color:{TEXT}">'
+            f'<thead><tr style="background:{SURF}">{head}</tr></thead><tbody>{"".join(rows)}</tbody></table>{more}</div>')
+
+
+def say(*parts, kind: str | None = None) -> None:
+    """Eine Meldungszeile mit farbigem Streifen, Text umbricht. Ton aus ``kind`` (``ok``/``warn``/``error``/``info``) oder aus dem ersten Zeichen: ``⚠`` Warnung, ``✗`` Fehler, ``✓`` ok."""
+    text = " ".join(str(p) for p in parts)
+    kind = kind or {"⚠": "warn", "✗": "error", "✓": "ok"}.get(text.lstrip()[:1], "info")
+    bg, fg, line, _ = NOTE[kind]
+    plain = kind == "info"
+    show(f'<div style="border-left:4px solid {TONES[kind]};padding:5px 12px;margin:1px 0;font-size:13px;line-height:1.5;{"" if plain else f"background:{bg};color:{fg};"}'
+         f'overflow-wrap:anywhere;white-space:pre-wrap">{escape(text)}</div>')
 
 
 def current_method(default: str | None = None) -> str | None:
