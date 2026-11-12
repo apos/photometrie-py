@@ -172,6 +172,35 @@ def test_select_field_with_mocked_catalogs(tmp_path, monkeypatch):
         W.select_field(s, plan=None, gaia_check=False)
 
 
+def _field_with_rules(tmp_path, monkeypatch, rules):
+    from types import SimpleNamespace
+
+    from varphot import vsp
+    s = _session(tmp_path, n=2)
+    W.solve_reference(s, s.path("process", "pp_light_00000.fit"), astap=str(tmp_path / "nix"))
+    sample = json.loads((DATA / "vsp_delta_cep_180_11.json").read_text())
+    monkeypatch.setattr(vsp, "resolve_target", lambda name, **k: dict(name="* del Cep", ra=337.2929, dec=58.4152, otype="Ce*", B=4.4, V=3.8, BV=0.6))
+    monkeypatch.setattr(vsp, "fetch_vsp", lambda star, **k: vsp.vsp_table({**sample, "chartid": "X"}))
+    plan = SimpleNamespace(v_comp_min=6.0, method="osc", aavso_filter="TB", target="del Cep", ra_deg=337.29, dec_deg=58.41, v_mean=3.8, aperture={"ap_r": 5, "ap_r_in": 8.0, "ap_r_out": 11})
+    return W.select_field(s, plan=plan, gaia_check=False, use_gaia_fill=False, rules=rules, min_comps=0)
+
+
+LOOSE = {"comp_bv_abs": None, "comp_v_range": [0, 20], "comp_bv_tol": 9, "comp_err_max": 9, "comp_r_iso_arcsec": 0.0}
+
+
+def test_select_field_warns_when_no_check_star_exists(tmp_path, monkeypatch):
+    """Ohne Check-Stern fehlt die unabhaengige Gegenprobe: die Auswahl meldet das, auch wenn die Comps-Warnung schon greift."""
+    r = _field_with_rules(tmp_path, monkeypatch, LOOSE)
+    assert r["counts"]["check"] == 0 and r["counts"]["comp"] == 0
+    assert any(w.startswith("kein Check-Stern") and "Gegenprobe" in w for w in r["warnings"])
+
+
+def test_select_field_no_check_warning_when_check_star_present(tmp_path, monkeypatch):
+    r = _field_with_rules(tmp_path, monkeypatch, {**LOOSE, "field_margin_deg": -5, "comp_n": 3})
+    assert r["counts"]["check"] == 1 and r["counts"]["comp"] == 3
+    assert not any("kein Check-Stern" in w for w in r["warnings"])
+
+
 # ------------------------------------------------------------------------------------------------ Messung und Periode
 def test_measure_header_wcs_gives_light_curve_with_known_period(tmp_path):
     s = _session(tmp_path, n=22, wcs=True, period=2.0)

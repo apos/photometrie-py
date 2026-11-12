@@ -256,6 +256,9 @@ def select_field(sess: Session, plan=None, maglimit: float = 11.0, use_gaia_fill
     counts = {k: int((roles == k).sum()) for k in ("comp", "check", "reserve", "verworfen")}
     if counts["comp"] < 4:
         warn.append(f"nur {counts['comp']} Comps (mindestens 4 empfohlen) — anderes Feld, Belichtung/Regeln pruefen")
+    if counts["check"] == 0:
+        warn.append("kein Check-Stern" + (f" (nur {counts['comp']} Comps, erst ab 5 wird einer als Check abgezweigt)" if counts["comp"] < 5 else "")
+                    + ": ohne Gegenprobe laesst sich die Messung nicht unabhaengig pruefen — Regeln lockern, anderes Feld waehlen oder einen Check-Stern von Hand ergaenzen")
     sel = res[[str(r) in ("comp", "check", "reserve") for r in res["role"]]]
     has_rc = "Rc" in res.colnames
     record = {
