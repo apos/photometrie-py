@@ -3,7 +3,8 @@
 **Projekt**: `photometrie-py`  
 **Version**: 0.1 (2026-11-10)  
 **Autor**: Axel Pospischil  
-**Repo**: https://github.com/apos/photometrie-py
+**Repo**: https://github.com/apos/photometrie-py  
+**Quellen**: [QUELLEN.md](QUELLEN.md) — alle referenzierten Vorträge, Handbücher und Fachpublikationen
 
 ---
 
@@ -361,7 +362,29 @@ Koeffizienten aus einem Standardfeld (Gl. 6.15–6.18): `(b−v) = 1/Tbv · (B�
 `(R−r) = Tr_bv·(B−V) + ZP_r` (Steigungen). Die „normale Praxis“ war, nur Gl. 6.12 mit Katalog-(B−V) zu nutzen; das ist bei **Veränderlichen, die ihre Farbe ändern** (δ Cep!) systematisch falsch.
 Besser: Δ(B−V) aus den instrumentellen Kanälen (Gl. 6.14), also Blau- und Rotkanal mitzutransformieren. Für **weite Felder/große Zenitdistanz** kommt ein Extinktionsterm hinzu (Gl. 6.19–6.21, `−k·ΔX`);
 die Ebenenanpassung `(V−v) = −kv·X + Tv_bv·(B−V) + ZPv` (Gl. 6.22–6.25, Citizen-Sky-Verfahren, Kloppenborg et al., JAAVSO 40, 2012) braucht **mindestens 3, empfohlen ≥ 6 Comps**. Das Handbuch liefert dazu eine Auswertetabelle
-(<https://www.aavso.org/dslr-camera-photometry-guide>, „Additional Material“). Bei kleinem Feld (Ares-C Pro an 540 mm: ~1,2°) und Zenitnähe gelten Gl. 6.11–6.14.
+(<https://www.aavso.org/dslr-camera-photometry-guide>, „Additional Material”). Bei kleinem Feld (Ares-C Pro an 540 mm: ~1,2°) und Zenitnähe gelten Gl. 6.11–6.14.
+
+**Mehrfachbeobachtung desselben Objekts über eine Nacht (z. B. Algol bei wechselnden Höhen):**
+Differentialphotometrie mit Vergleichssternen im gleichen Bildfeld ergibt pro Aufnahme ΔX ≈ 0 — Ziel und Comp bewegen sich gemeinsam über den Himmel; ihr Höhenwinkelunterschied beträgt für ein ~1,2°-Feld typisch < 0,002 Luftmassen und ist vernachlässigbar. Damit heben sich der Erstextinktionsterm C2·X und globale Zeropoint-Driften vollständig heraus, unabhängig davon, wie stark das Objekt im Lauf der Nacht steigt oder sinkt. Die per-frame-Normalisierung in `instrumental_table()` (Median-Offset aller Comps) absorbiert zusätzlich Transparenzschwankungen.
+(Grundlage: `[AAVSO-DSLR]` Gl. 6.11–6.14; `[Kloppenborg2012]`)
+
+**Zweite Extinktionsordnung C3·(B−V)·X — Erklärung und Relevanz für unser Setup:**
+Rayleigh-Streuung in der Atmosphäre ist wellenlängenabhängig: blaues Licht wird stärker extingiert als rotes `[Fitzpatrick1999]`. Der erste Extinktionsterm C2·X hebt sich bei enger Differentialphotometrie vollständig auf, weil er für alle Sterne im gleichen Bildfeld denselben Wert hat (selbes X, gleiche Transparenz). Der zweite Term C3·(B−V)·X dagegen skaliert mit der *individuellen Farbe* jedes Sterns: Ein blauer Stern (B−V klein) verliert bei hoher Luftmasse proportional mehr Fluss als ein roter. Haben Ziel und Comp verschiedene Farben, heben sich diese Terme nicht auf.
+
+Für unser Standard-Setup ist der Effekt gering: typisch C3 ≈ 0,01–0,03 mag/mag/airmass; bei X = 1,5 und ΔBV = 0,5 ergibt sich eine Systematik von ≈ 0,01 mag — am Rande des AAVSO-Präzisionsziels.
+
+Bei Bedeckungsveränderlichen wie Algol entsteht jedoch ein *zeitvariabler* Effekt: Während der Bedeckung ändert sich die effektive Farbe des Systems (z. B. heißer blauer Primärstern wird bedeckt → System wird röter) `[Kolbas2015]`. Der Term C3·(B−V)·X ändert sich damit gleichzeitig durch zwei Größen: steigende Luftmasse (X wächst) und sich änderndes (B−V) des Ziels. Die per-frame-Normalisierung korrigiert absolute Niveauverschiebungen, aber *nicht* diesen differenziellen Farbeffekt zwischen Ziel und Comp. Für präzise AAVSO-Meldungen von Bedeckungsveränderlichen an großen Zenitdistanzen (X > 2) sollte `−k'·(B−V)·X` ergänzt werden (Citizen-Sky-Verfahren `[Kloppenborg2012]`, `[AAVSO-DSLR]` Gl. 6.19–6.25); für typische Beobachtungen nahe Zenit (X < 1,5) ist er vernachlässigbar.
+
+**Kein Vergleichsstern im Zielfeld — Slewing zum Comp-Feld:**
+Wenn das Zielfeld keine geeigneten Vergleichssterne enthält und das Teleskop für die Comps in ein anderes Himmelsareal fährt, sind Ziel und Comp bei *verschiedenen Luftmassen* aufgenommen. Die enge Differentialformel (Gl. 6.11–6.14, ΔX ≈ 0) gilt dann nicht mehr; es wird die volle Kloppenborg-Gleichung benötigt `[Kloppenborg2012]`, `[Henden-Kaitchuck]`:
+
+```
+V_cat = v_inst + ZP + C1·(B−V) + C2·X  (+ C3·(B−V)·X)
+```
+
+Das ist klassische All-Sky-Photometrie und erfordert: (1) Beobachtung eines photometrischen Standardfelds `[Landolt]` in derselben Nacht bei mehreren Luftmassen → Bouguer-Plot → k ableiten; (2) Zeropoint ZP zum Beobachtungszeitpunkt des Ziels aus Standardfeldmessungen interpoliert; (3) Transformation mit bekannten Koeffizienten nach `[AAVSO-DSLR]` Gl. 6.15–6.18.
+
+Technisch ist das Szenario mit unserem Teleskop gut realisierbar: Platesolving und Rotator ermöglichen exakte Rückkehr ins Zielfeld; Stacking liefert identisch registrierte Sternpositionen in jeder Teilserie. Die Infrastruktur im Code ist vorbereitet: `fit_extinction()` berechnet k [mag/airmass] aus dem Offset-vs.-Luftmassen-Verlauf; `transform_target()` akzeptiert `dX` und `k` als optionale Parameter (Standard: `dX=0.0`). Was fehlt, ist ein Workflow in NB02, der Standardfeld-Aufnahmen einbezieht und den Absolutzeropoint interpoliert — aktuell **nicht implementiert**.
 
 **Variante Kamenec (OEJV 2023, Canon EOS 500D; Gleichungen gelesen)** nach Benson 1998 und Henden & Kaitchuck 1982: gleiche Struktur, aber andere Koeffizientendefinition (z. B. `V1 = V2 + Δg + T_g·T_bg·Δ(b−g)`,
 `T_bg` = Steigung (B−V) gegen (b−g)); Ergebnis Melotte 111: mittlere Abweichung transformiert − Katalog **B 0,113, V 0,019, Rc 0,032 mag** — Grün gelingt am besten, Blau am schlechtesten. *Werte einer Canon, nicht der Ares-C.*
