@@ -47,3 +47,37 @@ def test_split_fits_keeps_star_at_same_sky_position(tmp_path, pattern):
             cy, cx = (np.sum(yy[m] * (d[m] - 100)) / np.sum(d[m] - 100), np.sum(xx[m] * (d[m] - 100)) / np.sum(d[m] - 100))
             assert abs(cx - x) < 0.35 and abs(cy - y) < 0.35, (o.name, cx, x, cy, y)      # Schwerpunkt liegt dort, wo die WCS den Stern erwartet
     assert (tmp_path / "out" / "light_0001_G.fits").exists()
+
+
+# ------------------------------------------------------------------ #68: Kernmaske bei CFA/OSC
+def test_cfa_g_channel_preserves_saturation_when_both_subpixels_saturated():
+    """G = 0.5*(G1+G2): wenn beide Grün-Subpixel saturiert sind, ist G >= SATURATE.
+
+    Das ist der Normal­fall für einen hell­en Stern weit über der Sättigungs­schwelle.
+    """
+    sat = 60000.0
+    img = np.zeros((4, 4), dtype=np.float32)
+    img[0::2, 1::2] = sat   # G1-Pixel (RGGB: gerade Zeile, ungerade Spalte)
+    img[1::2, 0::2] = sat   # G2-Pixel (RGGB: ungerade Zeile, gerade Spalte)
+    planes = split_cfa_array(img, pattern="RGGB")
+    g_arr, _ = planes["G"]
+    assert np.all(g_arr >= sat), f"G-Kanal-Minimum {g_arr.min():.0f} < sat {sat}"
+
+
+def test_cfa_g_channel_saturation_missed_when_only_one_subpixel_saturated():
+    """Dokumentiert bekannte Einschränkung: sättigt nur G1 (G2 knapp darunter), ist G < SATURATE.
+
+    In der Praxis tritt dies nur für Sterne direkt an der Sättigungsschwelle auf;
+    für deutlich gesättigte Sterne sättigen G1 und G2 gleichzeitig.
+    """
+    sat = 60000.0
+    img = np.zeros((4, 4), dtype=np.float32)
+    img[0::2, 1::2] = sat           # G1 gesättigt
+    img[1::2, 0::2] = sat * 0.90    # G2 90 % — nicht gesättigt
+    planes = split_cfa_array(img, pattern="RGGB")
+    g_arr, _ = planes["G"]
+    # G = 0.5*(sat + 0.9*sat) = 0.95*sat < sat → Sättigung wird nicht erkannt
+    assert np.all(g_arr < sat), (
+        "Erwartet G < sat wenn nur ein Subpixel saturiert ist — "
+        "Einschränkung ist bekannt und dokumentiert"
+    )
