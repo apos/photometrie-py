@@ -284,7 +284,9 @@ def check_plausibility(observations: list[Observation], obstype: str = "CCD", ex
         if c == "na":
             add("WARN", "chart_fehlt", "CHART fehlt (Sequenz-ID der VSP eintragen)")
         elif c.lower().startswith("gaia"):
-            add("WARN", "chart_gaia", f"CHART '{c}': Comps stammen nicht aus der AAVSO-Sequenz (Notbehelf, in NOTES kennzeichnen)")
+            noted = any("gaia-abgeleitet" in (o.notes or "").lower() or "(k)" in (o.notes or "").lower() for o in observations if (o.chart or "") == c)
+            if not noted:
+                add("WARN", "chart_gaia", f"CHART '{c}': Comps stammen nicht aus der AAVSO-Sequenz (Notbehelf, in NOTES kennzeichnen)")
         elif not CHART_RE.fullmatch(c):
             add("WARN", "chart_form", f"CHART '{c}' hat nicht die Form einer VSP-Sequenz-ID (z. B. X43370RNS)")
     km = [o.kmag for o in observations if o.kmag is not None and math.isfinite(o.kmag)]

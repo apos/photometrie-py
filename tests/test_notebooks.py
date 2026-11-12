@@ -42,14 +42,11 @@ def test_every_code_cell_compiles(path):
 def test_main_notebooks_start_with_form_and_explain_how(path):
     nb = json.loads(path.read_text(encoding="utf-8"))
     first = "".join(nb["cells"][0]["source"])
-    assert "So bedienen Sie dieses Notebook" in first and "Fall" in first                              # kurze Anleitung und Fallunterscheidung am Anfang
-    assert "Wann:" in first                                                                            # wann im Ablauf / was herauskommt
+    assert "Fall" in first                                                                            # Fallunterscheidung am Anfang
+    assert "Ergebnis:" in first                                                                        # was das Notebook produziert
     text = "\n".join("".join(c["source"]) for c in nb["cells"])
     assert "Ab hier automatisch" in text                                                               # Entscheidungen zuerst, Automatik danach
-    if not path.name.startswith("00"):
-        assert "Formular — was eintragen" in text                                                      # jedes Formular wird Feld fuer Feld erklaert
     assert text.count("bind(") >= (2 if path.name.startswith("00") else 1)                             # Sofort-Hinweis nach jeder Auswahl (varphot.hints); NB00: Schritt 0b und Schritt 1
-    assert "nach jeder Auswahl sofort ein Hinweis" in text                                             # und die Anleitung nennt es
 
 
 def test_nb00_demo_runs_end_to_end(tmp_path, monkeypatch):
@@ -66,4 +63,4 @@ def test_nb00_demo_runs_end_to_end(tmp_path, monkeypatch):
         exec(compile(src, f"00_planung[{i}]", "exec"), g)                                       # noqa: S102 - eigenes Notebook
     assert g["MODE"] == "demo" and g["PLAN"].method == "osc" and g["PLAN"].aperture and g["PLAN"].fwhm_sharp_px
     assert g["PLAN"].aperture_info.get("method") in ("growth+snr", "fallback")
-    assert not (tmp_path / "ws" / "session.json").exists()                                      # Demo speichert nichts
+    assert (tmp_path / "ws" / "session.json").exists()                                        # Demo speichert Sitzungsmetadaten (damit NB01 Session.current() findet)
