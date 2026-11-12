@@ -31,11 +31,9 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from varphot import __version__
@@ -407,7 +405,7 @@ def write_object_summary_pdf(target_dir: Path, target_safe: str) -> Path | None:
              f"--resource-path={target_dir}",
              "-V", "geometry:margin=2cm",
              "-V", "fontsize=11pt"],
-            capture_output=True, text=True, cwd=str(target_dir),
+            capture_output=True, text=True, cwd=str(target_dir), check=False,
         )
         if r.returncode == 0:
             print(f"✓ PDF-Zusammenfassung: {pdf_path}")

@@ -12,7 +12,7 @@ Aufruf:
     python tools/sync_datalore.py notebooks/01_*.ipynb # bestimmtes Notebook
 """
 from __future__ import annotations
-import json, os, shutil, subprocess, sys, urllib.request
+import json, os, subprocess, sys, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,7 +38,7 @@ def _session_ok() -> bool:
 
 
 def _cli(notebook_id: str, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([str(DL_CLI), "--json", "notebook", "--notebook-id", notebook_id, *args], capture_output=True, text=True, cwd=SESSION_DIR)
+    return subprocess.run([str(DL_CLI), "--json", "notebook", "--notebook-id", notebook_id, *args], capture_output=True, text=True, cwd=SESSION_DIR, check=False)
 
 
 def _remote_cells(notebook_id: str, first_id: str) -> dict[str, dict] | None:
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not _session_ok():
         print(f"⚠ Keine Datalore-Session in {SESSION_DIR}")
-        print(f"  Einmalig ausführen:  make init-datalore")
+        print("  Einmalig ausführen:  make init-datalore")
         return 1
 
     nb_paths = [Path(p) for p in argv] if argv else sorted(ROOT.glob("notebooks/*.ipynb"))

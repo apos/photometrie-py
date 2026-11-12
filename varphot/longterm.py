@@ -124,7 +124,7 @@ def nightly_stats(data: pd.DataFrame, time_col: str = "bjd_tdb") -> pd.DataFrame
     df = data.copy()
     df["night"] = np.floor(df[time_col] - 0.5).astype(int)
     rows = []
-    for (night, session), grp in df.groupby(["night", "session"], sort=False):
+    for (_night, session), grp in df.groupby(["night", "session"], sort=False):
         rows.append({
             "night_jd": float(grp[time_col].mean()),
             "mag_mean": float(grp["mag"].mean()),
