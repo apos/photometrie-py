@@ -66,16 +66,16 @@ _MONO_METHODS = ("mono", "monorgb")
 
 
 def nb00_hints(mode: str, method: str, filt: str, cam_kind: str, workspace: str = "") -> list[Hint]:
-    """Hinweise zu Schritt 1 von NB00 (Modus, Methode, Meldefilter, Kamera)."""
+    """Hinweise zu Schritt 2 von NB00 (Modus, Methode, Meldefilter, Kamera)."""
     h: list[Hint] = []
     if mode == "lco":
-        h.append(("ok", "<b>LCO-Testdaten:</b> Ziel δ Cep, Methode Monochrom + Standardfilter, Meldefilter V sind <b>vorgegeben</b> (grau) — nichts zu ändern. Sitzungsordner so lassen. Weiter mit der nächsten Zelle."))
+        h.append(("ok", "<b>LCO-Testdaten:</b> Ziel δ Cep, Methode Monochrom + Standardfilter, Meldefilter V sind <b>vorgegeben</b> (grau) — nichts zu ändern. Sitzungsordner so lassen. Weiter mit dem Abschnitt „Ab hier automatisch“: bei der nächsten Code-Zelle den Pfeil (▶) öffnen und „Diese Zelle und alle folgenden“ ausführen."))
         return h
     if mode == "demo":
         h.append(("info", "<b>Demo:</b> synthetische Probebilder — zeigt die Auswertung und die Warnungen. <b>Es wird nichts gespeichert.</b>"))
     elif mode == "real":
         ws = workspace or "&lt;Sitzungsordner&gt;"
-        h.append(("info", f"<b>Eigene Probebilder:</b> legen Sie <b>vor der nächsten Zelle</b> 3 Messbilder nach <code>{ws}/probe/</code> und 1 scharfes Bild nach <code>{ws}/probe/scharf/</code> (Schritt 2c)."))
+        h.append(("info", f"<b>Eigene Probebilder:</b> legen Sie <b>bevor Sie „Ab hier automatisch“ ausführen</b>, 3 Messbilder nach <code>{ws}/probe/</code> und 1 scharfes Bild nach <code>{ws}/probe/scharf/</code> (Schritt 4)."))
     if method in CASES:
         letter, name = CASES[method]
         h.append(("ok", f"<b>Fall {letter}:</b> {name}."))
@@ -105,7 +105,7 @@ def nb00_observer_hints(site_name: str, is_test_site: bool, is_new: bool, aavso_
     if is_test_site:
         h.append(("ok", "<b>Testdaten-Standort:</b> fest vorgegeben — <b>nichts ändern, nicht speichern</b>, wenn Sie nur die Testdaten ausprobieren."))
     elif is_new:
-        h.append(("info", "<b>Neuer Standort:</b> Name, Breite (° N), Länge (° O; West = −) und Höhe eintragen, dann unten <b>Speichern</b>."))
+        h.append(("info", "<b>Neuer Standort:</b> Name, Breite (° N), Länge (° O; West = −) und Höhe eintragen, dann im Formular unten auf <b>Speichern</b> klicken."))
     else:
         h.append(("ok", f"Standort <b>{site_name}</b> ist gespeichert."))
     code = (aavso_code or "").strip()
