@@ -80,3 +80,14 @@ def test_say_picks_tone_from_first_symbol(monkeypatch):
     ui.say("✓ gut", "und mehr")
     ui.say("neutral")
     assert ui.TONES["warn"] in shown[0] and ui.TONES["ok"] in shown[1] and "gut und mehr" in shown[1] and ui.TONES["info"] in shown[2]
+
+
+def test_cloud_preview_shows_exact_text_with_highlighted_placeholders():
+    h = ui.cloud_preview("Claude", [("Beobachtercode", 2), ("Standort", 1)], "Code [BEOBACHTERCODE] und <b>[HOST_2]</b>")
+    assert "2× Beobachtercode" in h and "Anbieter: Claude" in h and "<details" in h and " open" in h
+    assert h.count("background:" + ui.ACC_BG) >= 4 and "&lt;b&gt;" in h                      # Text wird maskiert, Platzhalter hervorgehoben
+
+
+def test_ai_answer_renders_numbered_lines_and_escapes():
+    h = ui.ai_answer("Claude", 12.0, "1. OK\n7. AUFFÄLLIG <script>x</script>", "Fuß")
+    assert "<b>1.</b>" in h and "<b>7.</b>" in h and "&lt;script&gt;" in h and "<script>" not in h and "Claude · 12 s" in h and "Fuß" in h

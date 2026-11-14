@@ -527,40 +527,40 @@ Testdaten fremder Beobachter (LCO) werden mit Code `TST01` und dem Dateinamenszu
   *macOS:* Homebrew-Python bekommt im Heimnetz teils „No route to host“ (Freigabe „Lokales Netzwerk“), `curl`/`nc`/`ssh` nicht — dann weicht der Code automatisch auf `curl`/`nc` aus.
   *Qualität (Probelauf 2026-11-10, Ollama im Heimnetz, GPU 6 GB):* Mit einer Prüfliste im Prompt finden die 7–9-Mrd.-Modelle die meisten gestellten Fehler (TG mit `TRANS=YES`, `OBSTYPE=CCD` bei Farbkamera, verkehrter Zeitraum), aber **jedes Modell** hatte Fehlalarme (z. B. DSLR bei Mono-Kamera verlangt) und übersah Fehler (Fehler 0,0004 mag); ohne Liste meldeten alle „Keine Auffälligkeiten“. Reihenfolge deshalb gemma2:9b, llama3.1:8b, qwen2.5:7b. → Hinweis, nie Entscheidungsgrundlage.
   *Offen:* Opencode-Aufruf auf dem starken Rechner per ssh; lokaler Opencode-Anbieter (Ollama) in der Opencode-Konfiguration.
-  *Erweiterung um Cloud-KI (Claude, Gemini) mit Schwärzung und Einwilligung:* Konzept in §11.15.
+  *Erweiterung um Cloud-KI (Claude, Gemini) mit Datenanonymisierung und Einwilligung:* Konzept in §11.15.
 
 ### 11.15 Cloud-KI als zweite Leserin (Konzept, nicht implementiert; Stand 2026-11-14)
 
-**Entscheidungen des Autors (2026-11-14):** (1) Eine Cloud-KI ist **zulässig, aber nur mit Einwilligung** (abgeschaltet im Normalzustand). (2) Der Text wird **geschwärzt** gesendet. (3) Als Anbieter **zuerst Claude**, Gemini danach. **Offen:** Welcher Claude-Zugang nutzbar ist (Desktop-Konto oder API-Konto), siehe §11.15.1.
+**Entscheidungen des Autors (2026-11-14):** (1) Eine Cloud-KI ist **zulässig, aber nur mit Einwilligung** (abgeschaltet im Normalzustand). (2) Der Text wird **anonymisiert** gesendet (Datenanonymisierung, früher „Schwärzung“ genannt). (3) Als Anbieter **zuerst Claude**, Gemini danach. **Offen:** Welcher Claude-Zugang nutzbar ist (Desktop-Konto oder API-Konto), siehe §11.15.1.
 **Unverändert:** Die KI bleibt zweite Leserin (nur Anmerkungen, nie Zahlen, ändert nichts, §11.14). Der lokale Weg (Ollama, Opencode lokal) bleibt der Standard; die Cloud ist ein zusätzlicher, ausdrücklich gewählter Weg. Der Grundsatz „Daten verlassen das Heimnetz nicht“ gilt weiter und wird für diesen Weg **bewusst, sichtbar und geschwärzt** aufgehoben.
 
 #### 11.15.1 Zugangswege (Prüfstand 2026-11-14, aus Suchergebnissen; offizielle Seiten bei der Umsetzung im Wortlaut lesen)
 
 | Weg | Konto und Abrechnung | Stand |
 |---|---|---|
-| **Claude Code Kommandozeile** (`claude -p`, nicht interaktiv) | nutzt die Anmeldung des Claude-Kontos (Abo). Laut Anthropic-Dokumentation zählt `claude -p` seit **2026-06-15** nicht mehr gegen die Abo-Grenzen, sondern gegen ein **eigenes monatliches Agent-SDK-Guthaben** (genannt: 20 $ Pro, 100 $ Max 5x, 200 $ Max 20x). Große unbeaufsichtigte Läufe gehören laut Doku auf API-Abrechnung; die Regel für Skripte ist nicht eindeutig. Ist `ANTHROPIC_API_KEY` gesetzt, rechnet Claude Code über den Schlüssel ab, nicht über das Abo. | Auf diesem Mac vorhanden (`/opt/homebrew/bin/claude`, Version 2.1.311), **kein** API-Schlüssel in der Umgebung (geprüft). Ob ein einzelner Aufruf je Bericht aus einem Notebook zulässig ist und wie das Guthaben des Kontos aussieht, ist **zu klären**. |
+| **Claude Code Kommandozeile** (`claude -p`, nicht interaktiv) | nutzt die Anmeldung des Claude-Kontos (Abo). Laut Anthropic-Dokumentation zählt `claude -p` seit **2026-06-15** nicht mehr gegen die Abo-Grenzen, sondern gegen ein **eigenes monatliches Agent-SDK-Guthaben** (genannt: 20 $ Pro, 100 $ Max 5x, 200 $ Max 20x). Große unbeaufsichtigte Läufe gehören laut Doku auf API-Abrechnung; die Regel für Skripte ist nicht eindeutig. Ist `ANTHROPIC_API_KEY` gesetzt, rechnet Claude Code über den Schlüssel ab, nicht über das Abo. | Auf diesem Mac vorhanden (`/opt/homebrew/bin/claude`, Version 2.1.311), **kein** API-Schlüssel in der Umgebung (geprüft). **Geprüft 2026-11-14 durch den Autor:** Die Anmeldung der Kommandozeile ist **getrennt** von der der Desktop-App (zuerst `loggedIn: false`, `OAuth session expired`); nach `claude auth login` antwortet `claude -p "Antworte nur mit dem Wort OK." --no-session-persistence` mit „OK“. `claude auth status`: Anmeldeart `claude.ai` (Abo), Tarif `pro`, also laut Doku 20 $ Agent-SDK-Guthaben im Monat (nicht nachgeprüft). **Zu klären:** Ob ein einzelner Aufruf je Bericht aus einem Notebook zulässig ist und wie viel Guthaben bleibt. |
 | **Claude-API** (`api.anthropic.com`) | Eigenes Produkt (Console, API-Schlüssel, vorausbezahltes Guthaben, Abrechnung nach Token). Laut Anthropic-Hilfe ist das **nicht im Claude-Abo enthalten**; eine andere Hilfeseite nennt für Max und Team monatliche API-Guthaben, die Angaben widersprechen sich, **aktuellen Stand prüfen**. | Konto des Autors: unbekannt. |
-| **Gemini-API** | Schlüssel aus Google AI Studio, kostenlose Stufe möglich. Laut Nutzungsbedingungen (Sekundärquellen) dürfen Eingaben der **kostenlosen Stufe zur Produktverbesserung genutzt und von Menschen gelesen** werden, die **bezahlte Stufe** nicht (Abrechnungskonto aktiv). | Zugang beim Autor vorhanden (Angabe); Stufe zu klären. |
+| **Gemini-API** | Schlüssel aus Google AI Studio, kostenlose Stufe möglich. Laut Nutzungsbedingungen (Sekundärquellen) dürfen Eingaben der **kostenlosen Stufe zur Produktverbesserung genutzt und von Menschen gelesen** werden, die **bezahlte Stufe** nicht (Abrechnungskonto aktiv). | **Geprüft 2026-11-14 durch den Autor:** `gemini --skip-trust -p "Antworte nur mit dem Wort OK."` antwortet „OK“ (API-Schlüssel in der Umgebung gesetzt). Kostenlose oder bezahlte Stufe und damit die Datennutzung sind **zu klären**. Backend noch nicht gebaut; die Gemini-Kommandozeile lädt eine eigene `GEMINI.md` und Werkzeuge, die Isolation ist wie bei Claude **erst zu messen**. |
 
-**Empfehlung:** Claude zuerst über die **Kommandozeile** (kein neues Konto, vorhandene Anmeldung), die **Claude-API** als zweiter Claude-Weg, wenn das Guthaben oder die Richtlinie nicht reicht; Gemini danach, mit der bezahlten Stufe, solange Inhalte sonst zur Produktverbesserung dienen dürfen. Die Schwärzung (§11.15.3) gilt für alle Wege.
+**Empfehlung (bestätigt durch den Test vom 2026-11-14):** Claude zuerst über die **Kommandozeile** (kein neues Konto, vorhandene Anmeldung; Voraussetzung `claude auth login` und Prüfung per `claude auth status`), die **Claude-API** als zweiter Claude-Weg, wenn das Guthaben oder die Richtlinie nicht reicht; Gemini danach, mit der bezahlten Stufe, solange Inhalte sonst zur Produktverbesserung dienen dürfen. Die Datenanonymisierung (§11.15.3) gilt für alle Wege.
 
 #### 11.15.2 Architektur
 
 - `varphot/aireview.py`: `Backend.kind` bekommt `claude-cli`, `claude-api`, `gemini-api`; `ai_review` verzweigt wie bisher nach `kind`. Fehler kommen als `ReviewResult.error` zurück, nie als Ausnahme; die Zweitlesung blockiert den Export nie.
-- **`claude-cli`:** Aufruf im **leeren Wegwerf-Ordner** (wie beim lokalen Opencode, kein Zugriff auf Projektdateien), Text über die Standardeingabe, ohne Werkzeuge und Dateizugriff, Umgebung **ohne** `ANTHROPIC_API_KEY`, Zeitlimit. Die genauen Optionen werden bei der Umsetzung gegen `[Claude-Headless]` geprüft.
+- **`claude-cli` (umgesetzt 2026-11-14):** Aufruf im **leeren Wegwerf-Ordner** (wie beim lokalen Opencode, kein Zugriff auf Projektdateien), Text über die Standardeingabe, ohne Werkzeuge und Dateizugriff, Umgebung **ohne** `ANTHROPIC_API_KEY`, Zeitlimit. Optionen (`CLAUDE_ISOLATION`): `--tools ""`, `--disable-slash-commands`, `--strict-mcp-config`, `--setting-sources ""`, dazu `--system-prompt` und `--no-session-persistence`. **Gemessen 2026-11-14:** ohne diese Optionen gehen rund 37 000 Eingabe-Tokens mit, und die Anweisungen der eigenen `CLAUDE.md` waren dem Modell bekannt (Kontrollfrage); mit ihnen rund 860 Tokens und die `CLAUDE.md` war unbekannt. `--bare` ist keine Alternative, weil es die Abo-Anmeldung nicht liest. Echter Probelauf mit erfundenem, anonymisiertem Bericht: Antwort in etwa 7 s. **Fehlalarm gefunden und behoben:** Claude hielt `[BEOBACHTERCODE]` für einen unausgefüllten Code; seitdem hängt `ANON_NOTE` am Systemprompt (Platzhalter sind ausgefüllt, kein Fehler).
 - **`claude-api` und `gemini-api`:** HTTPS-Aufruf mit `urllib` wie `_http_json`, nur gegen eine **feste Liste erlaubter Hostnamen** (`CLOUD_HOSTS`), keine Weiterleitungen, Schlüssel im **Header**, nicht in der URL (taucht sonst in Protokollen auf). Die private-Netz-Prüfung (`is_private_host`) bleibt für die lokalen Wege unverändert.
 - **Modelle** stehen in der Konfiguration, nicht im Code; aktuelle Namen und Preise werden bei der Umsetzung der Anbieter-Dokumentation entnommen.
 - **Konfiguration** (Schlüssel `ai.cloud` in der privaten `observer.json`): `enabled` (Standard `false`), `provider`, `model`, `key_env` (Name der Umgebungsvariable), `confirm` (Standard `true`), `max_chars`. `VARPHOT_AI=off` schaltet auch die Cloud ab; zusätzlich `VARPHOT_AI_CLOUD=off`.
 
-#### 11.15.3 Schwärzung (Pflicht für jeden Cloud-Weg, nicht abschaltbar)
+#### 11.15.3 Datenanonymisierung (Pflicht für jeden Cloud-Weg, nicht abschaltbar; Modul `varphot/anonymize.py`, umgesetzt 2026-11-14)
 
-Heute geht an die KI: der Berichtstext, die ersten Zeilen des AAVSO-Dateikopfs und das Ergebnis der festen Prüfungen (NB03 Schritt 6). Dort steht u. a. der Beobachtercode.
+Heute (ohne Cloud) geht an die KI: der Berichtstext, die ersten Zeilen des AAVSO-Dateikopfs und das Ergebnis der festen Prüfungen (NB03 Schritt 6). Dort steht u. a. der Beobachtercode.
 
-- **Geschwärzt werden:** Beobachtercode, Standortname, Koordinaten und Höhe, Beobachtername, Pfade (Heimverzeichnis, Benutzername, Datenordner, Sitzungsordner), Rechnernamen, IP-Adressen und `ssh`-Aliase aus der `ai`-Konfiguration, E-Mail-Adressen.
+- **Anonymisiert werden:** Beobachtercode, Standortname, Koordinaten und Höhe, Beobachtername, Pfade (Heimverzeichnis, Benutzername, Datenordner, Sitzungsordner), Rechnernamen, IP-Adressen und `ssh`-Aliase aus der `ai`-Konfiguration, E-Mail-Adressen.
 - **Verfahren:** Die bekannten Werte kommen **exakt** aus `observer.json`, dazu Muster für Pfade, Adressen und E-Mail. Ersetzt wird durch feste Platzhalter (`[BEOBACHTERCODE]`, `[STANDORT]`, `[KOORDINATEN]`, `[PFAD]`, `[HOST]`). Prüfpunkt 7 der Prüfliste („fehlt der Beobachtercode?“) bleibt möglich, weil der Platzhalter sichtbar ist. Platzhalter in der Antwort werden **lokal zurückübersetzt**.
-- **Sicherheitsnetz:** Steht nach dem Schwärzen noch ein bekannter geheimer Wert im Text, wird **nicht gesendet** (Fehlermeldung statt Aufruf).
-- **Vorschau und Einwilligung:** NB03 zeigt den **geschwärzten Text** und sendet erst nach Bestätigung. Der gesendete Text wird lokal neben dem Bericht abgelegt (Nachvollziehbarkeit).
-- **Grenze:** Schwärzen ist Mustererkennung. Zielstern, Beobachtungszeiten und Gerätetypen bleiben im Text; ihre Kombination kann indirekt auf den Beobachter schließen. Das ist ein **akzeptiertes Restrisiko** und wird so ausgewiesen.
+- **Sicherheitsnetz:** Steht nach dem Anonymisieren noch ein bekannter geheimer Wert im Text, wird **nicht gesendet** (Fehlermeldung statt Aufruf).
+- **Vorschau und Einwilligung:** NB03 zeigt den **anonymisierten Text** und sendet erst nach Bestätigung. Der gesendete Text wird lokal neben dem Bericht abgelegt (Nachvollziehbarkeit).
+- **Grenze:** Anonymisieren ist Mustererkennung. Zielstern, Beobachtungszeiten und Gerätetypen bleiben im Text; ihre Kombination kann indirekt auf den Beobachter schließen. Das ist ein **akzeptiertes Restrisiko** und wird so ausgewiesen.
 
 #### 11.15.4 Schlüssel
 
@@ -568,24 +568,26 @@ Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **
 
 #### 11.15.5 Bedienung
 
-- **NB03 Schritt 6:** Auswahl „KI-Zweitlesung: aus / lokal / Claude / Gemini“ (Standard: lokal, wenn verfügbar). Bei Cloud ein Hinweis „Der geschwärzte Text verlässt das Heimnetz (Anbieter …)“, dann Vorschau und Bestätigung. Das Ergebnis erscheint wie bisher als „KI-Zweitlesung (unverbindlich; Anbieter, Modell, Sekunden)“.
+- **NB03 Schritt 6 (umgesetzt 2026-11-14, Gemini ausgegraut):** Auswahl „KI-Zweitlesung: aus / lokal / Claude / Gemini“ (Standard: lokal, wenn verfügbar). Bei Cloud ein Hinweis „Der anonymisierte Text verlässt das Heimnetz (Anbieter …)“, dann Vorschau und Bestätigung. Das Ergebnis erscheint wie bisher als „KI-Zweitlesung (unverbindlich; Anbieter, Modell, Sekunden)“.
 - **NB00/NB01 Vorbedingungen:** Zeile „Cloud-KI: aus / bereit“ ohne Netzaufruf (nur: Schlüssel oder Programm vorhanden).
 - Die Darstellung folgt `docs/gui.md` (Mockup zuerst, Aufgaben als ganze Sätze).
 
 #### 11.15.6 Tests und Validierung
 
-- **Tests ohne Netz:** HTTP-Attrappe mit einstellbarer Host-Liste, Attrappe der Kommandozeile als Skript. Geprüft wird: ohne Schlüssel oder Einwilligung kein Aufruf; die Schwärzung entfernt alle bekannten Werte (Beispiel-`observer.json`); Rückübersetzung; Abbruch bei Restwert; nur HTTPS und erlaubte Hosts; keine Weiterleitung; kein Schlüssel in Fehlermeldungen; Zeitlimit blockiert den Export nicht; `VARPHOT_AI=off` wirkt.
+- **Tests ohne Netz:** HTTP-Attrappe mit einstellbarer Host-Liste, Attrappe der Kommandozeile als Skript. Geprüft wird: ohne Schlüssel oder Einwilligung kein Aufruf; die Anonymisierung entfernt alle bekannten Werte (Beispiel-`observer.json`); Rückübersetzung; Abbruch bei Restwert; nur HTTPS und erlaubte Hosts; keine Weiterleitung; kein Schlüssel in Fehlermeldungen; Zeitlimit blockiert den Export nicht; `VARPHOT_AI=off` wirkt.
 - **Validierung:** Probelauf wie in §11.14 mit den drei gestellten Fehlern (TG mit `TRANS=YES`, `OBSTYPE=CCD` bei Farbkamera, verkehrter Zeitraum). Vergleich der Fehlalarm- und Übersehensrate gegen die lokalen Modelle; kleine Stichprobe, Ergebnis wird hier eingetragen.
 
 #### 11.15.7 Umsetzungsschritte
 
-1. Schwärzung, Vorschau und Ablage des gesendeten Textes (ohne Anbieter, voll testbar).
-2. `claude-cli`.
-3. `claude-api`.
-4. `gemini-api`.
-5. Probelauf, Dokumentation, BM-Notiz.
+1. Datenanonymisierung, Vorschau und Ablage des gesendeten Textes (ohne Anbieter, voll testbar). **Erledigt 2026-11-14:** Modul `varphot/anonymize.py` mit Tests (`collect_secrets`, `anonymize`, `find_leaks`, `prepare_for_cloud`, `restore`, `save_sent_text`) und die Vorschau mit Bestätigung in NB03 (Mockup vom Autor abgenommen).
+2. `claude-cli`. **Erledigt 2026-11-14** (mit Tests gegen eine Attrappe des Programms und einem echten Probelauf).
+3. `claude-api` (nur nötig, wenn das Abo-Guthaben nicht reicht).
+4. Gemini (Kommandozeile oder API): Isolation messen, Datennutzung der Stufe klären.
+5. Probelauf mit den gestellten Fehlern (§11.14), Dokumentation, BM-Notiz.
 
-**Offen vor Schritt 2:** (a) Kontingent des Claude-Kontos und die Regel für `claude -p` aus einem Notebook (ein Aufruf je Bericht, vom Nutzer ausgelöst) bei Anthropic klären; (b) Einstellung zur Datennutzung im Konto prüfen; (c) Gemini: bezahlte oder kostenlose Stufe; (d) die Schwärzungsliste vom Autor bestätigen lassen (insbesondere Standort).
+**Einschalten:** Die Cloud ist abgeschaltet, bis in der privaten `observer.json` unter `ai` der Schlüssel `"cloud": {"enabled": true}` steht (optional `model`, `max_chars`). Ohne ihn zeigt NB03 „Claude: nicht verfügbar“ und ruft das Programm nicht auf; `VARPHOT_AI_CLOUD=off` schaltet sie jederzeit ab. Voraussetzung ist die Anmeldung der Kommandozeile (`claude auth login`).
+
+**Offen:** (a) Kontingent des Claude-Kontos und die Regel für `claude -p` aus einem Notebook (ein Aufruf je Bericht, vom Nutzer ausgelöst) bei Anthropic klären; (b) Einstellung zur Datennutzung im Konto prüfen; (c) Gemini: bezahlte oder kostenlose Stufe; (d) die Liste der anonymisierten Angaben vom Autor bestätigen lassen (insbesondere Standort).
 
 ### 11.10 Quellen und Prüfstatus
 

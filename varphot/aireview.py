@@ -58,6 +58,10 @@ SYSTEM_PROMPT = (
 )
 
 
+ANON_NOTE = ("\n\nHINWEIS: Der Text ist anonymisiert. Angaben in eckigen Klammern in Grossbuchstaben, zum Beispiel [BEOBACHTERCODE], [STANDORT], [BREITE], [LAENGE], [PFAD] oder [HOST], "
+             "stehen fuer ausgeblendete persoenliche Angaben. Sie sind ausgefuellt und kein Fehler; melde sie nicht als fehlend oder unausgefuellt (bei Punkt 7 gilt zum Beispiel [BEOBACHTERCODE] als vorhanden).")
+"""Anhang an den Systemprompt bei anonymisiertem Text. Ohne ihn hielt Claude im Probelauf (2026-11-14) den Platzhalter ``[BEOBACHTERCODE]`` für einen unausgefüllten Code (Fehlalarm bei Punkt 7)."""
+
 @dataclass
 class Backend:
     """Ein moeglicher Weg zur KI: ``kind`` ``ollama`` oder ``opencode``; ``usable`` = kann jetzt benutzt werden; ``detail`` erklaert den Zustand."""
@@ -191,7 +195,8 @@ def _http_json(url: str, payload: dict | None = None, timeout: float = 5.0) -> d
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Konfiguration
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-DEFAULT_AI = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:11434", "opencode": True, "opencode_model": None}, "models": list(PREFERRED_MODELS)}
+DEFAULT_AI = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:11434", "opencode": True, "opencode_model": None}, "models": list(PREFERRED_MODELS),
+              "cloud": {"enabled": False, "model": None, "max_chars": 20000}}
 
 
 def load_ai_config(path=None) -> dict:
@@ -206,8 +211,11 @@ def load_ai_config(path=None) -> dict:
             raw = {}
     cfg = {**DEFAULT_AI, **raw}
     cfg["local"] = {**DEFAULT_AI["local"], **(raw.get("local") or {})}
+    cfg["cloud"] = {**DEFAULT_AI["cloud"], **(raw.get("cloud") or {})}
     if os.environ.get("VARPHOT_AI", "").lower() in ("off", "0", "no", "nein"):
         cfg["enabled"] = False
+    if os.environ.get("VARPHOT_AI_CLOUD", "").lower() in ("off", "0", "no", "nein"):
+        cfg["cloud"]["enabled"] = False
     return cfg
 
 
@@ -323,6 +331,53 @@ def detect_backends(cfg: dict | None = None, check_opencode_remote: bool = True)
     return out
 
 
+CLAUDE_ISOLATION = ["--tools", "", "--disable-slash-commands", "--strict-mcp-config", "--setting-sources", ""]
+"""Optionen für den Claude-Aufruf: keine Werkzeuge, keine Skills, keine MCP-Server, keine Einstellungsquellen. Gemessen am 2026-11-14: **ohne** diese Optionen geht der gesamte Arbeitskontext mit
+(rund 37 000 Eingabe-Tokens, die Anweisungen der eigenen ``CLAUDE.md`` waren dem Modell bekannt), **mit** ihnen nur Systemanweisung und Text (rund 860 Tokens, die ``CLAUDE.md`` war unbekannt)."""
+CLOUD_KEYS_REMOVED = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
+def probe_claude_cli(timeout: float = 20.0) -> Backend:
+    """Prueft die Claude-Kommandozeile: vorhanden **und** angemeldet (``claude auth status``, lokale Abfrage ohne Modellaufruf).
+
+    Die Anmeldung der Kommandozeile ist **getrennt** von der der Desktop-App; fehlt sie, sagt ``detail`` den Befehl (``claude auth login``). Die Anmeldeart (Abo oder API-Schluessel) steht im Detail,
+    Kontodaten nicht.
+    """
+    exe = shutil.which("claude")
+    if not exe:
+        return Backend("claude-cli", "Cloud", False, "nicht installiert (Programm 'claude' nicht gefunden)")
+    try:
+        r = _run([exe, "auth", "status"], timeout)
+        info = json.loads(r.stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        return Backend("claude-cli", "Cloud", False, f"'claude auth status' fehlgeschlagen: {type(e).__name__}")
+    if not info.get("loggedIn"):
+        return Backend("claude-cli", "Cloud", False, "nicht angemeldet: im Terminal 'claude auth login' ausfuehren")
+    return Backend("claude-cli", "Cloud", True, f"angemeldet ({info.get('authMethod', '?')})")
+
+
+def detect_cloud_backends(cfg: dict | None = None) -> list[Backend]:
+    """Cloud-Wege (nie automatisch gewaehlt: :func:`choose_backend` und :func:`detect_backends` kennen sie nicht).
+
+    Ohne ``ai.cloud.enabled`` (oder mit ``VARPHOT_AI=off``/``VARPHOT_AI_CLOUD=off``) ist jeder Weg **nicht benutzbar** und ``detail`` nennt den Schalter; die Kommandozeile wird dann gar nicht aufgerufen.
+    Gemini ist noch nicht eingerichtet (KONZEPT §11.15).
+    """
+    cfg = cfg or load_ai_config()
+    cloud = cfg.get("cloud", {})
+    if not cfg.get("enabled", True) or not cloud.get("enabled", False):
+        why = "nicht eingeschaltet (observer.json: ai.cloud.enabled = true)"
+        return [Backend("claude-cli", "Cloud", False, why), Backend("gemini-api", "Cloud", False, why)]
+    claude = probe_claude_cli()
+    claude.model = cloud.get("model") or None
+    return [claude, Backend("gemini-api", "Cloud", False, "noch nicht eingerichtet (KONZEPT §11.15)")]
+
+
+def cloud_preflight_lines(cfg: dict | None = None) -> list[tuple[str, bool, str]]:
+    """Zeile fuer die Vorbedingungen: ``Cloud-KI`` aus oder bereit; ohne Einschalten kein Programmaufruf."""
+    bk = detect_cloud_backends(cfg)[0]
+    return [("Cloud-KI Claude", bk.usable, ("bereit (nur mit Einwilligung je Lauf, Text wird anonymisiert) — " if bk.usable else "") + bk.detail)]
+
+
 def choose_backend(backends: list[Backend]) -> Backend | None:
     """Erster benutzbarer Weg (Vorrang = Reihenfolge der Liste); ``None``, wenn keiner geht."""
     return next((b for b in backends if b.usable), None)
@@ -341,7 +396,7 @@ def _clean(text: str) -> str:
 def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout: float = 300.0) -> ReviewResult:
     """Laesst das Modell ``text`` lesen und liefert dessen Anmerkungen (**unverbindlich**, nie in Daten uebernehmen).
 
-    Ollama: ``POST /api/chat`` (ohne Streaming, Temperatur 0,2). Opencode (lokal): ``opencode run --model … <Nachricht>`` in einem leeren Wegwerf-Ordner (kein Zugriff auf Projektdateien), mit Zeitlimit.
+    Claude-Kommandozeile (Cloud, nur mit anonymisiertem Text, siehe :mod:`varphot.anonymize`): ``claude -p`` mit :data:`CLAUDE_ISOLATION` im leeren Wegwerf-Ordner. Ollama: ``POST /api/chat`` (ohne Streaming, Temperatur 0,2). Opencode (lokal): ``opencode run --model … <Nachricht>`` in einem leeren Wegwerf-Ordner (kein Zugriff auf Projektdateien), mit Zeitlimit.
     Jeder Fehler (Zeitlimit, Verbindung, leere Antwort) kommt als ``ReviewResult.error`` zurueck, nie als Ausnahme — die Zweitlesung darf den Export nicht blockieren.
     """
     if backend is None:                                              # kein Weg gefunden: als Ergebnis melden, nicht als Ausnahme (die Zweitlesung darf den Export nie blockieren)
@@ -363,6 +418,17 @@ def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout:
                 r = subprocess.run([exe, "run", "--model", backend.model, system + "\n\n--- BERICHT ---\n" + text], capture_output=True, text=True, timeout=timeout, cwd=tmp, stdin=subprocess.DEVNULL, check=False)
             if r.returncode != 0:
                 raise RuntimeError(f"opencode Rueckgabecode {r.returncode}: {r.stderr.strip()[:200]}")
+            res.text = _clean(r.stdout)
+        elif backend.kind == "claude-cli":
+            exe = shutil.which("claude")
+            if not exe:
+                raise FileNotFoundError("claude nicht gefunden")
+            env = {k: v for k, v in os.environ.items() if k not in CLOUD_KEYS_REMOVED}               # Abo-Anmeldung, nie ein zufaellig gesetzter Schluessel
+            cmd = [exe, "-p", "--no-session-persistence", "--output-format", "text", "--system-prompt", system, *CLAUDE_ISOLATION] + (["--model", backend.model] if backend.model else [])
+            with tempfile.TemporaryDirectory() as tmp:                                              # leerer Wegwerf-Ordner, Text ueber die Standardeingabe (nicht in der Prozessliste)
+                r = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=timeout, cwd=tmp, env=env, check=False)
+            if r.returncode != 0:
+                raise RuntimeError(f"claude Rueckgabecode {r.returncode}: {r.stderr.strip()[:200]}")
             res.text = _clean(r.stdout)
         else:
             raise ValueError(f"Backend {backend.label()} ist nicht aufrufbar")
