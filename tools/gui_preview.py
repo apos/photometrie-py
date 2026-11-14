@@ -24,6 +24,7 @@ CASES = {"mono": "im Meldefilter, z. B. V", "monorgb": "im Grünfilter (TG)", "o
 SAMPLES = {
     "icon": lambda: "".join(ui.icon(n) for n in ui._PATHS),
     "stepper": lambda: ui.stepper("00", 4),
+    "body": lambda: ui.body(ui.para("Text mit Innenabstand in einer Ergebniskarte.")),
     "para": lambda: ui.para("Ein kurzer Absatz mit **fett**, *kursiv* und `code`."),
     "note": lambda: "".join(ui.note(k, f"Hinweis der Art {k}.") for k in ui.NOTE),
     "tasks": lambda: ui.tasks(["Offene Aufgabe", ("Erledigte Aufgabe mit Zusatzzeile", "Zusatz in Grau", True)]),
@@ -43,6 +44,8 @@ SAMPLES = {
     "status_rows": lambda: ui.status_rows([("ok", "Titel", "Etikett", "Text")]),
     "bars": lambda: ui.bars([("NGC 7790", 8, 8, "8,0 h", "bis 59°", "ok"), ("M 11", 1, 8, "1,0 h", "bis 37°", "warn"), ("NGC 3532", 0, 8, "0 h", "nie über 30°", "none")], "Standardfelder"),
     "table": lambda: ui.table(__import__("pandas").DataFrame({"Feld": ["NGC 7790", "M 67"], "Stunden": [8.0, 4.5], "sichtbar": [True, False]})),
+    "cloud_preview": lambda: ui.cloud_preview("Claude", [("Beobachtercode", 2), ("Standort", 1)], "#OBSCODE=[BEOBACHTERCODE]\nStandort [STANDORT] meldet delta Cep, V = 3.8"),
+    "ai_answer": lambda: ui.ai_answer("Claude", 12.0, "1. OK\n2. OK\n7. AUFFÄLLIG: Check-Stern fehlt.", "Platzhalter wurden lokal zurückübersetzt."),
     "say": lambda: "",
     "show": lambda: "",
     "current_method": lambda: "",

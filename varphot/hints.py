@@ -179,8 +179,8 @@ def nb02_hints(wcs: str, ap: str, ap_r: int, core_r: float, pmin: str, pmax: str
 
 # ---------------------------------------------------------------- NB03
 
-def nb03_hints(real: bool, aavso_code: str, mode: str, band: str, tf_file: str, ai: bool, lco: bool = False) -> list[Hint]:
-    """Hinweise zum Formular von NB03 (eigene Daten, Betriebsart, Transformation, KI)."""
+def nb03_hints(real: bool, aavso_code: str, mode: str, band: str, tf_file: str, ai: bool | str, lco: bool = False) -> list[Hint]:
+    """Hinweise zum Formular von NB03 (eigene Daten, Betriebsart, Transformation, KI). ``ai``: ``False``/``\"aus\"``, ``True``/``\"lokal\"`` oder ``\"claude\"``/``\"gemini\"`` (Cloud)."""
     h: list[Hint] = []
     code = (aavso_code or "").strip()
     if real:
@@ -199,7 +199,9 @@ def nb03_hints(real: bool, aavso_code: str, mode: str, band: str, tf_file: str, 
             h.append(("ok", f"<b>Transformiert:</b> Band {band}, Werte mit <code>TRANS=YES</code>."))
     else:
         h.append(("info", "<b>Untransformiert:</b> Mono meldet V/B/R, Farbkameras <code>TG</code>/<code>TB</code>/<code>TR</code> mit <code>TRANS=NO</code>."))
-    if ai:
+    if ai in ("claude", "gemini"):
+        h.append(("warn", f"<b>KI-Zweitlesung in der Cloud ({ai.capitalize()}):</b> der <b>anonymisierte</b> Text verlässt das Heimnetz. In Schritt 6 erscheint zuerst eine Vorschau; gesendet wird erst nach Ihrer Bestätigung."))
+    elif ai and ai != "aus":
         h.append(("info", "<b>KI-Zweitlesung:</b> lokale KI liest gegen (bis ca. 2 Minuten). Ohne erreichbaren KI-Weg läuft der Bericht trotzdem."))
     else:
         h.append(("info", "Ohne KI-Zweitlesung: der Bericht wird nur regelbasiert geprüft."))

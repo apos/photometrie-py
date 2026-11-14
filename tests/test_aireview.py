@@ -318,3 +318,100 @@ def test_local_opencode_can_be_disabled(tmp_path, monkeypatch):
 def test_review_without_backend_returns_error_not_exception():
     r = A.ai_review("x", None)
     assert r.text == "" and "kein KI-Weg" in r.error
+
+
+# ------------------------------------------------------------------------------------------------ Cloud: Claude-Kommandozeile (Attrappe)
+def _fake_claude(tmp_path, monkeypatch, logged_in=True, rc=0):
+    """Attrappe des Programms ``claude``: ``auth status`` liefert JSON, jeder andere Aufruf schreibt Argumente, Umgebung, Ordner und Eingabe in ``rec/`` und antwortet mit einer Anmerkung."""
+    rec = tmp_path / "rec"
+    rec.mkdir(exist_ok=True)
+    exe = tmp_path / "bin" / "claude"
+    exe.parent.mkdir(exist_ok=True)
+    exe.write_text(
+        "#!/bin/sh\n"
+        f"if [ \"$1\" = auth ]; then echo '{{\"loggedIn\": {'true' if logged_in else 'false'}, \"authMethod\": \"claude.ai\"}}'; touch \"{rec}/auth_called\"; exit 0; fi\n"
+        f"printf '%s\\n' \"$@\" > \"{rec}/argv.txt\"\n"
+        f"env | grep -c '^ANTHROPIC_API_KEY=' > \"{rec}/key.txt\"\n"
+        f"pwd > \"{rec}/cwd.txt\"\n"
+        f"cat > \"{rec}/stdin.txt\"\n"
+        f"if [ {rc} -ne 0 ]; then echo 'Fehler vom Programm' >&2; exit {rc}; fi\n"
+        "echo 'Anmerkung von Claude: [BEOBACHTERCODE] steht im Kopf.'\n")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", str(exe.parent) + os.pathsep + os.environ["PATH"])
+    return rec
+
+
+def test_probe_claude_cli_states(tmp_path, monkeypatch):
+    monkeypatch.setattr(A.shutil, "which", lambda n: None)
+    assert not A.probe_claude_cli().usable and "nicht installiert" in A.probe_claude_cli().detail
+    monkeypatch.undo()
+    _fake_claude(tmp_path, monkeypatch, logged_in=False)
+    b = A.probe_claude_cli()
+    assert not b.usable and "claude auth login" in b.detail
+    monkeypatch.undo()
+    _fake_claude(tmp_path, monkeypatch, logged_in=True)
+    b = A.probe_claude_cli()
+    assert b.usable and "claude.ai" in b.detail
+
+
+def test_cloud_backends_off_by_default_and_never_called(tmp_path, monkeypatch):
+    rec = _fake_claude(tmp_path, monkeypatch)
+    cfg = A.load_ai_config(tmp_path / "keine.json")
+    out = A.detect_cloud_backends(cfg)
+    assert [b.usable for b in out] == [False, False] and "ai.cloud.enabled" in out[0].detail
+    assert not (rec / "auth_called").exists()                                                  # ohne Einschalten wird das Programm nicht einmal gestartet
+    assert A.cloud_preflight_lines(cfg)[0][1] is False
+    cfg["cloud"]["enabled"] = True
+    out = A.detect_cloud_backends(cfg)
+    assert out[0].usable and not out[1].usable and "noch nicht eingerichtet" in out[1].detail
+    monkeypatch.setenv("VARPHOT_AI_CLOUD", "off")
+    assert A.load_ai_config(tmp_path / "keine.json")["cloud"]["enabled"] is False
+
+
+def test_cloud_is_never_chosen_automatically(tmp_path, monkeypatch):
+    _fake_claude(tmp_path, monkeypatch)
+    cfg = A.load_ai_config(tmp_path / "keine.json")
+    cfg["cloud"]["enabled"] = True
+    cfg["local"]["opencode"] = False
+    chosen = A.choose_backend(A.detect_backends(cfg, check_opencode_remote=False))
+    assert chosen is None or chosen.kind not in ("claude-cli", "gemini-api")
+    assert all(b.kind not in ("claude-cli", "gemini-api") for b in A.detect_backends(cfg, check_opencode_remote=False))
+
+
+def test_ai_review_claude_cli_is_isolated(tmp_path, monkeypatch):
+    rec = _fake_claude(tmp_path, monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "geheim-nicht-weitergeben")
+    bk = A.Backend("claude-cli", "Cloud", True, "angemeldet", model="modell-x")
+    res = A.ai_review("Text mit [BEOBACHTERCODE]", bk, system="Systemanweisung", timeout=30)
+    assert res.error == "" and "Anmerkung von Claude" in res.text and res.model == "modell-x"
+    argv = (rec / "argv.txt").read_text().split("\n")
+    i = argv.index("--tools")
+    assert argv[i + 1] == "" and "--disable-slash-commands" in argv and "--strict-mcp-config" in argv and "--no-session-persistence" in argv
+    assert argv[argv.index("--system-prompt") + 1] == "Systemanweisung" and argv[argv.index("--model") + 1] == "modell-x"
+    assert (rec / "stdin.txt").read_text() == "Text mit [BEOBACHTERCODE]"                      # Text über die Standardeingabe, nicht in der Prozessliste
+    assert (rec / "key.txt").read_text().strip() == "0"                                        # gesetzter API-Schlüssel wird nicht weitergereicht
+    assert (rec / "cwd.txt").read_text().strip() != os.getcwd()                                # eigener Wegwerf-Ordner, nicht der Projektordner
+    assert "Text mit" not in " ".join(argv)
+
+
+def test_ai_review_claude_cli_error_is_a_result_not_an_exception(tmp_path, monkeypatch):
+    _fake_claude(tmp_path, monkeypatch, rc=3)
+    res = A.ai_review("Geheimer Berichtstext", A.Backend("claude-cli", "Cloud", True, "x"), timeout=30)
+    assert "Rueckgabecode 3" in res.error and "Fehler vom Programm" in res.error and "Geheimer" not in res.error and res.text == ""
+
+
+def test_cloud_roundtrip_anonymize_send_restore(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from varphot import anonymize as AN
+    rec = _fake_claude(tmp_path, monkeypatch)
+    secrets = AN.collect_secrets(SimpleNamespace(aavso_code="ABCD", site_name=""), [], None, home="/Users/maxmuster")
+    anon = AN.prepare_for_cloud("#OBSCODE=ABCD\nBeobachter ABCD, Daten in /Users/maxmuster/x", secrets)
+    res = A.ai_review(anon.text, A.Backend("claude-cli", "Cloud", True, "x"), timeout=30)
+    sent = (rec / "stdin.txt").read_text()
+    assert "ABCD" not in sent and "maxmuster" not in sent                                      # beim Anbieter kommt nichts Persönliches an
+    assert "ABCD steht im Kopf" in AN.restore(res.text, anon.mapping)                          # lokal wieder zurückübersetzt
+
+
+def test_anonymization_note_tells_the_model_that_placeholders_are_filled():
+    assert "[BEOBACHTERCODE]" in A.ANON_NOTE and "kein Fehler" in A.ANON_NOTE and A.SYSTEM_PROMPT.endswith("hoechstens einem Satz.")

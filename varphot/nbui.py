@@ -35,7 +35,7 @@ CONTRAST_PAIRS = [("Text auf Weiß", TEXT, "#ffffff"), ("Zusatztext auf Weiß", 
                   ("Blasser Text auf Fläche", FAINT, SURF), ("Erledigt-Text", OK_TX, OK_BG), ("Haken-Kreis", OK, OK_BG), ("Aktiver Schritt", "#ffffff", ACC), ("Hinweis Info", NOTE["info"][1], NOTE["info"][0]),
                   ("Hinweis Warnung", NOTE["warn"][1], NOTE["warn"][0]), ("Hinweis Ok", NOTE["ok"][1], NOTE["ok"][0]), ("Hinweis Fehler", NOTE["error"][1], NOTE["error"][0]),
                   ("Kachel hervorgehoben", "#0d47a1", ACC_BG), ("Kennzahl Zusatz ok", OK_TX, "#ffffff"), ("Kennzahl Zusatz Warnung", "#7a3d00", "#ffffff"),
-                  ("Kennzahl Zusatz Fehler", "#8e1b1b", "#ffffff"), ("Tabellenkopf", MUTED, SURF), ("Meldung ohne Rahmen", TEXT, "#ffffff")]
+                  ("Kennzahl Zusatz Fehler", "#8e1b1b", "#ffffff"), ("Tabellenkopf", MUTED, SURF), ("Meldung ohne Rahmen", TEXT, "#ffffff"), ("Platzhalter in der Vorschau", "#0d47a1", ACC_BG)]
 """Alle verwendeten Text/Hintergrund-Paare; ``tests/test_nbui.py`` verlangt für jedes mindestens WCAG AA (Kontrast 4,5)."""
 
 _PATHS = {
@@ -109,6 +109,11 @@ def stepper(nb: str, current: int | None = None) -> str:
 
 def para(text: str) -> str:
     return f'<p style="margin:0 0 10px;color:{MUTED};font-size:14px;line-height:1.55">{_md(text)}</p>'
+
+
+def body(*blocks: str) -> str:
+    """Innenabstand für Bausteine, die direkt in einer Ergebniskarte (:func:`result`, :func:`panel`) stehen und nicht in einer Schrittkarte."""
+    return f'<div style="padding:10px 16px 8px">{"".join(blocks)}</div>'
 
 
 def note(kind: str, text: str) -> str:
@@ -187,8 +192,9 @@ def chips(items: list[str]) -> str:
     return f'<div style="margin:6px 0 10px">{out}</div>'
 
 
-def details(summary: str, inner: str) -> str:
-    return f'<details class="vp-d" style="border-top:1px solid {LINE};padding-top:8px;margin-top:8px"><summary>{_md(summary)}</summary><div style="margin-top:8px">{inner}</div></details>'
+def details(summary: str, inner: str, open_: bool = False) -> str:
+    return (f'<details class="vp-d"{" open" if open_ else ""} style="border-top:1px solid {LINE};padding-top:8px;margin-top:8px"><summary>{_md(summary)}</summary>'
+            f'<div style="margin-top:8px">{inner}</div></details>')
 
 
 def step(nb: str, num: int | str | None, title: str, *, tag: str = "", meta: list[tuple[str, str]] = (), intro: str = "", blocks: list[str] = (), bar: bool = True) -> str:
@@ -348,6 +354,35 @@ def say(*parts, kind: str | None = None) -> None:
     plain = kind == "info"
     show(f'<div style="border-left:4px solid {TONES[kind]};padding:5px 12px;margin:1px 0;font-size:13px;line-height:1.5;{"" if plain else f"background:{bg};color:{fg};"}'
          f'overflow-wrap:anywhere;white-space:pre-wrap">{escape(text)}</div>')
+
+
+_PLACEHOLDER = re.compile(r"\[[A-ZÄÖÜ]+(?:_\d+)?\]")
+
+
+def cloud_preview(provider: str, summary: list[tuple[str, int]], text: str) -> str:
+    """Vorschau vor dem Senden an eine Cloud-KI: Warnhinweis, Zusammenfassung der anonymisierten Stellen, Länge und der **genaue** Text mit hervorgehobenen Platzhaltern (aufgeklappt).
+
+    ``summary`` aus :func:`varphot.anonymize.summary`; ``text`` ist der bereits anonymisierte Text.
+    """
+    chips_html = "".join(f'<span style="font-size:12px;padding:3px 10px;border-radius:999px;background:{ACC_BG};color:#0d47a1;margin:0 6px 6px 0;display:inline-block">{n}× {escape(k)}</span>' for k, n in summary)
+    chips_html += f'<span style="font-size:12px;padding:3px 10px;border-radius:999px;background:{SURF};color:{MUTED};margin:0 6px 6px 0;display:inline-block">{len(text):,} Zeichen'.replace(",", " ") + "</span>"
+    shown = _PLACEHOLDER.sub(lambda m: f'<span style="background:{ACC_BG};color:#0d47a1;padding:0 4px;border-radius:4px">{m.group(0)}</span>', escape(text))
+    body = (f'<div style="font:12px/1.7 monospace;background:{SURF};border-radius:8px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere;color:{TEXT}">{shown}</div>')
+    return (note("warn", f"Der **anonymisierte** Text verlässt das Heimnetz (Anbieter: {provider}). Persönliche Angaben sind durch Platzhalter ersetzt.")
+            + f'<div style="margin:10px 0 2px">{chips_html}</div>' + details("Vorschau: genau dieser Text wird gesendet", body, open_=True))
+
+
+def ai_answer(provider: str, seconds: float, text: str, footnote: str = "") -> str:
+    """Antwort der KI-Zweitlesung als Karte: eine Zeile je Anmerkung (führende Nummer fett), Kopf mit Anbieter und Dauer, optionaler Fußhinweis."""
+    rows = []
+    for ln in (x.strip() for x in text.splitlines()):
+        if not ln:
+            continue
+        m = re.match(r"^(\d+\.)\s*(.*)$", ln)
+        rows.append(f'<div style="padding:7px 0;border-top:1px solid {LINE};font-size:14px"><b>{m.group(1)}</b> {_md(escape(m.group(2)))}</div>' if m
+                    else f'<div style="padding:7px 0;border-top:1px solid {LINE};font-size:14px">{_md(escape(ln))}</div>')
+    foot = f'<div style="margin-top:8px;padding:9px 12px;border-radius:8px;background:{SURF};font-size:13px">{_md(footnote)}</div>' if footnote else ""
+    return panel("KI-Zweitlesung", [f'<div style="padding:2px 16px 10px">{"".join(rows)}{foot}</div>'], right=f"unverbindlich · {provider} · {seconds:g} s")
 
 
 def current_method(default: str | None = None) -> str | None:

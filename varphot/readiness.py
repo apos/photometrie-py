@@ -70,6 +70,8 @@ def software_checks(ai: bool = True) -> list[Check]:
         try:
             from .aireview import detect_backends, preflight_lines
             out += [Check(*row, optional=True) for row in preflight_lines(detect_backends())]
+            from .aireview import cloud_preflight_lines
+            out += [Check(*row, optional=True) for row in cloud_preflight_lines()]
         except Exception as e:                       # nie die Pruefung der Software blockieren
             out.append(Check("KI-Zweitlesung", False, f"Pruefung fehlgeschlagen: {type(e).__name__}: {e}", optional=True))
     return out
