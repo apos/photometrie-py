@@ -202,7 +202,8 @@ CHART_RE = re.compile(r"[A-Z]\d{5}[A-Z]{2,3}")        # Form der VSP-Sequenz-IDs
 
 def check_plausibility(observations: list[Observation], obstype: str = "CCD", expected_range: tuple[float, float] | None = None, now_jd: float | None = None,
                        kmag_expected: float | None = None, kmag_scatter_max: float = 0.05, err_max: float = 0.08, jump_mag: float = 0.3, jump_minutes: float = 10.0,
-                       min_points: int = 5) -> list[Finding]:
+                       min_points: int = 5, catalog=None, site=None, target_radec: tuple[float, float] | None = None, catalog_tol: float = 0.5,
+                       airmass_tol: float = 0.05) -> list[Finding]:
     """Prueft den **Inhalt** der Beobachtungen auf Widersprueche und Unplausibles (das Format prueft :func:`validate_extended`).
 
     Warum: Eine formal fehlerfreie Datei kann falsche Daten tragen (falscher Filtercode zur Methode, vertauschter Stern, kaputte Zeit, Gaia-Comps unter AAVSO-Sequenz-ID). WebObs prueft nur wenig davon;
@@ -211,7 +212,11 @@ def check_plausibility(observations: list[Observation], obstype: str = "CCD", ex
     => ``WARN``, mehr als 25 % => ``ERROR`` (falscher Stern/Filter/Katalog); Fehlerangaben fehlen/negativ => ``ERROR``, sehr gross (``err_max``) oder alle identisch => ``WARN``; Luftmasse < 1 => ``ERROR``, > 3 => ``WARN``;
     Filter/TRANS/OBSTYPE (DSLR-Handbuch §6.7: TG/TB/TR ohne Transformation, V/B/R nur mit TRANS=YES bei Farbkameras); CHART fehlt oder passt nicht zur Form einer AAVSO-Sequenz-ID (bei Gaia-Quelle ``WARN``);
     TRANS=YES ohne Koeffizienten in NOTES; Check-Stern: Streuung > ``kmag_scatter_max`` und Abweichung vom Katalogwert ``kmag_expected`` > 0,05 mag; Spruenge > ``jump_mag`` innerhalb ``jump_minutes`` (Ausreisser);
-    weniger als ``min_points`` Zeilen. Grenzen: Schwellen sind Startwerte (nicht aus Daten kalibriert); es wird nichts gegen WebObs oder VSX abgeglichen. Validierung: ``tests/test_aavso.py``.
+    weniger als ``min_points`` Zeilen.
+    Optional (KONZEPT.md §11.16): ``catalog`` (:class:`varphot.vsx.CatalogRange`) => Werte ausserhalb Bereich ± ``catalog_tol`` mag (bei unsicherem Katalogrand 1 mag) nur ``WARN`` ``katalog_bereich`` (nie ``ERROR``,
+    der Katalog kann unvollstaendig sein, Ausbrueche duerfen darueber liegen); ``site`` (Objekt mit ``lat_deg``, ``lon_deg``, ``height_m``) und ``target_radec`` (Grad) => Stern unter dem Horizont (< −1°) ``ERROR``
+    ``stern_horizont``; Sonne hoeher als −12° ``WARN`` ``sonne_hoch``; Luftmasse der Datei weicht bei >= 25 % der Zeilen um mehr als ``airmass_tol`` (relativ) von der Rechnung ab ``WARN`` ``luftmasse_ort``.
+    Grenzen: Schwellen sind Startwerte (nicht aus Daten kalibriert); WebObs wird nicht abgefragt. Validierung: ``tests/test_aavso.py``, ``tests/test_vsx.py``.
     """
     F: list[Finding] = []
     add = lambda lvl, code, txt: F.append(Finding(lvl, code, txt))
@@ -301,8 +306,42 @@ def check_plausibility(observations: list[Observation], obstype: str = "CCD", ex
             add("WARN", "check_streuung", f"Check-Stern streut mit {sd:.3f} mag (> {kmag_scatter_max}) — Photometrie/Comps pruefen")
         if kmag_expected is not None and abs(mean - kmag_expected) > 0.05:
             add("WARN", "check_offset", f"Check-Stern im Mittel {mean:.3f} mag, Katalog {kmag_expected:.3f} (Differenz {mean - kmag_expected:+.3f})")
+    if catalog is not None and all(math.isfinite(m) for m in mags):
+        tol = max(catalog_tol, 1.0) if catalog.uncertain else catalog_tol
+        out = sum(1 for m in mags if m < catalog.lo - tol or m > catalog.hi + tol)
+        if out:
+            add("WARN", "katalog_bereich", f"{out} von {n} Werten ausserhalb {catalog.source} {catalog.lo:g}–{catalog.hi:g} {catalog.band} ± {tol:g} mag"
+                + (f" ({catalog.name})" if catalog.name else "") + (" — falscher Stern, Filter oder Katalog?" if out / n > 0.25 else ""))
+    if site is not None and target_radec is not None:
+        F.extend(_check_site_time(observations, site, target_radec, airmass_tol))
     srt = sorted(observations, key=lambda o: o.jd)
     jumps = sum(1 for a, b in zip(srt, srt[1:]) if (b.jd - a.jd) * 1440 <= jump_minutes and a.filt == b.filt and abs(b.mag - a.mag) > jump_mag)
     if jumps:
         add("WARN", "sprung", f"{jumps} Sprung/Spruenge > {jump_mag} mag innerhalb {jump_minutes:g} min (Ausreisser?)")
+    return F
+
+
+def _check_site_time(observations: list[Observation], site, target_radec: tuple[float, float], airmass_tol: float) -> list[Finding]:
+    """Regel R2: Hoehe von Stern und Sonne und Luftmasse aus Ort und Zeit gegen die Datei (siehe :func:`check_plausibility`)."""
+    from .visibility import airmass_kasten_young, altitudes
+    n = len(observations)
+    try:
+        star, sun = altitudes(target_radec[0], target_radec[1], [o.jd for o in observations], site.lat_deg, site.lon_deg, getattr(site, "height_m", 0.0))
+    except Exception as e:                                                               # astropy fehlt/Zeit ausserhalb der Tabellen: Pruefung entfaellt, kein Abbruch
+        return [Finding("INFO", "ort_zeit_nicht_geprueft", f"Ort/Zeit nicht geprueft: {type(e).__name__}")]
+    F: list[Finding] = []
+    below = int((star < -1.0).sum())
+    if below:
+        F.append(Finding("ERROR", "stern_horizont", f"Stern liegt bei {below} von {n} Zeilen unter dem Horizont (Zeit, Zeitzone, Standort oder Stern falsch?)"))
+    high = int((sun > -12.0).sum())
+    if high:
+        F.append(Finding("WARN", "sonne_hoch", f"Sonne bei {high} von {n} Zeilen hoeher als −12° (Daemmerung/Tag: Zeit oder Standort falsch?)"))
+    pairs = [(o.airmass, airmass_kasten_young(float(a))) for o, a in zip(observations, star) if o.airmass is not None and math.isfinite(o.airmass)]
+    pairs = [(f, c) for f, c in pairs if math.isfinite(c)]
+    if pairs:
+        dev = sorted(abs(f - c) / c for f, c in pairs)
+        bad = sum(1 for d in dev if d > airmass_tol)
+        if bad / len(pairs) >= 0.25:
+            F.append(Finding("WARN", "luftmasse_ort", f"Luftmasse der Datei weicht bei {bad} von {len(pairs)} Zeilen um mehr als {airmass_tol:.0%} von der Rechnung aus Ort und Zeit ab "
+                             f"(Median {dev[len(dev) // 2]:.0%}) — Zeitzone, JD/HJD oder Standort pruefen"))
     return F

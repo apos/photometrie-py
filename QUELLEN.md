@@ -49,6 +49,8 @@ Kurzreferenz-Schlüssel (z. B. `[AAVSO-DSLR]`) werden im KONZEPT.md als Fußnote
 
 | Kürzel | Beschreibung |
 |--------|--------------|
+| `[AAVSO-Extended]` | **AAVSO Extended File Format**, Version 1.2 (2011-07-27, letzte Änderung 2021-12-02). Pflichtparameter, Felder, `na`, Filtercodes, kein Ortsfeld. <https://archive.aavso.org/aavso-extended-file-format> (geprüft 2026-11-14; `www.aavso.org` liefert per `curl` eine Cloudflare-Abfrage) |
+| `[VSX-API]` | **VSX-Abfrage (JSON)**, nicht offiziell dokumentiert (nur Forenbeiträge): `https://vsx.aavso.org/index.php?view=api.object&format=json&ident=<Name>` und `view=api.list&format=json&ra=&dec=&radius=`. Felder und Bereichsformate: KONZEPT §11.16.1. Ohne Anmeldung erreichbar (geprüft 2026-11-14). |
 | `[APASS]` | **AAVSO Photometric All Sky Survey (APASS)**. AAVSO / DC3 Dreams / Boyce Astro. Fotometrischer All-Sky-Katalog (>128 Mio. Objekte). <https://www.aavso.org/apass> |
 | `[VSP]` | **AAVSO Variable Star Plotter (VSP)**. Vergleichssternsequenzen im Johnson-Cousins-System. <https://www.aavso.org/vsp> |
 | `[AAVSO-TG]` | **AAVSO Transform Generator**. <https://www.aavso.org/TG> |
