@@ -531,7 +531,7 @@ Testdaten fremder Beobachter (LCO) werden mit Code `TST01` und dem Dateinamenszu
 
 ### 11.15 Cloud-KI als zweite Leserin (Konzept, nicht implementiert; Stand 2026-11-14)
 
-**Entscheidungen des Autors (2026-11-14):** (1) Eine Cloud-KI ist **zulässig, aber nur mit Einwilligung** (abgeschaltet im Normalzustand). (2) Der Text wird **anonymisiert** gesendet (Datenanonymisierung, früher „Schwärzung“ genannt). (3) Als Anbieter **zuerst Claude**, Gemini danach. **Offen:** Welcher Claude-Zugang nutzbar ist (Desktop-Konto oder API-Konto), siehe §11.15.1.
+**Entscheidungen des Autors (2026-11-14):** (1) Eine Cloud-KI ist **zulässig, aber nur mit Einwilligung** (abgeschaltet im Normalzustand). (2) Der Text wird **anonymisiert** gesendet (Datenanonymisierung, früher „Schwärzung“ genannt). (3) Als Anbieter **zuerst Claude**; **Gemini bleibt als Option** (Entscheidung des Autors, 2026-11-14: Zugang geprüft, Backend folgt nach der Isolationsmessung, §11.15.7 Schritt 4; in NB03 vorerst ausgegraut). **Offen:** Welcher Claude-Zugang nutzbar ist (Desktop-Konto oder API-Konto), siehe §11.15.1.
 **Unverändert:** Die KI bleibt zweite Leserin (nur Anmerkungen, nie Zahlen, ändert nichts, §11.14). Der lokale Weg (Ollama, Opencode lokal) bleibt der Standard; die Cloud ist ein zusätzlicher, ausdrücklich gewählter Weg. Der Grundsatz „Daten verlassen das Heimnetz nicht“ gilt weiter und wird für diesen Weg **bewusst, sichtbar und geschwärzt** aufgehoben.
 
 #### 11.15.1 Zugangswege (Prüfstand 2026-11-14, aus Suchergebnissen; offizielle Seiten bei der Umsetzung im Wortlaut lesen)
