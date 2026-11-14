@@ -2,10 +2,10 @@
 """Notebook-Zellen aus lokalen .ipynb-Dateien in Datalore synchronisieren.
 
 Jedes Notebook mit einer *_dl_ids.json-Datei wird Zelle für Zelle aktualisiert.
-Wenn Datalore nicht erreichbar ist (Tunnel down), wird übersprungen (exit 0).
+Wenn Datalore nicht erreichbar ist (WireGuard aus), wird übersprungen (exit 0).
 
 Einmaliges Setup:
-    make init-datalore   # OAuth-Login, speichert Session in ~/.cache/varphot-datalore/
+    make init-datalore   # OAuth-Login, speichert Session in ~/.cache/varphot-datalore-wg/ (Adresse aus datalore.json)
 
 Aufruf:
     python tools/sync_datalore.py                      # alle Notebooks
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     notebook_id = CFG["notebook_id"]
 
     if not _reachable(host):
-        print(f"ℹ Datalore nicht erreichbar ({host}) — Sync übersprungen (Tunnel starten: ssh -N -L 18080:127.0.0.1:8080 panama-wg)")
+        print(f"ℹ Datalore nicht erreichbar ({host}) — Sync übersprungen (WireGuard verbunden? Datalore hört auf 10.200.200.5:8080)")
         return 0
 
     if not _session_ok():
