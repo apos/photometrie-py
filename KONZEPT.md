@@ -589,6 +589,76 @@ Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **
 
 **Offen:** (a) Kontingent des Claude-Kontos und die Regel für `claude -p` aus einem Notebook (ein Aufruf je Bericht, vom Nutzer ausgelöst) bei Anthropic klären; (b) Einstellung zur Datennutzung im Konto prüfen; (c) Gemini: bezahlte oder kostenlose Stufe; (d) die Liste der anonymisierten Angaben vom Autor bestätigen lassen (insbesondere Standort).
 
+### 11.16 Prüfkriterien: feste Regeln gegen KI, Katalogabgleich mit VSX (Konzept, nicht implementiert; Stand 2026-11-14)
+
+**Frage des Autors:** Was soll die Plausibilitätsprüfung mit festen Regeln prüfen, was die KI? Vorschlag: Zahlen, Bereiche und Ortsangaben **deterministisch** (Katalogbereich aus VSX, Luftmasse und Sichtbarkeit aus Standort und Zeit); die KI bleibt Zweitleserin für Text. Eine stärkere KI (Claude) könnte zusätzlich Sternwissen beisteuern, aber nur als Hinweis, der gegen VSX gegengeprüft wird.
+
+**11.16.1 Befunde der AAVSO-Prüfung (2026-11-14)**
+- *Extended Format v1.2* (Stand 2021-12-02, [AAVSO-Extended]): Pflichtparameter `TYPE, OBSCODE, SOFTWARE, DELIM, DATE, OBSTYPE`; **kein Feld für den Beobachtungsort** — der Ort hängt am Beobachterkonto. Eine Ortsprüfung gegen die Datei ist deshalb nur gegen unsere eigene `observer.json` möglich, nicht gegen die AAVSO. Ferner: `na` als Platzhalter, `MAGNITUDE` mit Punkt und `<` bei „fainter-than“, `AIRMASS` auf 7 Zeichen gekürzt, `CHART` = Sequenz-ID der VSP, ohne AAVSO-Sequenz keine ID (Kommentarcode K, Comps in NOTES), `CBB` zählt als `CV`, CMOS als `CCD`; `O` (Other) ist in WebObs derzeit nicht wählbar. Das deckt `validate_extended` ab; zu ergänzen ist nur `O`.
+- *WebObs-Prüfungen:* nicht dokumentiert. Bekannt aus Forum und Praxis ist nur eine Warnung „outside expected range“. Wir dürfen daraus nicht schließen, wie streng sie ist. → Eigene Regeln sind **Vorprüfung**, nie Ersatz.
+- *VSX-Zugang:* `https://www.aavso.org/...` liegt hinter einer Cloudflare-Abfrage (curl: „Just a moment…“), **`https://vsx.aavso.org/index.php?view=api.object&format=json&ident=<Name>` und `view=api.list&…&ra=…&dec=…&radius=…` antworten dagegen ohne Anmeldung und ohne Browser** (geprüft per `curl` und im eingebauten Browser). Keine offizielle Dokumentation der Schnittstelle (nur Forenbeiträge) → Schnittstelle kann sich ändern; Code muss Fehler tolerieren. Unbekannter Name: `{"VSXObject":[]}`.
+- *Felder (δ Cep):* `Name, AUID, RA2000, Declination2000, VariabilityType, Period, Epoch, MaxMag ("3.49 V"), MinMag ("4.36 V"), SpectralType, Constellation`. **Kein Farbindex B−V.**
+- *Bereichsangaben in `MaxMag`/`MinMag` sind uneinheitlich* (Stichprobe: Kegel 1° um δ Cep, 2077 Objekte): `N V` (Normalfall), `N: V` (unsicher), `<N V` (Grenze), `(N) V` (**Amplitude**, nicht Helligkeit!), leer oder `?`, dazu Bänder `G, r, g, Rc, p, Hp, clear, TESS, W1`. Für die Prüfung brauchbar ist nur ein Wert **ohne Klammer und ohne `<`** im **Band V** (bzw. dem Band der Meldung). Alles andere → keine Bereichsprüfung, nur Hinweis.
+- *Bereich ist keine harte Grenze:* Bei Cepheiden und Bedeckungssternen sind Max/Min gemessene Extreme, bei Novae/Zwergnovae/Miras sehr weit (SS Cyg 7,7–12,4; χ Cyg 3,3–14,2; T CrB 2,0–10,8). Wir prüfen deshalb nur **auf der falschen Seite** (Werte deutlich außerhalb) und nie die Mitte.
+
+**11.16.2 Aufteilung: was die festen Regeln übernehmen, was die KI**
+
+| Prüfung | Fest (lokal, ohne KI) | KI (Zweitleserin) |
+|---|---|---|
+| Format, Pflichtfelder, `na`, Zeichenlängen, Filtercodes | ja (`validate_extended`) | nein |
+| Zeit (Zukunft, vor 2000, Duplikate, Zeitraum) | ja (`check_plausibility`) | nein |
+| Helligkeitsbereich gegen VSX | **neu**, nur Warnung (R1) | nein |
+| Luftmasse, Sichtbarkeit, Nacht | **neu**, aus Standort+Zeit (R2) | nein |
+| Fehler, Check-Stern, Sprünge, Punktzahl | ja | nein |
+| Filter/TRANS/OBSTYPE-Logik | ja (Regel) | liest mit, Fehlalarme bekannt |
+| Stimmigkeit des Berichtstextes, Widersprüche, Fehlendes | nein | ja (§11.14/§11.15) |
+| Sternwissen („δ Cep ist ein Cepheid, Periode 5,37 d, Amplitude 0,9 mag“) | nein | **nur Hinweis** (R3) |
+
+Grundsatz: Alles, was sich aus Zahlen berechnen lässt, rechnet Code. Die KI bekommt nur, was Sprache ist, und darf nie Zahlen setzen oder Blockaden auslösen.
+
+**11.16.3 Regeln**
+- **R1 Katalogbereich.** Aus VSX (nach Name, ersatzweise Koordinaten aus `field_config.json`) Max/Min im Meldeband lesen (Parser wie oben; Klammer/`<`/leer → keine Prüfung). Bereich `[Max, Min]`. Werte außerhalb mit Toleranz (Startwert 0,5 mag; Algol-artige und Veränderliche mit Katalogrand `:` 1,0 mag) → `WARN` „außerhalb VSX-Bereich“. **Nie `ERROR`**, weil VSX unvollständig sein kann und Ausbrüche über den Katalog hinausgehen dürfen (Nova!). Ein Nutzerwert für den erwarteten Bereich (`EXPECTED`) hat Vorrang vor VSX, der Plan (`v_max−0,5…v_max+2,0`) bleibt Ersatz. Meldung nennt die Quelle („VSX 3,49–4,36 V, abgerufen am …“). Gleichzeitig `INFO` bei Perioden: nicht geprüft.
+- **R2 Ort und Zeit.** Mit `RA/Dec` (VSX oder `field_config`), Standort (`observer.json`/Planung) und JD je Zeile: Höhe des Sterns und der Sonne berechnen. `ERROR`: Stern unter dem Horizont (Höhe < 0°) — Zeitsystem oder Stern falsch. `WARN`: Sonne höher als −12° (keine astronomische/nautische Dämmerung, außer Aufnahmen sind bewusst Dämmerung), Höhe < 20°. Luftmasse aus Höhe (Kasten & Young) gegen die Spalte `AIRMASS`: Abweichung > 0,1 → `WARN` („Luftmasse passt nicht zu Zeit und Ort“). Das fängt falsche Zeitzone, vertauschtes JD/HJD und falschen Standort. Alles lokal; **der Standort geht nie an VSX** (es werden nur Sternname bzw. Koordinaten des Sterns gesendet) und nicht in die Cloud-KI (bleibt anonymisiert, §11.15).
+- **R3 KI-Sternwissen (optional, nur mit Cloud-Einwilligung).** Frage an die KI: „Passt der gemeldete Bereich (nur Zahlen, Stern, Filter) zu dem, was du über diesen Stern weißt?“ Antwort erscheint **getrennt** unter „Hinweis der KI (nicht belegt)“ und wird, wo möglich, **maschinell gegen R1 geprüft**: Nennt die KI Zahlen, die dem VSX-Bereich widersprechen, gilt VSX und der Hinweis wird als „widerspricht VSX“ gekennzeichnet. Gibt es keinen VSX-Wert, bleibt der Hinweis mit „unbelegt“ stehen. Der Stern-Name wird anonymisiert nicht verändert (Sternnamen sind keine privaten Daten). Zurückgestellt, bis R1 und R2 laufen und bewertet sind.
+- **R4 Farbe (B−V).** Der Katalog (VSX) liefert **keinen B−V**. Prüfbar sind (a) die B−V der Comps aus der VSP-Sequenz (Quelle `field_config.json`) gegen den Bereich, in dem die Transformation gilt (§14.1, §11.5), und (b) der **Spektraltyp** aus VSX gegen die Farbe des Ziels, falls der Spektraltyp eindeutig ist (F5Ib → B−V ≈ 0,6..0,9 grob). (b) ist grob und wird nur als `INFO` gegeben; (a) gehört zu §14.1 und wird dort umgesetzt, nicht hier. Der ursprüngliche Vorschlag „B−V gegen Katalog“ bleibt damit bei (a) fest, bei (b) nur Hinweis.
+
+**11.16.4 Technik und Datenschutz**
+- Neues Modul `varphot/vsx.py`: `fetch_object(name)`, `parse_mag(text, band)`, `expected_range(obj, band)`, Zwischenspeicher in `~/.cache/varphot/vsx.json` (Zeitstempel, 30 Tage), Zeitgrenze 15 s, **Fehler/Offline → keine Prüfung, kein Abbruch**, Hinweis „VSX nicht erreichbar“. Allgemeiner Programmname im Aufruf (`varphot`), keine Kontaktangaben, keine Standortdaten.
+- `check_plausibility(..., catalog=None, site=None)` bekommt optionale Parameter; ohne sie bleibt das Verhalten unverändert (alle Tests laufen weiter). NB06 Schritt 4b reicht Katalog und Standort durch; NB03 zeigt die Quelle des Bereichs.
+- Erlaubte Netzabfragen bleiben bewusst klein: nur der VSX-Host, nur lesend, einmal je Stern und Meldung.
+
+**11.16.5 Bewertung vor der Umsetzung (Maßstab)**
+1. Trefferquote an Stichprobe aus VSX (Kegelabfrage): Anteil Sterne mit brauchbarem Bereich im Band V; erwartet viele ohne (reine Gaia-/ZTF-Einträge) → die Regel darf dort schweigen.
+2. Fehlalarme an echten Daten: LCO-Testdaten (δ Cep) und Beispiel-Bericht sollen **keine** neue `WARN` in R1/R2 erzeugen; absichtlich verfälschte Fälle (V statt B, falscher Stern, +2 mag, Zeit um 12 h verschoben, falscher Standort) sollen gefunden werden.
+3. Kantenfälle: Nova, Mira, Zwergnova, Bedeckungsstern im Minimum, Katalog mit `(Amplitude)`.
+4. Abbruchkriterium: erzeugt R1/R2 an gültigen Daten Fehlalarme, wird die Toleranz geprüft, nicht die Regel verschärft.
+
+**11.16.6 Offene Punkte:** (a) VSX-Nutzungsbedingungen/Rate-Limit (nicht dokumentiert; wir fragen höchstens einmal je Stern und Sitzung ab, mit Zwischenspeicher); (b) Verhalten bei Namensvarianten (AUID, „del Cep“ gegen „delta Cep“, „* del Cep“ aus Simbad) — Auflösung über AUID aus `field_config` oder Koordinatenabfrage; (c) ob WebObs die Spalte `AIRMASS` überhaupt auswertet (unbekannt; unsere Prüfung ist unabhängig davon sinnvoll); (d) Quelle von Sonne/Stern-Höhe: `astropy` ist vorhanden (zu bestätigen), sonst eigene Näherung; (e) Quellenverzeichnis: `[AAVSO-Extended]` und `[VSX-API]` in `QUELLEN.md` ergänzen.
+
+**11.16.7 Bewertung des Prototyps (2026-11-14; Prototyp nur im Scratchpad, nichts im Repo umgesetzt)**
+Geprüft mit der echten Testdatei `aavso_DEL_CEP_V_2026-11-12_TESTDATEN_NICHT_EINREICHEN.txt` (100 Zeilen, LCO McDonald 30,68 N / −104,02 E, 2030 m) und mit absichtlich verfälschten Kopien; Höhe aus `astropy`, Luftmasse nach Kasten & Young.
+
+| Fall | R1 (Bereich) | R2 (Ort/Zeit) |
+|---|---|---|
+| Originaldaten | 0 von 100 außerhalb VSX 3,49–4,36 V (gemessen 3,28–4,25; Streuung des gesättigten Ziels, Fehler 0,06) → **kein Fehlalarm** | Stern nie unter dem Horizont, Sonne nie über −12°, Luftmasse weicht höchstens **0,0013** von der Rechnung ab → **kein Fehlalarm** |
+| Helligkeit +0,3 mag | nicht erkannt | – |
+| Helligkeit +0,6 mag (z. B. B statt V) | nicht erkannt | – |
+| Helligkeit +2 mag | 100 von 100 erkannt | – |
+| Zeit +12 h | – | 10 Zeilen unter Horizont, 100 Sonne zu hoch, 90 Luftmasse falsch → erkannt |
+| Zeit +2 h (Zeitzone) | – | 100 von 100 Luftmasse um median 0,30 falsch → erkannt |
+| Zeit +1 h | – | 58 von 100 über 0,1 (Median 0,11) → nur grenzwertig erkannt |
+| Standort Balkon statt McDonald | – | 100 von 100, Luftmasse median 1,03 falsch → erkannt |
+| Vorzeichen der Länge vertauscht | – | 100 von 100 (Sonne zu hoch) → erkannt |
+
+**Schlüsse:**
+1. **R2 lohnt sich und ist sehr zuverlässig**: fängt falsche Zeitzone, JD/HJD-Verwechslung, falschen Standort und vertauschtes Vorzeichen; an den echten Daten keine Fehlalarme. Toleranz 0,1 genügt für ≥ 2 h Zeitfehler; kleinere Fehler (1 h) werden nur teilweise gefunden, was ausreicht (die Auswertung bleibt dann kaum betroffen). Die Luftmasse als Verhältnis prüfen (5 %), weil `sec z` gegen Kasten & Young bei 10° Höhe 3 % abweicht (bei 20° 0,7 %, bei 30° 0,3 %) — andere Programme rechnen mit `sec z`.
+2. **R1 fängt nur grobe Fehler** (falscher Stern, falsches Katalogband, ≥ 1 mag), nicht +0,3 oder +0,6 mag. Das ist beabsichtigt (Toleranz 0,5 mag, damit gültige Daten nicht beanstandet werden: die Testdaten liegen 0,21 mag über dem Katalogmaximum). Verschärfen erzeugt Fehlalarme; subtile Fehler gehören zu den Rechenprüfungen (Check-Stern, Streuung), nicht zum Katalogbereich. Erwartung also: R1 = Sicherungsnetz gegen vertauschte Sterne.
+3. **Abdeckung von VSX**: im Kegel 1° um δ Cep haben nur **60 von 2077** Einträgen (3 %) einen nutzbaren V-Bereich (die meisten sind Gaia/ZTF-Einträge in G, g, r). Von den 66 Einträgen **mit V-Band** sind es 60 (91 %); Ausfälle: nur eine Grenze (`<17.5 V`), nur Amplitude `(0.013) V`, nur Maximum, `?`, `TESS`. Bei Beobachtungszielen (helle, bekannte Veränderliche) ist die Abdeckung deshalb deutlich besser als diese Stichprobe; bei fehlender Angabe schweigt R1 und sagt das (`INFO`).
+4. **Namensauflösung der VSX-Abfrage**: funktionieren `DEL CEP` (unsere Ausgabe), `delta Cep`, `* del Cep` (Simbad), `del Cep`, `HD 213306`, `000-BCQ-471` (AUID), `algol`; **nicht** `V* del Cep` und `Delta Cephei`. → Reihenfolge: AUID aus `field_config` (falls vorhanden), sonst Name; nicht gefunden → Kegelabfrage mit Koordinaten (Radius 0,01°), sonst keine Prüfung und Hinweis.
+5. **Nicht getestet:** Nova/Mira (Bereich weit, R1 schweigt praktisch), echte Fremddaten außerhalb des LCO-Satzes, Abfrage von Perioden (nicht geplant), Dauerbetrieb gegen VSX (Rate-Limit unbekannt).
+
+**Empfehlung:** R1 (nur `WARN`) und R2 (`ERROR` nur für „Stern unter dem Horizont“; Rest `WARN`) umsetzen, R4 (a) in §14.1, R3 (KI-Sternwissen) **zurückstellen** — R3 liefert nach Schluss 2 wenig Neues und müsste ohnehin gegen VSX geprüft werden. Umfang: neues `varphot/vsx.py` plus optionale Parameter in `check_plausibility`, Tests mit der Testdatei (Rechnung der Fälle oben als Testfälle) und mit einer Attrappe für die Netzabfrage (Tests laufen ohne Netz).
+
 ### 11.10 Quellen und Prüfstatus
 
 | Aussage | Quelle | Status |
