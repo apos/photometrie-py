@@ -1,5 +1,5 @@
 {
-  "host": "http://localhost:18080",
+  "host": "http://10.200.200.5:8080",
   "notebook_id": "thDpItzr0X8caqxmnK5ATE/yculxZUNdwG8Nu5FY64Du3",
-  "session_dir": "~/.cache/varphot-datalore"
+  "session_dir": "~/.cache/varphot-datalore-wg"
 }
