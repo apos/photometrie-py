@@ -527,7 +527,7 @@ Testdaten fremder Beobachter (LCO) werden mit Code `TST01` und dem Dateinamenszu
   *macOS:* Homebrew-Python bekommt im Heimnetz teils „No route to host“ (Freigabe „Lokales Netzwerk“), `curl`/`nc`/`ssh` nicht — dann weicht der Code automatisch auf `curl`/`nc` aus.
   *Qualität (Probelauf 2026-11-10, Ollama im Heimnetz, GPU 6 GB):* Mit einer Prüfliste im Prompt finden die 7–9-Mrd.-Modelle die meisten gestellten Fehler (TG mit `TRANS=YES`, `OBSTYPE=CCD` bei Farbkamera, verkehrter Zeitraum), aber **jedes Modell** hatte Fehlalarme (z. B. DSLR bei Mono-Kamera verlangt) und übersah Fehler (Fehler 0,0004 mag); ohne Liste meldeten alle „Keine Auffälligkeiten“. Reihenfolge deshalb gemma2:9b, llama3.1:8b, qwen2.5:7b. → Hinweis, nie Entscheidungsgrundlage.
   *Offen:* Opencode-Aufruf auf dem starken Rechner per ssh; lokaler Opencode-Anbieter (Ollama) in der Opencode-Konfiguration.
-  *Erweiterung um Cloud-KI (Claude, Gemini) mit Schwärzung und Einwilligung:* Konzept in §11.15.
+  *Erweiterung um Cloud-KI (Claude, Gemini) mit Datenanonymisierung und Einwilligung:* Konzept in §11.15.
 
 ### 11.15 Cloud-KI als zweite Leserin (Konzept, nicht implementiert; Stand 2026-11-14)
 
@@ -558,7 +558,7 @@ Heute (ohne Cloud) geht an die KI: der Berichtstext, die ersten Zeilen des AAVSO
 
 - **Anonymisiert werden:** Beobachtercode, Standortname, Koordinaten und Höhe, Beobachtername, Pfade (Heimverzeichnis, Benutzername, Datenordner, Sitzungsordner), Rechnernamen, IP-Adressen und `ssh`-Aliase aus der `ai`-Konfiguration, E-Mail-Adressen.
 - **Verfahren:** Die bekannten Werte kommen **exakt** aus `observer.json`, dazu Muster für Pfade, Adressen und E-Mail. Ersetzt wird durch feste Platzhalter (`[BEOBACHTERCODE]`, `[STANDORT]`, `[KOORDINATEN]`, `[PFAD]`, `[HOST]`). Prüfpunkt 7 der Prüfliste („fehlt der Beobachtercode?“) bleibt möglich, weil der Platzhalter sichtbar ist. Platzhalter in der Antwort werden **lokal zurückübersetzt**.
-- **Sicherheitsnetz:** Steht nach dem Schwärzen noch ein bekannter geheimer Wert im Text, wird **nicht gesendet** (Fehlermeldung statt Aufruf).
+- **Sicherheitsnetz:** Steht nach dem Anonymisieren noch ein bekannter geheimer Wert im Text, wird **nicht gesendet** (Fehlermeldung statt Aufruf).
 - **Vorschau und Einwilligung:** NB03 zeigt den **anonymisierten Text** und sendet erst nach Bestätigung. Der gesendete Text wird lokal neben dem Bericht abgelegt (Nachvollziehbarkeit).
 - **Grenze:** Anonymisieren ist Mustererkennung. Zielstern, Beobachtungszeiten und Gerätetypen bleiben im Text; ihre Kombination kann indirekt auf den Beobachter schließen. Das ist ein **akzeptiertes Restrisiko** und wird so ausgewiesen.
 
