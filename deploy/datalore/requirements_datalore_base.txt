@@ -1,0 +1,36 @@
+# Plattform-Pakete, die jedes Datalore-Environment braucht (wie "Pip - minimal", ohne Kotlin-Kernel).
+# Projektpakete kommen aus der requirements-Datei des Projekt-Repos (Git), nicht von hier.
+ipykernel
+ipython
+ipywidgets
+jedi
+jupyter_client
+nbclient
+nbconvert
+nbformat
+pexpect
+psutil
+cloudpickle
+joblib
+pyzmq
+tornado
+requests
+lxml
+beautifulsoup4
+boto3
+duckdb
+polars
+plotly
+seaborn
+lets-plot
+networkx
+pandas
+pandas-datareader
+scikit-learn
+scikit-image
+ImageIO
+tifffile
+pillow
+matplotlib
+numpy
+scipy

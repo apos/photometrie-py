@@ -24,3 +24,8 @@ htmlcov/
 
 # Erzeugte GUI-Vorschau (tools/gui_preview.py)
 build/
+
+# deploy/datalore: erzeugte bzw. rechnerspezifische Dateien (Geheimnisse und Host-Pfade nie ins Git)
+deploy/datalore/agents-config.yaml
+deploy/datalore/docker-compose.override.yml
+deploy/datalore/backup/

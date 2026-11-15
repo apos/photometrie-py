@@ -1,0 +1,7 @@
+# Beispiel: Datalore zusaetzlich an einer zweiten Adresse erreichbar machen (z. B. WireGuard-Adresse des Hosts).
+# Kopieren nach docker-compose.override.yml (wird von docker compose automatisch dazugenommen) und Adresse eintragen.
+# Hinweis: DATALORE_PUBLIC_URL in .env kennt nur EINE Adresse (die, unter der der Browser Datalore oeffnet); Datalore baut Links und Weiterleitungen daraus.
+services:
+  datalore:
+    ports:
+      - "10.200.200.5:8080:8080"

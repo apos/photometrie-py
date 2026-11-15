@@ -1,0 +1,46 @@
+# Datalore On-Premises (Server + Postgres) fuer varphot. Alle host-abhaengigen Werte stehen in .env (Vorlage: .env.example); nichts ist fest verdrahtet.
+# Start: ./bootstrap.sh   (oder von Hand: ./render-config.sh && docker compose up -d)
+# Die Notebooks laufen nicht im Server, sondern in Agent-Containern, die der Server ueber den Docker-Socket startet; ihre Definition steht in
+# agents-config.yaml (erzeugt von render-config.sh aus .env, nicht von Hand pflegen).
+name: ${COMPOSE_PROJECT_NAME:-datalore}
+
+services:
+  datalore:
+    image: jetbrains/datalore-server:${DATALORE_VERSION:-2026.4.1}
+    restart: unless-stopped
+    ports:
+      - "${DATALORE_BIND:-127.0.0.1}:${DATALORE_PORT:-8080}:8080"       # weitere Adressen: docker-compose.override.example.yml
+    expose: [ "8081", "5050", "5052", "4060" ]
+    networks:
+      - datalore-agents-network
+      - datalore-backend-network
+    volumes:
+      - "datalore-storage:/opt/data"
+      - "./agents-config.yaml:/opt/datalore/configs/agents-config.yaml:ro"
+      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"      # Server startet die Agent-Container ueber den Docker-Daemon (siehe README „Docker-Socket“)
+    environment:
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD fehlt in .env (bootstrap.sh erzeugt es)}"
+      DATALORE_PUBLIC_URL: "${DATALORE_PUBLIC_URL:?DATALORE_PUBLIC_URL fehlt in .env}"
+    depends_on:
+      - postgresql
+
+  postgresql:
+    image: jetbrains/datalore-postgres:${DATALORE_VERSION:-2026.4.1}
+    restart: unless-stopped
+    expose: [ "5432" ]
+    networks:
+      - datalore-backend-network
+    volumes:
+      - "postgresql-data:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+
+volumes:
+  postgresql-data: { }
+  datalore-storage: { }
+
+networks:
+  datalore-agents-network:
+    name: ${COMPOSE_PROJECT_NAME:-datalore}-agents-network        # Server und Agents muessen im selben Netz liegen; Name steht auch in agents-config.yaml
+  datalore-backend-network:
+    name: ${COMPOSE_PROJECT_NAME:-datalore}-backend-network

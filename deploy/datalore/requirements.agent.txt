@@ -1,0 +1,69 @@
+# Plattform-Pakete, die jedes Datalore-Environment braucht (wie "Pip - minimal", ohne Kotlin-Kernel).
+# Projektpakete kommen aus der requirements-Datei des Projekt-Repos (Git), nicht von hier.
+ipykernel
+ipython
+ipywidgets
+jedi
+jupyter_client
+nbclient
+nbconvert
+nbformat
+pexpect
+psutil
+cloudpickle
+joblib
+pyzmq
+tornado
+requests
+lxml
+beautifulsoup4
+boto3
+duckdb
+polars
+plotly
+seaborn
+lets-plot
+networkx
+pandas
+pandas-datareader
+scikit-learn
+scikit-image
+ImageIO
+tifffile
+pillow
+matplotlib
+numpy
+scipy
+# --- Projekt: requirements.txt des Repos ---
+# Photometrie-Pipeline — Python 3.13
+# Kern-Astronomie
+astropy>=6.0
+photutils>=3.1
+astroalign>=2.4
+
+# Plate Solving (Python-Wrapper; ASTAP-Binary separat installieren)
+# astap wird per CLI aufgerufen, kein Python-Paket nötig
+
+# Kataloge / Netzwerk
+astroquery>=0.4
+
+# Numerik / Visualisierung
+numpy>=1.26
+scipy>=1.12
+matplotlib>=3.8
+
+# Jupyter / Notebooks
+jupyter
+ipykernel
+ipywidgets
+ipyfilechooser
+
+# Hilfspakete
+pandas>=2.1
+tqdm
+Pillow
+pytest
+pytest-cov
+ruff
+nbstripout
+requests
