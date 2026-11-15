@@ -51,6 +51,23 @@ def test_current_without_any_session_raises(tmp_path):
         Session.current()
 
 
+def test_current_pointer_from_other_machine_falls_back_to_local_data_dir(tmp_path, monkeypatch):
+    """Zeiger mit fremdem Pfad (Mac-Pfad im Datalore-Container): gleicher Sitzungsname im lokalen Datenordner."""
+    from varphot import observer
+    data = observer.data_dir()
+    local = data / "sessions" / "2026-11-14"
+    local.mkdir(parents=True)
+    from varphot import session as S
+    monkeypatch.setattr(S, "_pointer_file", lambda: data / "last_session.json")     # conftest isoliert den Zeiger; hier ein Zeiger im (temporaeren) Datenordner
+    (local / "session.json").write_text(json.dumps({"workspace": "/anderer/rechner", "target": "del Cep"}))
+    (data / "last_session.json").write_text(json.dumps({"workspace": "/Users/x/PHOTOMETRIE_PY_DATA/sessions/2026-11-14"}))
+    s = Session.current()
+    assert s.target == "del Cep" and s.workspace == str(local)
+    (data / "last_session.json").write_text(json.dumps({"workspace": "/Users/x/sessions/gibtsnicht"}))
+    with pytest.raises(FileNotFoundError, match="NB00"):
+        Session.current()
+
+
 def test_results_dir_and_tag():
     assert session_tag("del Cep", "osc", "2026-11-10") == "del_cep_osc_2026_11_10"
 
