@@ -127,6 +127,11 @@ class Session:
         last = _last_pointer()
         if last and (Path(last) / "session.json").exists():
             return cls.load(last)
+        if last:                                                  # Zeiger kommt von anderem Rechner (Nextcloud-Sync, Datalore-Container): gleicher Sitzungsname im lokalen Datenordner
+            from .observer import data_dir
+            alt = data_dir() / "sessions" / Path(last).name
+            if (alt / "session.json").exists():
+                return cls.load(alt)
         raise FileNotFoundError("keine Sitzung gefunden — NB00 ausfuehren (oder VARPHOT_SESSION=<Ordner> setzen)")
 
 
