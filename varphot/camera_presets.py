@@ -1,8 +1,8 @@
-"""Kamera-Vorlagen: bekannte Kameras mit Sensor, Bayer-Muster, Bittiefe und Herstellerwerten — Auswahl in NB01 und NB07.
+"""Kamera-Vorlagen: bekannte Kameras mit Sensor, Bayer-Muster, Bittiefe und Herstellerwerten — Auswahl in NB00 und NB07.
 
 Autor: Axel Pospischil. Stand 2026-11.
 
-Warum: NB07 (Kamera-Charakterisierung) und NB01 (Beobachter/Kamera) sollen nicht fuer jede Kamera von Hand befuellt werden. Eine Vorlage liefert
+Warum: NB07 (Kamera-Charakterisierung) und NB00 (Beobachter/Kamera) sollen nicht fuer jede Kamera von Hand befuellt werden. Eine Vorlage liefert
 das, was *vorab* bekannt ist (Sensor, Pixelzahl, Bayer-Muster, Eingabeformat, Herstellerwerte zum Vergleich); gemessen wird trotzdem selbst
 (NB07), weil Herstellerangaben abweichen koennen und je Einstellung (Gain-Modus, ISO) gelten.
 

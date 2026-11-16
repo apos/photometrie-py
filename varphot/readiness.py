@@ -1,6 +1,6 @@
 """Bereitschaft vor der Beobachtung: Software (Python, Pakete, ASTAP, Siril, Datenordner, KI) und Planungsgrundlagen (Kameraprofil NB07, Transformation NB08, Standardfelder).
 
-Autor: Axel Pospischil. Stand 2026-11-10 (NB00 Schritt 1.1 und 3.2, NB01 Vorbedingungen).
+Autor: Axel Pospischil. Stand 2026-11-10 (NB00 Schritt 1.1 und 3.2).
 
 Warum: Die Pruefung der Vorbedingungen stand nur in NB01; NB00 ist aber der erste Einstieg (Planung vor der Aufnahme) und braucht dieselben Programme. Ausserdem wusste der Plan nicht, ob ein gemessenes
 Kameraprofil (NB07) oder Transformationskoeffizienten (NB08) vorliegen und welches Standardfeld am Beobachtungsort ueberhaupt sichtbar ist. Beides zeigt dieses Modul **vor** der Aufnahmenacht, mit Hinweis,
@@ -50,7 +50,7 @@ def software_checks(ai: bool = True) -> list[Check]:
             out.append(Check(f"Paket {label}", True, getattr(importlib.import_module(mod), "__version__", "?")))
         except ImportError:
             out.append(Check(f"Paket {label}", False, f"nicht installiert — pip install {label}"))
-    for name, paths, exe, hint in (("ASTAP", ASTAP_PATHS, "astap", "noetig fuer Plate-Solving echter Bilder (NB02)"), ("Siril", SIRIL_PATHS, "siril", "optional: Kalibrierung (NB01), Kanaltrennung")):
+    for name, paths, exe, hint in (("ASTAP", ASTAP_PATHS, "astap", "noetig fuer Plate-Solving echter Bilder (NB01)"), ("Siril", SIRIL_PATHS, "siril", "optional: Kalibrierung (NB01), Kanaltrennung")):
         found = find_program(paths, exe)
         out.append(Check(f"Programm {name}", found is not None, found or f"nicht gefunden ({hint})", optional=name == "Siril"))
     pandoc = shutil.which("pandoc")

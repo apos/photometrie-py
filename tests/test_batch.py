@@ -256,7 +256,7 @@ def test_core_correction_on_cfa_g_channel():
 
 
 def test_read_measurements_keeps_numbers_numeric_with_nan_and_empty_text(tmp_path):
-    """Regression: leere CSV-Felder machten Zahlenspalten zu Text (NB04-Cache-Pfad)."""
+    """Regression: leere CSV-Felder machten Zahlenspalten zu Text (NB02-Cache-Pfad)."""
     from varphot import read_measurements
     df = pd.DataFrame(dict(file=["a", "b"], star_id=["target", "94"], flux=[1.5, np.nan], fwhm_arcsec=[2.0, np.nan],
                            star_flag=["", "SAT"], frame_flags=["", "NO_SIGNAL"], flux_ring=[np.nan, np.nan]))

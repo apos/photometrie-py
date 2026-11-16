@@ -443,7 +443,7 @@ def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout:
 
 
 def preflight_lines(backends: list[Backend]) -> list[tuple[str, bool, str]]:
-    """Zeilen (Name, ok, Text) fuer die Vorbedingungs-Tabelle in NB01; ``ok`` ist nur beim gewaehlten Weg wahr."""
+    """Zeilen (Name, ok, Text) fuer die Vorbedingungs-Tabelle in NB00 (Schritt 1.1); ``ok`` ist nur beim gewaehlten Weg wahr."""
     chosen = choose_backend(backends)
     rows = [(f"KI: {b.label()}", b is chosen, ("benutzt — " if b is chosen else "") + b.detail) for b in backends]
     if not backends:
