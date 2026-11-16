@@ -6,12 +6,14 @@ Ziel: dieselbe Datalore-Installation (Server, Postgres, Agent mit Python, ASTAP 
 
 | Datei | Zweck |
 |---|---|
-| `Dockerfile`, `build.sh` | Agent-Image: Python-3.12-Umgebung (Pakete aus `requirements.txt`), ASTAP-CLI, Siril-CLI, varphot-Stand |
+| `Dockerfile`, `build.sh` | Agent-Image: Python-3.12-Umgebung (Pakete aus `requirements.txt`), ASTAP-CLI, Siril-CLI, Claude Code, Gemini CLI (Node.js 22), varphot-Stand |
 | `docker-compose.yml`, `.env.example` | Datalore-Server und Postgres; alle Host-Werte stehen in `.env` |
 | `render-config.sh` | erzeugt `agents-config.yaml` (Agent-Definition) aus `.env` |
 | `astap-db.sh` | lädt die ASTAP-Sterndatenbank (1,7 GB) in ein Docker-Volume |
 | `bootstrap.sh` | richtet alles ein und startet (Image beschaffen, Konfiguration, Datenbank, `docker compose up`) |
 | `backup.sh`, `restore.sh` | Notebooks, Konten und Einstellungen sichern und auf einem anderen Host einspielen |
+| `ai-login.sh` | einmalige Anmeldung von Claude Code / Gemini CLI im Volume `/auth` (durch den Nutzer im Browser) |
+| `update.sh` | Pakete im Image prüfen (`check`) und mit frischem Stand neu bauen (`build`) |
 
 ## Schnellstart (neuer Rechner)
 
@@ -48,7 +50,8 @@ Entkopplung vom Betriebssystem: der Socket-Pfad ist die Variable `DOCKER_SOCK` (
 | **Datalore-Lizenzschlüssel** | JetBrains Account → Organisation (jederzeit neu abrufbar) | im Admin-Panel von Datalore (steckt dann in der Datenbank); Kopie im Passwortmanager | nein |
 | **DB_PASSWORD** | `bootstrap.sh` erzeugt es | `deploy/datalore/.env` (chmod 600); Kopie im Passwortmanager | nein (`.env` ist in `.gitignore`, nicht im Image-Kontext) |
 | **Datalore-Admin-Passwort** | beim ersten Start gewählt | Passwortmanager | nein |
-| API-Schlüssel der KI-Backends | je Nutzer, `observer.json`/Umgebung | nur im Datenordner/Passwortmanager (Regel: nie in Datalore, nie ins Repo) | nein |
+| Anmeldung Claude Code / Gemini CLI | `./ai-login.sh claude` (Browser, durch den Nutzer) | Docker-Volume `varphot-ai-auth` (im Agent `/auth`); nicht im Image, nicht im Nextcloud-Ordner, nicht in `observer.json` | nein |
+| API-Schlüssel der KI-Backends | je Nutzer, Umgebung/Passwortmanager | nie in `observer.json`, nie im Repo; für die Gemini CLI nur von Hand in `/auth/gemini/.env` im Volume | nein |
 
 **Empfehlung:** die KeePass-Datenbank im Nextcloud-Ordner (läuft auf Mac, Linux, iPad) für den Lizenzschlüssel (Notiz oder Anhang) und `.env` (Anhang). Apple-Passwörter (iCloud-Schlüsselbund) eignen sich für das Datalore-Admin-Passwort — Autofill auf dem Tablet —, aber nicht für eine 2-KB-Lizenz oder eine ganze `.env`. Verloren ist ohnehin wenig: der Lizenzschlüssel ist beim JetBrains Account abrufbar, und `restore.sh` braucht kein altes `DB_PASSWORD` (der Dump ist besitzerfrei). Das Image enthält keinen Schlüssel und kein Passwort; es darf daher im Nextcloud-Ordner liegen.
 
@@ -59,6 +62,34 @@ Gelesen: Lizenzvereinbarung Version 3.3 (jetbrains.com/legal/docs/datalore/datal
 - **Gerechnet wird nach Nutzern**, nicht nach Installationen: der Schlüssel enthält Organisation und maximale Nutzerzahl. Eine Obergrenze für Installationen, Server oder Instanzen steht **nicht** im Text; ebenso wenig, ob er an einen Host gebunden ist. Mehrere eigene Installationen (panama, Mac) sind also nicht ausdrücklich erlaubt und nicht verboten.
 - **Sicherungskopien** zu Archivzwecken sind erlaubt (3b iv). **Verboten** sind Änderungen/abgeleitete Werke ohne Erlaubnis (3d ii) sowie Weitergabe an Dritte (3d vi). Das Agent-Image ist eine **von JetBrains dokumentierte Anpassung** (Hilfe „Customize or update environment“: eigenes Image `FROM jetbrains/datalore-agent`), enthält aber JetBrains-Schichten. Darum: nur für die eigenen Rechner, nie öffentlich, nie an Dritte (auch nicht in einer öffentlichen Registry).
 - **Empfehlung**: eine kurze Rückfrage an datalore@jetbrains.com — „Darf der Schlüssel (n Nutzer) auf zwei eigenen Rechnern, nicht gleichzeitig durch verschiedene Personen, installiert sein?“ Der Text dafür steht in KONZEPT.md §17.6. Bis zur Antwort: einen Server produktiv betreiben, den anderen nur zum Test/als Ausweichrechner.
+
+## KI-Kommandozeilen im Agent (Claude Code, Gemini CLI)
+
+NB03 (Schritt KI-Zweitlesung) ruft für den Cloud-Weg die Kommandozeile `claude` auf (KONZEPT §11.15). Das Image enthält sie deshalb: **Claude Code** aus dem signierten apt-Repository von Anthropic (Kanal `stable`, Schlüssel-Fingerabdruck wird beim Bau geprüft) und die **Gemini CLI** (`@google/gemini-cli` über npm, Node.js 22 aus NodeSource). Beides ist nur installiert; keine Anmeldung, kein Schlüssel im Image.
+
+```bash
+./ai-login.sh claude     # einmal: Adresse im Browser öffnen, anmelden, Code ins Terminal einfügen
+./ai-login.sh status     # was ist angemeldet (ohne Kontodaten)
+```
+
+Die Anmeldung liegt im Docker-Volume `varphot-ai-auth` (`AI_AUTH_VOLUME`), das jeder Agent als `/auth` einhängt (`CLAUDE_CONFIG_DIR=/auth/claude`, `~/.gemini` → `/auth/gemini`). Sie überlebt Neustarts und Neubauten des Images. Wer Zugriff auf den Agent hat, hat Zugriff auf diese Anmeldung; Datalore ist hier ein Ein-Personen-Betrieb. Die Anonymisierung und die Bestätigung vor dem Senden (KONZEPT §11.15.3) gelten unverändert.
+
+**Gemini:** Die Gemini CLI ist installiert, NB03 ruft sie aber noch nicht auf („Gemini ist noch nicht eingerichtet“). Außerdem hat Google „Login mit Google“ für private Konten ohne Bezahltarif am 2026-06-18 auf die Antigravity CLI verlegt (Seite der Gemini CLI, geprüft 2026-11-16); die Gemini CLI selbst geht dann mit API-Schlüssel oder Code Assist.
+
+## Pakete aktuell halten
+
+Das Image ist eine Momentaufnahme. Nichts darin aktualisiert sich von selbst, **auch nicht** die KI-Kommandozeilen (`DISABLE_AUTOUPDATER=1`): eine Selbstaktualisierung im Container ginge beim nächsten Start verloren und macht den Stand unvorhersagbar. Stattdessen:
+
+```bash
+./update.sh check     # zeigt Veraltetes: apt (Siril, Claude Code, Node.js), Gemini CLI, Python-Pakete; Rückgabecode 10 = Neuerungen
+./update.sh build     # Neubau mit frischem Stand (Basis-Image, apt, pip, npm, ASTAP), Funktionsprobe, Vergleich der Paketlisten, Datumsetikett
+```
+
+`build` legt vorher `<image>-JJJJMMTT-vorher` an (Rückfall: `docker tag <image>-JJJJMMTT-vorher <image>`) und danach `<image>-JJJJMMTT`; mit gesetztem `IMGSTORE_DIR` wird das Image mit `imgstore` abgelegt. Laufende Notebook-Rechner behalten das alte Image bis zum Beenden. Die Paketliste steht in `freeze.<arch>.txt`, die Werkzeugstände in `tools.<arch>.txt` (Git zeigt den Unterschied). Empfehlung: `check` wöchentlich per cron, `build` bei Befund oder monatlich; die Basis `jetbrains/datalore-agent` ändert sich nur mit `DATALORE_VERSION`.
+
+```cron
+30 4 * * 1  cd /home/apos/git/photometrie-py/deploy/datalore && ./update.sh check >> /home_slow/apos/DATALORE-BACKUP/update-check.log 2>&1
+```
 
 ## Betrieb
 

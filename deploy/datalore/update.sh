@@ -57,9 +57,9 @@ cmd_build() {
   echo "== Funktionsprobe =="
   "$DOCKER" run --rm --entrypoint sh "$IMAGE" -c "$PYBIN -c 'import varphot, astropy, photutils, scipy; print(\"varphot\", varphot.__version__, \"astropy\", astropy.__version__, \"photutils\", photutils.__version__)' && astap_cli -h 2>&1 | head -1 && siril-cli --version 2>&1 | head -1 && claude --version && gemini --version"
   echo "== Unterschiede gegenueber dem vorigen Bau (Python-Pakete) =="
-  diff "$OLD_FREEZE" "$HERE/freeze.$ARCH.txt" | grep -E '^[<>]' | head -60 || true
+  d="$(diff "$OLD_FREEZE" "$HERE/freeze.$ARCH.txt" | grep -E '^[<>]' | head -60 || true)"; [ -n "$d" ] && echo "$d" || echo "  keine"
   echo "== Unterschiede (Werkzeuge) =="
-  diff "$OLD_TOOLS" "$HERE/tools.$ARCH.txt" | grep -E '^[<>]' || echo "  keine"
+  d="$(diff "$OLD_TOOLS" "$HERE/tools.$ARCH.txt" | grep -E '^[<>]' || true)"; [ -n "$d" ] && echo "$d" || echo "  keine"
   "$DOCKER" tag "$IMAGE" "$IMAGE-$ARCH_TAG"
   if [ -n "${IMGSTORE_DIR:-}" ] && command -v imgstore >/dev/null 2>&1; then imgstore push "$IMAGE" -p varphot; fi
   rm -f "$OLD_FREEZE" "$OLD_TOOLS"
