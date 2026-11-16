@@ -28,6 +28,9 @@ CFG = {
     "ap_r": 10,
     "ap_r_in": 18,
     "ap_r_out": 26,
+    # Himmel im Ring: Sigma-Clipping nur auf den Ringpixeln (varphot/sky.py, KONZEPT §11.17); None = nur Median
+    "sky_clip_sigma": 3.0,
+    "sky_clip_iters": 5,
     # Apertur Ziel (defokussiert)
     "target_ap_r": 45,
     "target_ap_r_in": 55,

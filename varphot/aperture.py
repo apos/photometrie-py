@@ -20,17 +20,19 @@ Grenzen: braucht mindestens 3 isolierte, ungesaettigte Sterne (sonst Rueckfall a
 from __future__ import annotations
 
 import numpy as np
-from photutils.aperture import ApertureStats, CircularAnnulus, CircularAperture
+from photutils.aperture import ApertureStats, CircularAperture
+
+from .sky import sky_level
 
 
 def growth_curve(img, xy, radii, sky_r_in: float, sky_r_out: float) -> np.ndarray:
     """Eingeschlossener Fluss ``F(r)`` (ADU, himmelskorrigiert) je Stern (Zeile) und Radius (Spalte).
 
-    Himmel = Median im Ring ``sky_r_in``..``sky_r_out`` (ohne Clipping, wie :func:`varphot.batch.measure_frame`); ``F(r) = Summe(r) − Himmel · Flaeche(r)``.
+    Himmel = Median im Ring ``sky_r_in``..``sky_r_out`` nach Sigma-Clipping der Ringpixel (:func:`varphot.sky.sky_level`, wie :func:`varphot.batch.measure_frame`); ``F(r) = Summe(r) − Himmel · Flaeche(r)``.
     """
     img = np.asarray(img, float)
     xy = np.atleast_2d(np.asarray(xy, float))
-    sky = np.asarray(ApertureStats(img, CircularAnnulus(xy, r_in=sky_r_in, r_out=sky_r_out), sigma_clip=None).median, float)
+    sky = np.array([sky_level(img, p, sky_r_in, sky_r_out)[0] for p in xy])
     out = np.empty((len(xy), len(radii)))
     for j, r in enumerate(radii):
         ap = CircularAperture(xy, r=r)
@@ -80,7 +82,7 @@ def optimal_aperture(img, stars, fwhm_px: float, gain: float = 1.0, read_noise_e
         res["notes"].append("zu wenige Sterne mit Platz fuer den grossen Messring — Rueckfall auf 1,5 × FWHM")
         return res
     F = growth_curve(img, xy, radii, sky_in, sky_out)
-    sky = float(np.median(ApertureStats(np.asarray(img, float), CircularAnnulus(xy, r_in=sky_in, r_out=sky_out), sigma_clip=None).median))
+    sky = float(np.median([sky_level(img, p, sky_in, sky_out)[0] for p in xy]))
     half = len(st) // 2
     bright, faint = F[:max(half, 1)], F[half:] if half else F
     gb = np.median(bright / bright[:, -1:], axis=0)                                 # normierte Wachstumskurve (Median der hellen Sterne)

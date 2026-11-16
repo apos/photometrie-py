@@ -562,7 +562,7 @@ Heute (ohne Cloud) geht an die KI: der Berichtstext, die ersten Zeilen des AAVSO
 
 #### 11.15.4 Schlüssel
 
-Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **Nie** in `observer.json` (der Ordner wird nach panama synchronisiert), nie im Repo, nie in Ausgaben, Protokollen oder Fehlermeldungen (Meldungen werden gefiltert). **In Datalore ist der Cloud-Weg gesperrt**: Schlüssel und Anmeldung gehören nicht in Agent-Container.
+Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **Nie** in `observer.json` (der Ordner wird nach panama synchronisiert), nie im Repo, nie in Ausgaben, Protokollen oder Fehlermeldungen (Meldungen werden gefiltert). **Datalore (geändert 2026-11-16 auf Anweisung des Autors):** Bisher war der Cloud-Weg in Datalore gesperrt (Schlüssel und Anmeldung gehören nicht in Agent-Container); gesperrt war er nur dadurch, dass `claude` im Image fehlte. Jetzt sind Claude Code und Gemini CLI im Agent-Image installiert (§17.7), damit NB03 dort dieselbe Zweitlesung anbieten kann. Die Schutzregeln bleiben: kein Schlüssel im Image, im Repo oder im synchronisierten Datenordner; die **Anmeldung legt der Nutzer selbst** (`deploy/datalore/ai-login.sh`, Browser) in ein eigenes Docker-Volume, das nur in Agents eingehängt ist; Anonymisierung, Vorschau und Bestätigung je Lauf (§11.15.3) und `ai.cloud.enabled` unverändert. **Restrisiko:** jedes Notebook-Programm im Agent kann diese Anmeldung lesen; vertretbar im Ein-Personen-Betrieb, nicht für fremde Notebooks.
 
 #### 11.15.5 Bedienung
 
@@ -683,6 +683,26 @@ Geprüft mit der echten Testdatei `aavso_DEL_CEP_V_2026-11-12_TESTDATEN_NICHT_EI
 
 
 ---
+
+### 11.17 Himmelshintergrund im Ring: Median mit Sigma-Clipping nur auf den Ringpixeln (umgesetzt 2026-11-16)
+
+**Frage des Autors:** Wird der Himmel über den Median gebildet, damit zufällige Sterne im Ring das Bild nicht verfälschen? **Befund vorher:** ja, Median der Ringpixel (`ap_r_in`..`ap_r_out`, Standard 18–26 px), aber **ohne** Ausreißerbehandlung. Der Median verträgt bis knapp die Hälfte fremder Pixel; ein heller Nachbar oder mehrere Sterne im Ring ziehen ihn trotzdem nach oben.
+
+**Warum das mehr ist als ein Schönheitsfehler:** Zu hoher Himmel → Fluss des Sterns zu klein. Wie viel Nachbarlicht im Ring liegt, ändert sich mit dem Seeing, also von Bild zu Bild. Der Fehler ist damit **nicht zufällig, sondern bildabhängig** und bleibt bei der Differenzphotometrie nur dann stehen, wenn Ziel und Comp ihn nicht gleich haben (Ring und Nachbarn sind es nie). Comps mit Nachbarn innerhalb `comp_r_iso_px` (25 px) werden zwar verworfen (`catalog._comp_reject_reason`), das Ziel und Sterne mit schwächeren Nachbarn jedoch nicht.
+
+**Entscheidung:** Ausreißer im Ring werden iterativ verworfen, bevor der Median gebildet wird (`varphot/sky.py`, `sky_level`): Mitte Median, Streuung `mad_std` (1,4826 · MAD; die Streuung selbst darf von den Ausreißern nicht aufgebläht werden, deshalb nicht die Standardabweichung), Schwelle 3 σ beidseitig, höchstens 5 Durchgänge (`CFG["sky_clip_sigma"]`, `["sky_clip_iters"]`; `None` = altes Verhalten). Die Zahl der benutzten Pixel geht in die Fehlerrechnung ein (`n_sky` der CCD-Gleichung in `batch.measure_frame`), die der verworfenen steht je Stern als `sky_n_clipped` in der Messtabelle.
+
+**Warum nur der Ring:** `photutils.ApertureStats` clippt standardmäßig auch die **Summe** in der Apertur und schnitt helle Sternkerne ab (Fluss 205 statt 251, Regressionstest `tests/test_photometry.py`). Die Summe bleibt ungeclippt; Clipping gilt ausschließlich für die Pixel, aus denen der *Himmel* geschätzt wird. Dort sind Ausreißer per Definition Fremdlicht.
+
+**Schutzregeln (kein stilles Fehlverhalten):** Ist die Streuung null (mehr als die Hälfte der Ringpixel exakt gleich), wird nicht geclippt. Bleiben weniger als die Hälfte (oder weniger als 10) der Pixel übrig, gilt der ungeclippte Median. Leerer Ring → `NaN` wie bisher.
+
+**Gemessen (LCO δ Cep, 6 Bilder aus 156, bis zu 60 hellste erkannte Sterne je Bild, soweit mit Platz für den Ring; Vergleich mit/ohne Clipping, gleiche Sterne):** in den meisten Fällen kaum ein Unterschied (Median der Himmelsänderung ≈ 0,01 ADU, 10–14 verworfene Pixel je Ring von rund 1100), aber **einzelne Sterne ändern sich deutlich**: Himmel bis −17,7 ADU und Helligkeit bis 0,03–0,10 mag (je Bild das Maximum über 5–48 Sterne). Das sind vermutlich die Sterne mit Fremdlicht im Ring (einzeln nicht nachgeprüft); für die übrigen ändert sich nichts. Eine Wirkung auf die fertige Lichtkurve (Streuung des Check-Sterns, Periode) ist **nicht** gemessen und folgt mit dem nächsten vollständigen Lauf von NB02; bis dahin sind bereits abgelegte Ergebnisse (`messtabelle.csv`) mit dem alten Verfahren gemessen.
+
+**Grenzen:** Keine Sternmaske. Liegt mehr als die Hälfte des Rings im Licht eines Nachbarn (Doppelstern, Kern eines Sternhaufens), trägt auch der geclippte Median den falschen Wert; dann hilft nur ein anderer Ring oder das Verwerfen des Sterns. Das Clipping wirkt symmetrisch; ein echter Himmelsgradient über den Ring ist klein gegen 3 σ und bleibt unberührt. Eine Maske der erkannten Nachbarsterne (statt Statistik) wäre die nächste Stufe; sie würde Doppelsterne erkennen, braucht aber eine Detektion je Bild.
+
+**Quellen:** Stetson, P. B. 1987, PASP 99, 191, doi:10.1086/131977 (DAOPHOT; DAOPHOT-Aufsatz, Zitat per Suche geprüft; ob und wie er das Clipping im Ring beschreibt, ist nicht geprüft). Iteratives Sigma-Clipping mit Median/MAD: astropy `sigma_clip` (Dokumentation).
+
+**Tests:** `tests/test_sky.py` (glatter Himmel unverändert, heller Nachbar im Ring, Hot Pixel, Abschaltung, Streuung null, leerer Ring, Messtabelle, Summe nicht geclippt).
 
 ## 12. Beobachtungsplanung und Probebilder (NB00)
 
@@ -1037,3 +1057,13 @@ Die geschätzten 3–4 GB waren zu hoch: das Image besteht überwiegend aus gut 
 
 > Betreff: Datalore On-Premises — Installation auf einem zweiten eigenen Rechner  
 > Wir betreiben Datalore On-Premises (Version 2026.4.1) mit einem Schlüssel für *n* Nutzer auf einem Linux-Server. Dürfen wir denselben Schlüssel zusätzlich auf einem zweiten, ebenfalls von uns betriebenen Rechner (Mac, Ausweich-/Testinstallation, nicht zeitgleich von weiteren Personen genutzt) einsetzen? Die Lizenzbedingungen (Version 3.3) nennen dazu keine Grenze. Außerdem verwenden wir ein eigenes Agent-Image auf Basis von `jetbrains/datalore-agent` (Python-Umgebung, zusätzliche Programme); es wird nur zwischen unseren eigenen Rechnern kopiert. Ist das so in Ordnung?
+
+### 17.7 KI-Kommandozeilen im Image und Aktualisierung der Pakete (2026-11-16)
+
+**Auftrag des Autors:** Claude und Gemini sollen in Datalore (NB03) erreichbar sein; „wie halten wir die installierten Pakete aktuell?“.
+
+**Installation.** Claude Code: signiertes apt-Repository von Anthropic, Kanal `stable` (etwa eine Woche hinter `latest`, ohne Versionen mit großen Fehlern; Quelle: Dokumentation „Advanced setup“, geprüft 2026-11-16); Fingerabdruck `31DD DE24 DDFA B679 F42D 7BD2 BAA9 29FF 1A7E CACE` wird beim Bau geprüft; Ort `/usr/bin`, damit der Kernel-Prozess ihn ohne Login-Shell findet. Gemini CLI: `npm install -g @google/gemini-cli` mit Node.js 22 (NodeSource). Keine Anmeldung, kein Schlüssel im Image; Anmeldung im Volume `/auth` (§11.15.4).
+
+**Gemini, ehrlich:** Installiert, aber (1) NB03 ruft sie nicht auf (Backend fehlt, §11.15), (2) Google hat laut README der Gemini CLI „Free individual access and Google AI Pro / Ultra“ am 2026-06-18 auf die Antigravity CLI verlegt — mit einem privaten Konto geht die Gemini CLI wahrscheinlich nur mit API-Schlüssel. Ob und wie das für den Autor gilt, ist **nicht geprüft** (keine Anmeldung versucht).
+
+**Aktualisierung — Entscheidung:** Ein Image ist unveränderlich; Selbstaktualisierung im Container wäre beim nächsten Start weg und macht Fehler nicht nachvollziehbar (`DISABLE_AUTOUPDATER=1`). Aktuell gehalten wird durch **Neubau mit frischem Stand und Prüfung** (`deploy/datalore/update.sh`): `check` (apt, npm, pip, ohne Änderung; wöchentlich per cron, Protokoll auf panama) und `build` (`NO_CACHE=1`: Basis-Image, apt, pip, npm, ASTAP neu; Funktionsprobe; Vergleich `freeze.<arch>.txt`/`tools.<arch>.txt`; Rückfall-Etikett). Die Basis `jetbrains/datalore-agent` folgt `DATALORE_VERSION` und wird nur bewusst angehoben. **Verworfen:** Watchtower-artige Selbsterneuerung (keine Prüfung vor dem Einsatz, Datalore startet Agents selbst); `latest` als einziger Kanal (neue Fehler gehen sofort in die Auswertung); feste Versionsnummern für alles (veraltet still und ohne Warnung). **Grenzen:** `check` meldet nur, ein Neubau ist Handarbeit (10–20 min, 6,5 GB); die Python-Pakete aus `requirements.txt` haben Untergrenzen (`>=`), ein Neubau holt die jeweils neuesten — ein Sprung (z. B. astropy-Hauptversion) kann Tests brechen; deshalb Funktionsprobe und `pytest` vor dem Einsatz.

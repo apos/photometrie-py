@@ -15,6 +15,7 @@ set -a; # shellcheck disable=SC1091
 : "${EXCHANGE_DIR:?EXCHANGE_DIR fehlt in .env}"
 PROJECT="${COMPOSE_PROJECT_NAME:-datalore}"
 DBVOL="${ASTAP_DB_VOLUME:-varphot-astap-db}"
+AUTHVOL="${AI_AUTH_VOLUME:-varphot-ai-auth}"
 for d in "$VARPHOT_DATA_DIR" "$EXCHANGE_DIR"; do
   case "$d" in /*) ;; *) echo "Pfad muss absolut sein: $d" >&2; exit 1 ;; esac
   mkdir -p "$d"
@@ -24,6 +25,7 @@ vols() {   # Mounts eines Agents, eingerueckt
   echo "        - \"$VARPHOT_DATA_DIR:/work/PHOTOMETRIE_PY_DATA\""
   echo "        - \"$EXCHANGE_DIR:/exchange\""
   echo "        - \"$DBVOL:/opt/astap_db:ro\""
+  echo "        - \"$AUTHVOL:/auth\""
   if [ -n "${VARPHOT_REPO_DIR:-}" ]; then echo "        - \"$VARPHOT_REPO_DIR:/work/PHOTOMETRIE_PY:ro\""; fi
 }
 
