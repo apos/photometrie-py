@@ -45,7 +45,7 @@ def test_main_notebooks_start_with_form_and_explain_how(path):
     assert "ui.header(" in first                                                                       # Kopf mit Fallunterscheidung/Schrittleiste und Ergebnis (varphot.nbui)
     text = "\n".join("".join(c["source"]) for c in nb["cells"])
     assert "Ab hier automatisch" in text                                                               # Entscheidungen zuerst, Automatik danach
-    assert text.count("bind(") >= (2 if path.name.startswith("00") else 1)                             # Sofort-Hinweis nach jeder Auswahl (varphot.hints); NB00: Schritt 0b und Schritt 1
+    assert text.count("bind(") >= (2 if path.name.startswith("00") else 1)                             # Sofort-Hinweis nach jeder Auswahl (varphot.hints); NB00: Schritt 1.2 und Schritt 2
 
 
 def test_nb00_demo_runs_end_to_end(tmp_path, monkeypatch):
@@ -63,3 +63,15 @@ def test_nb00_demo_runs_end_to_end(tmp_path, monkeypatch):
     assert g["MODE"] == "demo" and g["PLAN"].method == "osc" and g["PLAN"].aperture and g["PLAN"].fwhm_sharp_px
     assert g["PLAN"].aperture_info.get("method") in ("growth+snr", "fallback")
     assert (tmp_path / "ws" / "session.json").exists()                                        # Demo speichert Sitzungsmetadaten (damit NB01 Session.current() findet)
+
+
+def test_no_references_to_nonexistent_notebooks():
+    """Texte in Notebooks und Programmcode nennen nur Notebooks, die es gibt (Nummern aus den Dateinamen); schuetzt vor Resten der alten Nummerierung (z. B. NB06 = heute 03_bericht)."""
+    import re
+    existing = {p.name[:2] for p in NB_DIR.glob("*.ipynb")}
+    texts = {p.name: "\n".join("".join(c["source"]) for c in json.loads(p.read_text(encoding="utf-8"))["cells"]) for p in NB_DIR.glob("*.ipynb")}
+    for p in (NB_DIR.parent / "varphot").glob("*.py"):
+        texts[f"varphot/{p.name}"] = p.read_text(encoding="utf-8")
+    bad = {name: sorted(set(re.findall(r"NB(\d\d)", t)) - existing) for name, t in texts.items()}
+    bad = {k: v for k, v in bad.items() if v}
+    assert not bad, f"Verweise auf nicht vorhandene Notebooks: {bad}"

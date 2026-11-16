@@ -283,7 +283,7 @@ def field_of_view_deg(format_px, pixel_um: float, focal_mm: float) -> tuple[floa
     """Bildfeld (lange, kurze Seite) in Grad aus Pixelzahl, Pixelgroesse und Brennweite; ``FOV = 2·atan(Sensorkante / 2f)``.
 
     Warum: NB01 braucht die Feldgroesse fuer die Comp-Suche; sie soll aus dem Aufbau kommen statt von Hand. Grenzen: ohne Verzeichnung und ohne Reducer-Unsicherheit — die wirkliche Brennweite
-    steht erst nach dem Plate Solve fest (NB01/NB01 mit Referenzbild ueberschreibt diesen Wert). Validierung: ``tests/test_plan.py``.
+    steht erst nach dem Plate Solve fest (NB01 mit Referenzbild ueberschreibt diesen Wert). Validierung: ``tests/test_plan.py``.
     """
     w, h = sorted((float(format_px[0]), float(format_px[1])), reverse=True)
     f = lambda px: math.degrees(2 * math.atan(px * pixel_um / 1000.0 / (2 * focal_mm)))

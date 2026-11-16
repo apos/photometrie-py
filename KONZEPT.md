@@ -81,19 +81,17 @@ graph LR
 
 ```mermaid
 flowchart LR
-    FITS[/"FITS-Bilder\n(1 Nacht)"/] --> NB01["01 Kalibrierung"]
-    NB01 --> KalFITS[/"kalibrierte\nFITS"/]
-    KalFITS --> NB02["02 Plate Solve\n(ASTAP)"]
-    NB02 --> WCS["FITS mit WCS\nim Header"]
-    WCS --> NB03["03 Feld & Comps\n(Katalogabfrage)"]
-    NB03 --> FC[/"field_config.json\nZiel · Comps · Check"/]
-    WCS --> NB04["04 Photometrie-Stapel"]
-    FC --> NB04
-    NB04 --> MT[/"messtabelle.parquet\nje Bild & Stern"/]
-    MT --> NB05["05 Lichtkurve\n& Periode"]
-    NB05 --> ZR[/"zeitreihe.csv"/]
-    ZR --> NB06["06 Bericht\n& AAVSO-Export"]
-    NB06 --> REP[/"aavso_report.txt\nCSV"/]
+    PLAN["00 Planung"] --> SJ[/"Sitzung + Plan\nsession.json · plans/"/]
+    FITS[/"FITS-Bilder\n(1 Nacht)"/] --> NB01["01 Vorbereitung\nKalibrierung (Siril)\nPlate Solve (ASTAP)\nFeld & Comps"]
+    SJ --> NB01
+    NB01 --> FC[/"field_config.json\nZiel · Comps · Check"/]
+    NB01 --> WCS["Referenzbild\nmit WCS"]
+    WCS --> NB02["02 Messung\nPhotometrie-Stapel\nLichtkurve & Periode"]
+    FC --> NB02
+    NB02 --> MT[/"messtabelle.csv\nje Bild & Stern"/]
+    NB02 --> ZR[/"zeitreihe.csv"/]
+    ZR --> NB03["03 Bericht\n& AAVSO-Export"]
+    NB03 --> REP[/"aavso_report.txt\nCSV"/]
 ```
 
 **Prinzip**: Jede Stufe schreibt ein Zwischenergebnis, die nächste liest es. So ist jeder
@@ -330,7 +328,7 @@ Siril liefert die **Eingangsbilder**; unsere Pipeline rechnet.
 1. **Kalibrierung im CFA-Bereich (ohne Debayern):** Bias/Dark/Flat auf den Roh-Bayer-Bildern. Debayern interpoliert zwischen Nachbarpixeln verschiedener Farben und verfälscht Flüsse.
    (E: Optionen wie `-cfa`/`-equalize_cfa` bei `calibrate` aus dem Gedächtnis, gegen die Siril-Doku prüfen.)
 2. **Kanaltrennung:** *Split CFA* (vier Einkanalbilder R, G1, G2, B, je halbe Auflösung) oder *Extract Green* (mittelt die zwei Grün-Pixel: weniger Rauschen, halbierte Auflösung) — F, Siril-Doku „Split Channels".
-3. **Danach NB02–NB05 je Kanal** (ASTAP auf dem Kanalbild; Pixelskala des halbierten Rasters beachten).
+3. **Danach NB01–NB02 je Kanal** (ASTAP auf dem Kanalbild; Pixelskala des halbierten Rasters beachten).
 
 **„Sirils Lichtkurve ersetzt die Transformation nicht" — Erklärung:** Sirils `light_curve` (G, Siril-Doku) rechnet rein *differentiell*: `V_std = (V_ins − C_ins) + C_std`, also
 Ziel minus Vergleichsstern plus Katalogwert des Vergleichssterns. Das stimmt nur, wenn das Instrument Ziel und Comp *gleich* behandelt — also gleiche Farbe oder ein exakt passender Filter.
@@ -430,10 +428,10 @@ Für V > 10 liegen die Gaia-Werte überwiegend 0,02–0,07 mag zu schwach. **Fol
 ### 11.8 Kamera-Kalibrierung: eigene Notebooks (Entwurf)
 
 Ja — Kamera-Charakterisierung und Transformationskoeffizienten gehören **nicht** in die Beobachtungsnotebooks, sondern in eigene, seltener laufende Notebooks, deren Ergebnis als „Kameraprofil" in
-`PHOTOMETRIE_PY_DATA/` (neben `observer.json`) liegt und von NB04/05 gelesen wird:
+`PHOTOMETRIE_PY_DATA/` (neben `observer.json`) liegt und von NB00 und NB02 gelesen wird:
 
 - **NB07 Kamera-Charakterisierung** (umgesetzt: `notebooks/07_kamera_charakterisierung.ipynb`, `varphot/camera.py`; Hardware, pro Gain-Modus): Gain und Ausleserauschen aus Flat-/Bias-Paaren (Photon-Transfer-Kurve), Linearität aus Flats steigender Belichtung (Abweichung von der Geraden, Verfahren nach Handbuch Anhang A und E (G): Maximalwert und Offset aus Über-/Nullbelichtung, Gain/Ausleserauschen/Full Well aus Bias-, Dark-, Flat-Paaren je Einstellung; **Rausch-Kenngrößen an einer einzelnen Farbebene (R, B oder G1) messen, nicht am gemittelten Grün** (das hat kleinere Streuung und verfälscht Gain/RN); Linearität aus Belichtungsreihe (2, 4, 6 … s, je dreimal): Zählrate (ADU/s) gegen Belichtung, Residuum in % — linearer Bereich dort, wo das Residuum ≈ 0 ist; Belichtungen unter ~10 s können durch die reale Verschlusszeit abweichen (Rolling Shutter der Ares-C beachten).
-  Sättigungsgrenze in ADU), Dunkelstrom gegen Temperatur, Bittiefe/Skalierung der FITS; je Bayer-Kanal. Ausgabe: `Camera` (Gain, RN, Dunkelstrom, Linearität, `SATURATE`) → NB01, NB04.
+  Sättigungsgrenze in ADU), Dunkelstrom gegen Temperatur, Bittiefe/Skalierung der FITS; je Bayer-Kanal. Ausgabe: `Camera` (Gain, RN, Dunkelstrom, Linearität, `SATURATE`) → NB00, NB02.
 - **NB08 Transformationskoeffizienten** (umgesetzt: `notebooks/08_transformation.ipynb`, `varphot/transform.py`; Katalog: **AAVSO-Standardfelder direkt per Programm** (`fetch_std_field`: VSP-Schnittstelle mit `special=std_field`, ohne Anmeldung; M 67 190 Sterne, NGC 7790 178, M 11 415, NGC 3532 226, NGC 1252 22, Melotte 111 85; Liste der AAVSO: <https://www.aavso.org/apps/vsd/stdfields>), eigene CSV (`id, ra, dec, B, V, R`) oder die VSP-Sequenz des Zielfeldes (wenige Sterne); Gaia ist als Katalog gesperrt (§11.7); Ablauf: Messtabellen je Kanal → mittlere instrumentelle Magnituden mit Bildnullpunkt-Abzug → Geraden (Sigma-Clipping) → Leave-one-out-Gütetest → Entscheidung `TG`/`V` je Band): (Aufbau aus Kamera + Filter + Optik): Standardfeld-Bilder (M 67/NGC 7790) → je Kanal instrumentelle Magnituden → Regressionen aus §11.5 → `T_bg`, `T_gr`, `T_b`, `T_g`, `T_r` mit Fehlern,
   Gütetest (Abweichung transformiert minus Katalog), Gültigkeit ((V−R) < 1). Ausgabe: `transform.json` (mit Datum, Aufbau). Neubestimmung bei jeder Änderung des Aufbaus.
 - Die AAVSO-Hilfsmittel *Transform Generator* (Python, G. Myers) und *TransformApplier* (jetzt in VPhot) sind Referenz zum Gegenrechnen (F).
@@ -445,7 +443,7 @@ Einmalig je Aufbau (Kamera + Einstellung + Sperrfilter + Optik); Wiederholung na
 1. **Nacht wählen**: photometrische Bedingungen (Seeing ≤ 3″, kein Dunst, stabile Transparenz); Standardfeld über mehrere Luftmassen sinnvoll (Luftmassenbereich ≥ 0,3 für k-Bestimmung).
 2. **Standardfeld**: M 67 (190 AAVSO-Comps, V = 9–14, günstig April–Mai), NGC 7790 (178 Comps, günstig Herbst), NGC 3532 oder NGC 1252 (Südhimmel). Quelle: `fetch_std_field` (VSP-API, in NB08 eingebaut) oder `AAVSO_STD_FIELDS_URL` = <https://www.aavso.org/apps/vsd/stdfields>.
 3. **Aufnahmen**: mindestens 3 Belichtungszeiten × Kanal (B, G, R oder B, V, Rc je nach Setup) bei ≥ 2 Luftmassen; Stack je Belichtung empfohlen (Signal); mindestens 10–15 Comps mit (B−V) = 0,3–1,5 für eine stabile Regression.
-4. **Kalibrierung**: Siril CFA → Kanäle trennen (`tools/split_cfa.ssf`) → NB04 je Kanal → Messtabellen B/G/R.
+4. **Kalibrierung**: Siril CFA → Kanäle trennen (`tools/split_cfa.ssf`) → NB01/NB02 je Kanal → Messtabellen B/G/R.
 5. **NB08 ausführen** (`MODE="real"`): Messtabellen + Katalog → `fit_transform()` → Koeffizienten + LOO-Gütetest → bei RMS ≤ 0,04 mag (transformiert) **speichern** → `PHOTOMETRIE_PY_DATA/transform_<kamera>_<einstellung>.json`.
 6. **Prüfung**: Tabelle „Meldung je Band" am Ende von NB08 muss `TRANS=YES` für alle genutzten Bänder zeigen; bei `TRANS=NO` oder RMS > 0,06 mag → mehr Sterne, breiterer Farbbereich oder andere Nacht.
 
@@ -491,7 +489,7 @@ Prüfstatus: G = Panasonic-Spezifikation gelesen (<https://help.na.panasonic.com
 
 **Ja, das geht — mit derselben Methode.** Das AAVSO-Extended-Format kennt `TB`/`TG`/`TR` ausdrücklich auch für „Astroimaging B/G/R filter“ (G, Format-Seite v1.2: „TG: Green Filter (or Tri-color green) … or Astroimaging G filter. These observations use V-band comp star magnitudes“; TB mit B-, TR mit R-Comps).
 Die AAVSO-Forum-Zusammenfassung (G, Thread „Reporting Photometric Magnitudes“) zählt „CMOS mono with RGB filters“ zu „DSLR“: `OBSTYPE=DSLR`, untransformiert `TB`/`TG`/`TR` mit `TRANS=NO`, transformiert `B`/`V`/`R` mit `TRANS=YES` nach den Gleichungen des DSLR-Handbuchs §6.5 (NB08).
-Für die Pipeline sind die drei Filterbilder die drei Kanäle `b`, `g`, `r` (Methode `monorgb` in NB00): **keine** CFA-Trennung, NB04 je Filter-Bildsatz, NB08 mit den drei Messtabellen, NB05/NB06 wie bei der Farbkamera.
+Für die Pipeline sind die drei Filterbilder die drei Kanäle `b`, `g`, `r` (Methode `monorgb` in NB00): **keine** CFA-Trennung, NB01/NB02 je Filter-Bildsatz, NB08 mit den drei Messtabellen, NB02 (Lichtkurve) und NB03 (Bericht) wie bei der Farbkamera.
 
 | | Bayer-Kamera (Ares-C Pro, Lumix) | Mono (QHY268M) + RGB-Filter |
 |---|---|---|
@@ -505,7 +503,7 @@ Für die Pipeline sind die drei Filterbilder die drei Kanäle `b`, `g`, `r` (Met
 Empfehlung: Hauptdaten mit dem Bessel-V-Filter (Lichtkurve, wie der LCO-Test), RGB nur zusätzlich (Farbindex, Gegenprobe der Bayer-Kameras). Koeffizienten gelten **je Aufbau** (Kamera + Filtersatz + Optik) — auch für das RGB-Rad eigene Koeffizienten bestimmen (NB08, Standardfeld).
 **Offen:** Welche RGB-Filter genau (Hersteller, IR-Sperre)? NB07 für Mono wertet vier verschachtelte Teilbilder aus (geht für Gain/Rauschen).
 
-### 11.13 Export (NB06) und Kanaltrennung
+### 11.13 Export (NB03) und Kanaltrennung
 
 **AAVSO-Export** (`varphot/aavso.py`, `notebooks/06_bericht.ipynb`): schreibt das Extended Format v1.2 (Parameter, 15 Felder, `ENSEMBLE`, JD der Belichtungsmitte, `GROUP`) und **prüft es vor dem Hochladen** gegen die Regeln der Format-Seite (Beispiele der AAVSO als Tests); die Datei wird nur bei fehlerfreier Prüfung geschrieben (`PHOTOMETRIE_PY_DATA/exports/`), ein Upload findet nicht statt.
 Testdaten fremder Beobachter (LCO) werden mit Code `TST01` und dem Dateinamenszusatz `_TESTDATEN_NICHT_EINREICHEN` geschrieben — **nie unter dem eigenen Code**. Transformierter Export (`V`/`B`/`R`, `TRANS=YES`) nur, wenn der Gütetest aus NB08 für das Band bestanden ist; sonst `TG`/`TB`/`TR`. Sequenz-ID (`CHART`) von der VSP-Seite von Hand eintragen (`VARPHOT_CHART_ID`).
@@ -514,14 +512,14 @@ Testdaten fremder Beobachter (LCO) werden mit Code `TST01` und dem Dateinamenszu
 ### 11.14 Inhaltsprüfung, Reifegrad, Automatisierung (2026-11-10)
 
 **Was automatisch geschieht, was gefragt wird:**
-- *Automatisch:* Sequenz-ID (`CHART`) aus der VSP-Antwort (`chartid`, NB03 → `field_config.json` → NB06); Feldgröße aus Sensor und Brennweite (`field_of_view_deg`, NB00 → Plan → NB03; ein Referenzbild hat Vorrang); transformierte Check-Magnitude (`transformed_with_check`, NB05 → KMAG in NB06).
+- *Automatisch:* Sequenz-ID (`CHART`) aus der VSP-Antwort (`chartid`, NB01 → `field_config.json` → NB03); Feldgröße aus Sensor und Brennweite (`field_of_view_deg`, NB00 → Plan → NB01; ein Referenzbild hat Vorrang); transformierte Check-Magnitude (`transformed_with_check`, NB02 → KMAG in NB03).
 - *Warnung/Abfrage:* `OBSTYPE` bei Farbkamera/RGB-Filter (Lesart A Forum „DSLR“ / B Format-Seite „CMOS → CCD“; `VARPHOT_OBSTYPE`, nach Klärung bei der AAVSO `VARPHOT_OBSTYPE_CONFIRMED=1`); Plan ohne Brennweite; Check-Stern weicht > 0,05 mag vom Katalog ab.
-- *Reifegrad* (`varphot/maturity.py`): Funktionen, die nicht an echten Daten geprüft sind (Transformation, CFA-Trennung, Siril-Skript, `monorgb`, OBSTYPE-Regel), werden in NB05/NB06 genannt und stehen im Bericht. Die Stufe wird nur hochgesetzt, wenn die Funktion an echten Daten lief.
-- **Inhaltsprüfung** (`check_plausibility`, NB06 Schritt 4b): `ERROR` blockiert das Schreiben (Zeit in der Zukunft/vor 2000, doppelte Zeilen, Helligkeit weit außerhalb des Sternbereichs, fehlende/negative Fehler, Filter/`TRANS`/`OBSTYPE`-Widerspruch, Luftmasse < 1); `WARN` landet unter „Offene Punkte“ im Bericht (CHART fehlt/Gaia/Form, Check-Stern streut oder weicht ab, Sprünge, `TRANS=YES` ohne Koeffizienten, wenige Punkte, Fehler konstant/zu groß/zu klein). Schwellen sind Startwerte.
+- *Reifegrad* (`varphot/maturity.py`): Funktionen, die nicht an echten Daten geprüft sind (Transformation, CFA-Trennung, Siril-Skript, `monorgb`, OBSTYPE-Regel), werden in NB02/NB03 genannt und stehen im Bericht. Die Stufe wird nur hochgesetzt, wenn die Funktion an echten Daten lief.
+- **Inhaltsprüfung** (`check_plausibility`, NB03 „Datei erzeugen und prüfen“): `ERROR` blockiert das Schreiben (Zeit in der Zukunft/vor 2000, doppelte Zeilen, Helligkeit weit außerhalb des Sternbereichs, fehlende/negative Fehler, Filter/`TRANS`/`OBSTYPE`-Widerspruch, Luftmasse < 1); `WARN` landet unter „Offene Punkte“ im Bericht (CHART fehlt/Gaia/Form, Check-Stern streut oder weicht ab, Sprünge, `TRANS=YES` ohne Koeffizienten, wenige Punkte, Fehler konstant/zu groß/zu klein). Schwellen sind Startwerte.
   Bei den LCO-Testdaten meldet sie z. B. die tatsächliche Streuung des Check-Sterns (0,065 mag) und die Gaia-Comps.
-- **Lokale KI als zweite Leserin** (`varphot/aireview.py`, NB01 Vorbedingungen, NB06 Schritt 6): liest den Berichtstext gegen eine feste Prüfliste (Filter/`TRANS`/`OBSTYPE`, Zeitraum, Fehlergröße, `CHART`, Warnungen, Fehlendes); **nur Anmerkungen, nie Zahlen, ändert nichts**.
+- **Lokale KI als zweite Leserin** (`varphot/aireview.py`, NB00 Schritt 1.1 Vorbedingungen, NB03 „KI-Zweitlesung“): liest den Berichtstext gegen eine feste Prüfliste (Filter/`TRANS`/`OBSTYPE`, Zeitraum, Fehlergröße, `CHART`, Warnungen, Fehlendes); **nur Anmerkungen, nie Zahlen, ändert nichts**.
   *Reihenfolge:* (1) der stärkere Rechner im Heimnetz (Adressen der Reihe nach, z. B. LAN dann WireGuard): erst prüfen, ob Opencode dort vorhanden ist (per `ssh`; der **Aufruf** per ssh ist noch nicht eingebaut → Ollama wird benutzt), sonst Ollama dort; (2) lokal: erst Opencode, dann Ollama.
-  *Konfiguration:* Schlüssel `ai` in der privaten `observer.json` (Rechnername, Adressen, Ollama-Port, ssh-Alias — **nicht im Repo**); `VARPHOT_AI=off` schaltet ab, `VARPHOT_AI_REVIEW=0` überspringt NB06 Schritt 6.
+  *Konfiguration:* Schlüssel `ai` in der privaten `observer.json` (Rechnername, Adressen, Ollama-Port, ssh-Alias — **nicht im Repo**); `VARPHOT_AI=off` schaltet ab, `VARPHOT_AI_REVIEW=0` überspringt die KI-Zweitlesung in NB03.
   *Datenschutz:* nur Ziele im privaten Netz (`is_private_host`, explizite Netzliste); Opencode nur mit **lokalem** Modell — die vorgegebenen `opencode/*`-Modelle laufen in der Cloud und werden **nicht** benutzt (auf diesem Mac aktuell nur diese vorhanden → Opencode lokal „nicht benutzbar“; lokalen Anbieter in Opencode einrichten, dann wird er automatisch genommen).
   Dazu: keine Weiterleitungen (ein privater Server könnte sonst auf eine öffentliche Adresse umleiten), kein System-/Umgebungs-Proxy, `ssh`-Alias nur aus `[A-Za-z0-9._-]`.
   *macOS:* Homebrew-Python bekommt im Heimnetz teils „No route to host“ (Freigabe „Lokales Netzwerk“), `curl`/`nc`/`ssh` nicht — dann weicht der Code automatisch auf `curl`/`nc` aus.
@@ -624,7 +622,7 @@ Grundsatz: Alles, was sich aus Zahlen berechnen lässt, rechnet Code. Die KI bek
 
 **11.16.4 Technik und Datenschutz**
 - Neues Modul `varphot/vsx.py`: `fetch_object(name)`, `parse_mag(text, band)`, `expected_range(obj, band)`, Zwischenspeicher in `~/.cache/varphot/vsx.json` (Zeitstempel, 30 Tage), Zeitgrenze 15 s, **Fehler/Offline → keine Prüfung, kein Abbruch**, Hinweis „VSX nicht erreichbar“. Allgemeiner Programmname im Aufruf (`varphot`), keine Kontaktangaben, keine Standortdaten.
-- `check_plausibility(..., catalog=None, site=None)` bekommt optionale Parameter; ohne sie bleibt das Verhalten unverändert (alle Tests laufen weiter). NB06 Schritt 4b reicht Katalog und Standort durch; NB03 zeigt die Quelle des Bereichs.
+- `check_plausibility(..., catalog=None, site=None)` bekommt optionale Parameter; ohne sie bleibt das Verhalten unverändert (alle Tests laufen weiter). NB03 reicht Katalog und Standort durch und zeigt die Quelle des Bereichs.
 - Erlaubte Netzabfragen bleiben bewusst klein: nur der VSX-Host, nur lesend, einmal je Stern und Meldung.
 
 **11.16.5 Bewertung vor der Umsetzung (Maßstab)**
@@ -657,7 +655,7 @@ Geprüft mit der echten Testdatei `aavso_DEL_CEP_V_2026-11-12_TESTDATEN_NICHT_EI
 4. **Namensauflösung der VSX-Abfrage**: funktionieren `DEL CEP` (unsere Ausgabe), `delta Cep`, `* del Cep` (Simbad), `del Cep`, `HD 213306`, `000-BCQ-471` (AUID), `algol`; **nicht** `V* del Cep` und `Delta Cephei`. → Reihenfolge: AUID aus `field_config` (falls vorhanden), sonst Name; nicht gefunden → Kegelabfrage mit Koordinaten (Radius 0,01°), sonst keine Prüfung und Hinweis.
 5. **Nicht getestet:** Nova/Mira (Bereich weit, R1 schweigt praktisch), echte Fremddaten außerhalb des LCO-Satzes, Abfrage von Perioden (nicht geplant), Dauerbetrieb gegen VSX (Rate-Limit unbekannt).
 
-**Umsetzung (2026-11-14):** `varphot/vsx.py`, `varphot/visibility.py`, Parameter `catalog`/`site`/`target_radec` in `check_plausibility`, NB06 Schritt 4b, `tests/test_vsx.py` (Tests, Netz nur per Attrappe; eine Prüfung gegen die echte LCO-Datei, wenn vorhanden). An der echten Datei keine neuen Meldungen.
+**Umsetzung (2026-11-14):** `varphot/vsx.py`, `varphot/visibility.py`, Parameter `catalog`/`site`/`target_radec` in `check_plausibility`, NB03 „Datei erzeugen und prüfen“, `tests/test_vsx.py` (Tests, Netz nur per Attrappe; eine Prüfung gegen die echte LCO-Datei, wenn vorhanden). An der echten Datei keine neuen Meldungen.
 
 **Empfehlung (vor der Umsetzung):** R1 (nur `WARN`) und R2 (`ERROR` nur für „Stern unter dem Horizont“; Rest `WARN`) umsetzen, R4 (a) in §14.1, R3 (KI-Sternwissen) **zurückstellen** — R3 liefert nach Schluss 2 wenig Neues und müsste ohnehin gegen VSX geprüft werden. Umfang: neues `varphot/vsx.py` plus optionale Parameter in `check_plausibility`, Tests mit der Testdatei (Rechnung der Fälle oben als Testfälle) und mit einer Attrappe für die Netzabfrage (Tests laufen ohne Netz).
 
@@ -698,13 +696,13 @@ die Werte werden gespeichert und von den Folge-Notebooks genutzt.
 2. **Sichtbarkeit:** Standort aus NB01; Zeitfenster mit Sonne < −12° und Ziel > 30° (ohne Mond/Wetter).
 3. **Probebilder** (3–5 Aufnahmen desselben Feldes, unterschiedlich belichtet): hellster Stern (Spitzenwert, gesättigt?) und FWHM aus ungesättigten Sternen (Gauß-Anpassung, `photutils.psf.fit_fwhm`); bei Bayer-Kameras auf der Grünebene (beide Grün gemittelt), Rohbild-FWHM = 2 × Ebenen-FWHM.
 4. **Empfehlung:** längste Belichtung bis zur Obergrenze (lineare Skalierung, Minimum über die ungesättigten Probebilder; Korrektur auf die hellste Phase des Veränderlichen), empfohlen 80 %; Aperturen 1,5 × FWHM, Himmelsring nach Handbuch; Warnungen.
-5. **Plan speichern** (`PHOTOMETRIE_PY_DATA/plans/<Ziel>-<Methode>-<Kamera>-<Einstellung>.json`): Ziel, Methode, Meldefilter, `OBSTYPE`, Kamera/Einstellung, FWHM (Ebene/Rohbild), Aperturen, Grenzen, Belichtung, Warnungen. **NB04** übernimmt die Aperturen (`VARPHOT_PLAN=<Datei>`), NB06 soll Meldefilter und `OBSTYPE` daraus nehmen.
+5. **Plan speichern** (`PHOTOMETRIE_PY_DATA/plans/<Ziel>-<Methode>-<Kamera>-<Einstellung>.json`): Ziel, Methode, Meldefilter, `OBSTYPE`, Kamera/Einstellung, FWHM (Ebene/Rohbild), Aperturen, Grenzen, Belichtung, Warnungen. **NB02** übernimmt die Aperturen (Plan der Sitzung), NB03 nimmt Meldefilter und `OBSTYPE` daraus.
 
 **Regeln (AAVSO DSLR Observing Manual v1.4, im Wortlaut gelesen):** Sterne unter 75 % des Maximalwerts (§4.5.2; 14 bit ≈ 12 300 ADU); Aperturradius 1,2–1,5 × FWHM des größten Sterns (§6.1.1); Himmelsring innen „several pixels“ über der Apertur, Fläche mindestens gleich, besser größer (§6.1.2);
 FWHM im Rohbild ≥ 8–10 px bei Bayer-Kameras (§5.5.1). Mit NB07-Profil gilt statt der 75 % die **gemessene** Linearitätsgrenze (`linear_max_adu`).
 
 **Ergänzt 2026-11-10:** (1) **Jeder Katalogstern wird einzeln geprüft** (`check_field_stars`: Ziel, Comps, Check gegen die Obergrenze und S/N ≥ 100; Ziel in der hellsten Phase; begrenzender Stern, `V_comp_min` = hellster zulässiger Comp bei der empfohlenen Belichtung). (2) **Mond** in der Sichtbarkeit (Höhe, Abstand zum Ziel, Beleuchtung; „Mond ok“ = unter dem Horizont oder > 40° bei < 50 % Beleuchtung, Startwerte).
-(3) **NB03 liest den Plan** (`VARPHOT_PLAN`): `comp_v_range` unten = `V_comp_min`, bei Bayer-/RGB-Methoden `comp_bv_abs` (0,3–1,0, Handbuch §6.3.1), bei `TB`/`TR`/`B`/`R` keine Gaia-Ergänzung. (4) **NB06 liest den Plan** (Meldefilter, `OBSTYPE`). (5) Methode `monorgb` (§11.12).
+(3) **NB01 liest den Plan** (Sitzung): `comp_v_range` unten = `V_comp_min`, bei Bayer-/RGB-Methoden `comp_bv_abs` (0,3–1,0, Handbuch §6.3.1), bei `TB`/`TR`/`B`/`R` keine Gaia-Ergänzung. (4) **NB03 liest den Plan** (Meldefilter, `OBSTYPE`). (5) Methode `monorgb` (§11.12).
 **Grenzen:** Das Ziel muss in seiner hellsten Phase geplant werden; die Skalierung setzt Linearität und gleiche Bedingungen voraus; Gauß-FWHM ist bei stark defokussierten (ringförmigen) Sternen ungenau; Probebilder sind nur mit synthetischen Daten und nicht mit echten Aufnahmen getestet.
 **Offen:** Feldgröße aus dem Aufbau (Brennweite/Sensor) in NB03; Mondstreulicht-Modell; echte Probebilder.
 
@@ -866,7 +864,7 @@ Entwurf für Fall b (alle Zahlen Startwerte, ungeprüft): Suche in der AAVSO-Seq
 |---|---|
 | **Planung (NB00):** erwartete Himmelshelligkeit in Zielrichtung → S/N und Belichtung (Himmelsrauschen gegen Ausleserauschen) | **Keine Korrektur der Magnituden:** Der Himmel wird in der Apertur-Photometrie subtrahiert und geht nur ins Rauschen ein |
 | **Qualität (NB02):** Zeitreihe als zusätzlicher Kanal neben der Transparenz; Sprünge deuten auf Wolken, Dunst, Mond, Dämmerung | **Keine Extinktion, kein Seeing:** k kommt weiter aus dem Gang des Nullpunkts mit der Luftmasse (`fit_extinction`) |
-| **Dokumentation (NB03/NB05):** Himmelshelligkeit je Nacht im Bericht und optional in `NOTES` | **Kein Absolutwert am Ziel:** Das Gesichtsfeld des Geräts ist größer als das Bildfeld (siehe Projekt); gilt als Trend, nicht als Himmelshelligkeit im Bildfeld |
+| **Dokumentation (NB02/NB03):** Himmelshelligkeit je Nacht im Bericht und optional in `NOTES` | **Kein Absolutwert am Ziel:** Das Gesichtsfeld des Geräts ist größer als das Bildfeld (siehe Projekt); gilt als Trend, nicht als Himmelshelligkeit im Bildfeld |
 | **Wolken-Flag für den All-Sky-Workflow (§16):** zeigt, ob eine Nacht photometrisch war | |
 
 ### 15.2 Anbindung in der Auswertung (Entwurf)

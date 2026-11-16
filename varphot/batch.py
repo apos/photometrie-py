@@ -313,7 +313,7 @@ def light_curve(df: pd.DataFrame, stars: pd.DataFrame, target_id, cfg=None, site
 
     Grenzen: Der Kernradius (``core_r`` = 1,5 px) wurde an diesem Datensatz auf kleinstes Residuum gewaehlt, nicht auf die
     Amplitude; die Modellamplitude waechst mit dem Radius (0,75 bei 1,0 px bis 0,99 bei 2,5 px, Literatur ~0,88), der Radius
-    ist also nicht allgemeingueltig (frueher NB04 Schritt 4b; im Messnotebook NB02 ueber das Feld „Kernmaske“ einstellbar). Bleeding reicht bis ~8 px, die Maske deckt es nicht
+    ist also nicht allgemeingueltig (im Messnotebook NB02 ueber das Feld „Kernmaske“ einstellbar). Bleeding reicht bis ~8 px, die Maske deckt es nicht
     ab. Die Ringmethode setzt voraus, dass Comps und Ziel dieselbe PSF haben (gleiches Bildfeld, aehnliche Position).
     Bei defokussiertem, ungesaettigtem Ziel entfaellt die Korrektur.
 

@@ -137,7 +137,7 @@ def load_reference(sess: Session):
 def wcs_quality(wcs, img, hdr, fwhm_px: float = 5.0, nsigma: float = 10.0) -> dict:
     """Gegenpruefung der WCS an Gaia DR3 (Netz noetig): Versatz, Streuung, Urteil. Ohne Netz/Treffer ``dict(checked=False, note=...)`` — nie eine Ausnahme.
 
-    Wie bisher in der alten NB02 (jetzt NB01) (:func:`varphot.wcscheck.check_wcs`): Aufnahmeepoche aus ``DATE-OBS``/``DATE-END``, Gaia-Kegel um die Bildmitte, erkannte Sterne gegen Gaia. Grenzen: braucht mindestens
+    Wie :func:`varphot.wcscheck.check_wcs`: Aufnahmeepoche aus ``DATE-OBS``/``DATE-END``, Gaia-Kegel um die Bildmitte, erkannte Sterne gegen Gaia. Grenzen: braucht mindestens
     einige helle, ungesaettigte Sterne; Ergebnis nur fuer geloeste (ASTAP-)Bilder sinnvoll.
     """
     from astropy.time import Time
@@ -344,7 +344,7 @@ def measure(sess: Session, plan=None, wcs_mode: str | None = None, ap: dict | No
             obs, own = load_config()
             site = next((s for s in all_sites(own) if s.name == obs.site_name), None)
     if site is None:
-        notes.append("Kein Standort — BJD_TDB und Szintillation entfallen (NB00/Einrichtung: Standort speichern)")
+        notes.append("Kein Standort — BJD_TDB und Szintillation entfallen (NB00 Schritt 1.2: Standort speichern)")
     sat = bool(((tab["star_id"] == "target") & (tab["n_sat"] > 0)).any()) if "n_sat" in tab else False
     lc = light_curve(tab, stars, "target", site=site, aperture_m=aperture_m if site is not None else None, core_correct=bool(core_r) and sat and "flux_ring" in tab and tab["flux_ring"].notna().any(), n_bootstrap=n_bootstrap)
     fl = tab.drop_duplicates("file")[["file", "frame_flags", "wcs_source", "reg_match", "reg_rms_px", "transparency", "fwhm_arcsec"]] if "wcs_source" in tab else tab.drop_duplicates("file")[["file", "frame_flags"]]
