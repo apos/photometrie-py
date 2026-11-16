@@ -975,3 +975,67 @@ V = v_inst + ZP(t) + Tv_bv·(B−V) + k·X  (+ k''·(B−V)·X)
 - Kamera-Stabilität (Temperatur, Gain) und Flats gehen direkt in den Zeropoint ein.
 - Gilt nicht für Sterne mit starken Emissions- oder Absorptionslinien und nicht für (V−R) ≥ 1 (§11.2).
 - Der Aufwand ist hoch: ein Standardfeld, mehrere Luftmassen, Wechselbetrieb. Sinnvoll nur für Ziele, bei denen es keine Alternative gibt.
+
+---
+
+## 17. Datalore als umziehbares Paket: Image, Registry-Ersatz, Lizenz (Stand 2026-11-15)
+
+**Ziel (Auftrag des Nutzers):** Die Datalore-Installation (Server, Postgres, Agent mit Python, ASTAP, Siril) soll ohne Zutaten vom Host auf **jedem** Docker-Host laufen — Linux amd64 (panama) und Mac Apple Silicon (M4) —, auch für den Fernzugriff mit einem Tablet. Die fertigen Images liegen in einem Ablageordner im Nextcloud-Sync, der auch für andere Projekte taugt. Umsetzung: `deploy/datalore/` (Anleitung: dortige `README.md`) und `deploy/imgstore/`.
+
+### 17.1 Ausgangslage und Entscheidungen
+
+Bis 2026-11-14 kamen ASTAP-Binary, Sterndatenbank und Repo per Mount von panama (feste Pfade in `agents-config.yaml`); Siril fehlte. Das Agent-Image (`datalore-agent-photometrie`, 6,3 GB) wurde nur dort gebaut; Compose-Datei und Dockerfile lagen nicht im Git.
+
+| Frage | Entscheidung | Begründung |
+|---|---|---|
+| Wohin mit ASTAP, Siril, varphot? | **Ins Agent-Image**: ASTAP-CLI per Download (je Architektur), Siril per `apt`, varphot als Momentaufnahme unter `/work/PHOTOMETRIE_PY` (ein Mount darüber ersetzt sie) | autark; Entwicklung ohne Neubau bleibt möglich |
+| Sterndatenbank (D80 1,2 GB + G17 0,5 GB)? | **Docker-Volume** (`astap-db.sh`), nicht im Image | ändert sich selten, würde jedes Archiv um 1,7 GB aufblähen |
+| Feste Host-Pfade (Anforderung 1)? | alles Variablen in `.env`; `render-config.sh` erzeugt `agents-config.yaml` (Datalore kennt selbst keine Variablen) | einzige Stelle mit Host-Werten |
+| Docker-Socket (Anforderung 2)? | Pfad als Variable `DOCKER_SOCK`; Ordner als Variablen; Datenbank als benanntes Volume; Erklärung der Folgen in der README | der Server startet die Agents über den Docker-Daemon des Hosts; die Pfade gelten dort, nicht im Server-Container |
+| Geheimnisse (Anforderung 3)? | Image und Archiv enthalten **keine** (Suche im Image: keine `.env`, keine Lizenz-/`observer.json`-Datei); Lizenzschlüssel im JetBrains Account und im Admin-Panel; `.env`/Schlüssel-Kopie in KeePass; Admin-Passwort in Apple-Passwörtern | Tabelle in der README |
+| Mac M4 (Anforderung 4, 5)? | Image **arm64** nativ gebaut und geprüft; amd64 daneben; `imgstore pull` wählt die Architektur | ein amd64-Image liefe auf dem M4 nur emuliert (Rosetta/QEMU) |
+| GPU (Anforderung 5)? | Die Pipeline rechnet auf der CPU; Container auf dem Mac sehen die Apple-GPU nicht. Für Linux mit NVIDIA gibt es `ENABLE_GPU_AGENT=1` (zweiter Agent mit `deviceRequests`) | nichts in varphot nutzt eine GPU |
+| Ablage der Images? | **`imgstore`**: `docker save \| zstd` je Image und Architektur in einen Ordner im Nextcloud-Sync, mit Prüfsumme | siehe 17.3 |
+
+### 17.2 Ergebnis der Prüfung (2026-11-15)
+
+- **amd64 (panama)**: Image gebaut (`deploy/datalore/build.sh`), ASTAP-CLI 2026.10.30, Siril 1.2.1, Python 3.12.3, varphot, astropy 8.0.2, photutils 3.1.1; `varphot.observer.data_dir()` = `/work/PHOTOMETRIE_PY_DATA`. Isolierter Teststack (`bootstrap.sh`, Projekt `dltest`, Port 18080, eigene Volumes): Server antwortet mit HTTP 200, `agents-config.yaml` aus `.env` erzeugt, ASTAP-Datenbank aus dem Volume; `backup.sh` und `restore.sh` mit der echten Sicherung vom 2026-11-15 durchlaufen (Datenbank und Storage eingespielt, Server startet). Produktiv-Installation unberührt.
+- **arm64 (Mac M4, mit Podman gebaut und gestartet)**: ASTAP-CLI (aarch64), Siril 1.2.1, varphot laufen nativ. `astap-db.sh` lud D05 ins Volume, ASTAP löste ein LCO-Bild von δ Cep (Lösung 22h29m +58°24′, Abweichung 0,1″) über den Wrapper `/usr/local/bin/astap`.
+- **Siril im Image (erster echter Lauf der Skripte aus `varphot/siril.py`, synthetische Bilder)**: Masters (Bias, Dark, Flat) und Kalibrierung von Lights funktionieren, wenn keine mit Bias kalibrierten Flats im Spiel sind. **Mit Bias + Flat bricht der letzte Schritt ab** (`calibrate light` meldet „statistics computation failed“, weil schon das Master-Flat aus den mit Bias kalibrierten Flats beim Speichern denselben Fehler meldet; geprüft mit `-norm=mul`/`-nonorm`, `rej`/`mean`/`median`). Ob das an den synthetischen Daten oder an Siril 1.2.1 liegt, ist **offen** — mit echten Flats/Bias gegenprüfen, bevor man sich auf das Skript verlässt (Reifegrad `siril_cfa_script` bleibt „ungetestet“).
+- **Nicht geprüft**: Start eines Agent-Containers durch den Server des Teststacks (ein frischer Server verlangt nach dem Anlegen eines Kontos die Annahme der Datalore-Nutzungsbedingungen; das habe ich nicht stellvertretend akzeptiert — Teststack danach abgebaut, Wiederholung mit `bootstrap.sh` und eigener `.env` möglich), Docker Desktop/OrbStack (Docker Desktop verlangte bei der Installation ein Administratorpasswort, deshalb mit Podman gebaut), Betrieb des Datalore-Servers auf dem Mac, Docker rootless, Socket-Proxy.
+
+### 17.3 imgstore: Ablage als Ordner statt Registry-Server
+
+`deploy/imgstore/imgstore` (Bash, macOS-kompatibel): `push`, `pull`, `list`, `verify`. Ablage `<Store>/<projekt>/<name>/<tag>/<arch>.tar.zst` mit `.sha256` und `.meta`. Entscheidungsweg:
+
+| Option | Urteil |
+|---|---|
+| GHCR/Docker Hub | Kontingent unklar (Tabelle der Hilfeseite nicht lesbar; ältere Quellen nennen 500 MB/1 GB für kostenlose private Pakete), JetBrains-Schichten im Fremddienst nicht ratsam |
+| `registry:2` mit Nextcloud-Ordner als Speicher | ausgeschlossen: Registry-Speicher ist ein Geflecht aus Dateien mit Referenzen; Nextcloud-Sync auf mehreren Rechnern kann es zerstören |
+| eigener Registry-Server (panama) | möglich, aber TLS, Konto und ein dauernd laufender Dienst für ein Image |
+| **Ordner mit einer Archivdatei je Image und Architektur** | gewählt: der Sync kopiert nur ganze Dateien; `.part`-Umbenennung und Prüfsumme verhindern halbe Dateien; funktioniert für beliebige Projekte |
+
+Grenze: kein Teilen von Schichten; jede Architektur ist ein vollständiges Archiv. Messwerte siehe 17.5.
+
+### 17.4 Lizenz der Datalore-Version
+
+Quellen: Lizenzvereinbarung Version 3.3 (`[DL-EULA]`), Hilfe „Manage licenses“ und „Datalore plans“ (`[DL-Lizenz]`), „Customize or update environment“ (`[DL-Agent]`).
+
+- On-Premises ist das **bezahlte** Produkt (früher „Enterprise“); die Pläne „Community“ und „Professional“ waren archivierte Cloud-Pläne. Der Schlüssel enthält Organisation und **maximale Nutzerzahl**.
+- Eine **Obergrenze für Installationen, Server oder Instanzen steht nicht im Text**; ebenso fehlt eine Bindung an einen Host, eine Regelung für Test-/Zweitrechner und eine Unterscheidung kommerziell/nichtkommerziell. Mehrere eigene Installationen sind damit weder ausdrücklich erlaubt noch verboten.
+- Erlaubt: Sicherungskopien für Archivzwecke (3b iv). Verboten: Änderung und abgeleitete Werke ohne Erlaubnis (3d ii), Weitergabe an Dritte (3d vi). Ein eigenes Agent-Image `FROM jetbrains/datalore-agent` ist **von JetBrains dokumentiert** (Hilfe) und daher nicht als unerlaubte Änderung zu verstehen; es enthält aber JetBrains-Schichten und bleibt deshalb **privat** (kein öffentliches Registry, nicht an Dritte).
+- **Offen:** ob der Schlüssel der Organisation auf mehreren Servern gleichzeitig installiert sein darf. Empfehlung: einen Server produktiv, den zweiten (Mac) zum Test und als Ausweichrechner, und eine kurze Rückfrage an datalore@jetbrains.com (Text in 17.6).
+
+### 17.5 Messwerte (Agent-Image `varphot-datalore-agent:2026.4.1-py312`, Stand 2026-11-15)
+
+| Architektur | Image | Archiv (zstd -10) | Ablegen | Laden aus dem Store |
+|---|---|---|---|---|
+| amd64 (panama) | 6,5 GB | **1,8 GB** | 8 min | 33 s |
+| arm64 (Mac M4, Podman) | 6,5 GB | **1,7 GB** | 1,3 min | 28 s |
+
+Die geschätzten 3–4 GB waren zu hoch: das Image besteht überwiegend aus gut komprimierbaren Python-Paketen und der JetBrains-Basis. Beide Archive zusammen 3,5 GB im Nextcloud-Ordner. Rundlauf geprüft: arm64-Image gelöscht, mit `imgstore pull` aus dem Store geladen, ASTAP/Siril/varphot laufen; dasselbe auf panama (amd64). Das Archiv der jeweils anderen Architektur kommt über den Nextcloud-Sync auf den anderen Rechner (beim Abschluss noch unterwegs).
+
+### 17.6 Entwurf der Rückfrage an JetBrains (nicht gesendet)
+
+> Betreff: Datalore On-Premises — Installation auf einem zweiten eigenen Rechner  
+> Wir betreiben Datalore On-Premises (Version 2026.4.1) mit einem Schlüssel für *n* Nutzer auf einem Linux-Server. Dürfen wir denselben Schlüssel zusätzlich auf einem zweiten, ebenfalls von uns betriebenen Rechner (Mac, Ausweich-/Testinstallation, nicht zeitgleich von weiteren Personen genutzt) einsetzen? Die Lizenzbedingungen (Version 3.3) nennen dazu keine Grenze. Außerdem verwenden wir ein eigenes Agent-Image auf Basis von `jetbrains/datalore-agent` (Python-Umgebung, zusätzliche Programme); es wird nur zwischen unseren eigenen Rechnern kopiert. Ist das so in Ordnung?

@@ -1,0 +1,14 @@
+# Build-Kontext fuer deploy/datalore/Dockerfile ist die Repo-Wurzel; nur das hineinlassen, was das Image braucht
+# (keine Daten, keine Demo-Bilder, nichts mit Geheimnissen).
+*
+!varphot
+!tools
+!data
+!pyproject.toml
+!deploy/datalore/requirements.agent.txt
+!deploy/datalore/astap-wrapper.sh
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+data/fields
+tools/hooks

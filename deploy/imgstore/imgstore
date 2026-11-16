@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# imgstore — eine Image-"Registry" als Ordner (z. B. im Nextcloud-Sync), ohne Server und ohne Konto.
+# Autor: Axel Pospischil. Stand 2026-11 (KONZEPT.md §17.3).
+#
+# Warum: Docker-Images sollen zwischen eigenen Rechnern (Linux amd64, Mac arm64) wandern, ohne Docker Hub/GHCR (Kontingent, Lizenz der Basis-Images) und ohne eigenen
+# Registry-Server. Wie: ``docker save | zstd`` je Image und Architektur in einen Ordner, daneben Pruefsumme und Metadaten; ``docker load`` auf dem Zielrechner.
+# Ein Ordner kann beliebig viele Projekte enthalten (generisch, nichts von varphot).
+#
+# Aufbau:  <Store>/<projekt>/<name>/<tag>/<arch>.tar.zst  +  <arch>.sha256  +  <arch>.meta   (arch = amd64 | arm64)
+# Aufruf:
+#   imgstore push <image[:tag]> [-p projekt]      Image des lokalen Docker-Daemons ablegen (Architektur wird erkannt)
+#   imgstore pull <name[:tag]> [-p projekt] [-a arch]   pruefen und in den lokalen Docker-Daemon laden (Standard: Architektur dieses Rechners)
+#   imgstore list [projekt]                       Inhalt mit Architektur, Groesse, Datum
+#   imgstore verify <name[:tag]> [-p projekt] [-a arch]   nur Pruefsumme
+#   imgstore where                                 Pfad des Stores
+# Store: Umgebungsvariable IMGSTORE_DIR, sonst Datei ~/.config/imgstore/dir (eine Zeile mit dem Pfad).
+# Weitere Umgebung: DOCKER (docker|podman), ZSTD_LEVEL (Standard 10; 3 = schnell, 19 = klein), IMGSTORE_PROJECT (Standardprojekt).
+# Nextcloud: es wird zuerst nach <datei>.part geschrieben und dann umbenannt, damit der Sync keine halbe Datei verteilt.
+# Das Image darf Schichten von JetBrains enthalten: den Store nicht oeffentlich oder an Dritte freigeben (Datalore-EULA 3d).
+# Kompatibel mit macOS (bash 3.2): keine assoziativen Arrays.
+set -euo pipefail
+
+DOCKER="${DOCKER:-docker}"
+LEVEL="${ZSTD_LEVEL:-10}"
+PROJECT_DEFAULT="${IMGSTORE_PROJECT:-default}"
+
+die() { echo "imgstore: $*" >&2; exit 1; }
+need() { command -v "$1" > /dev/null 2>&1 || die "'$1' fehlt (installieren: $2)"; }
+
+store_dir() {
+  local d="${IMGSTORE_DIR:-}"
+  if [ -z "$d" ] && [ -f "$HOME/.config/imgstore/dir" ]; then d="$(head -n 1 "$HOME/.config/imgstore/dir")"; fi
+  [ -n "$d" ] || die "Store nicht festgelegt: IMGSTORE_DIR setzen oder den Pfad in ~/.config/imgstore/dir schreiben"
+  mkdir -p "$d"
+  echo "$d"
+}
+
+sha256_of() {   # Pruefsumme einer Datei (Linux: sha256sum, macOS: shasum)
+  if command -v sha256sum > /dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
+
+host_arch() {
+  case "$(uname -m)" in x86_64|amd64) echo amd64 ;; arm64|aarch64) echo arm64 ;; *) uname -m ;; esac
+}
+
+bytes_h() { awk -v b="$1" 'BEGIN{ split("B KB MB GB TB",u); i=1; while (b>=1024 && i<5) { b/=1024; i++ } printf "%.1f %s", b, u[i] }'; }
+
+split_ref() {   # name[:tag] -> NAME TAG (Registry-Teile im Namen werden zu "_" , damit der Pfad gueltig bleibt)
+  local ref="$1" name tag
+  name="${ref%%:*}"; tag="latest"
+  case "$ref" in *:*) tag="${ref##*:}" ;; esac
+  name="$(echo "$name" | tr '/' '_')"
+  NAME="$name"; TAG="$tag"
+}
+
+parse_opts() {   # setzt PROJECT, ARCH, REF aus den restlichen Argumenten
+  PROJECT="$PROJECT_DEFAULT"; ARCH=""; REF=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -p) PROJECT="${2:?-p braucht ein Projekt}"; shift 2 ;;
+      -a) ARCH="${2:?-a braucht amd64 oder arm64}"; shift 2 ;;
+      -*) die "unbekannte Option $1" ;;
+      *) [ -z "$REF" ] || die "zu viele Argumente"; REF="$1"; shift ;;
+    esac
+  done
+}
+
+cmd_push() {
+  parse_opts "$@"; [ -n "$REF" ] || die "Aufruf: imgstore push <image[:tag]> [-p projekt]"
+  need zstd "brew install zstd | apt install zstd"
+  "$DOCKER" image inspect "$REF" > /dev/null 2>&1 || die "Image '$REF' ist im lokalen $DOCKER nicht vorhanden"
+  local arch created id size dest
+  arch="$("$DOCKER" image inspect "$REF" --format '{{.Architecture}}')"
+  created="$("$DOCKER" image inspect "$REF" --format '{{.Created}}')"
+  id="$("$DOCKER" image inspect "$REF" --format '{{.Id}}')"
+  size="$("$DOCKER" image inspect "$REF" --format '{{.Size}}')"
+  split_ref "$REF"
+  dest="$(store_dir)/$PROJECT/$NAME/$TAG"
+  mkdir -p "$dest"
+  echo "Speichere $REF ($arch, $(bytes_h "$size") unkomprimiert) nach $dest/$arch.tar.zst ..."
+  "$DOCKER" save "$REF" | zstd -T0 -"$LEVEL" -q -o "$dest/$arch.tar.zst.part" -f
+  mv "$dest/$arch.tar.zst.part" "$dest/$arch.tar.zst"
+  sha256_of "$dest/$arch.tar.zst" > "$dest/$arch.sha256"
+  {
+    echo "ref=$REF"; echo "arch=$arch"; echo "image_id=$id"; echo "created=$created"; echo "size_uncompressed=$size"
+    echo "size_archive=$(wc -c < "$dest/$arch.tar.zst" | tr -d ' ')"; echo "pushed=$(date -u +%Y-%m-%dT%H:%M:%SZ)"; echo "pushed_from=$(hostname -s 2>/dev/null || hostname)"
+  } > "$dest/$arch.meta"
+  echo "Fertig: $(bytes_h "$(wc -c < "$dest/$arch.tar.zst" | tr -d ' ')") ($PROJECT/$NAME:$TAG, $arch), sha256 $(cut -c1-16 "$dest/$arch.sha256")..."
+}
+
+locate() {   # setzt DIR und ARCH fuer pull/verify
+  parse_opts "$@"; [ -n "$REF" ] || die "Aufruf: imgstore <pull|verify> <name[:tag]> [-p projekt] [-a arch]"
+  split_ref "$REF"; [ -n "$ARCH" ] || ARCH="$(host_arch)"
+  DIR="$(store_dir)/$PROJECT/$NAME/$TAG"
+  [ -d "$DIR" ] || die "nicht im Store: $PROJECT/$NAME:$TAG (imgstore list)"
+  [ -f "$DIR/$ARCH.tar.zst" ] || die "keine Datei fuer Architektur $ARCH in $DIR (vorhanden: $(cd "$DIR" && ls *.tar.zst 2>/dev/null | sed 's/\.tar\.zst//' | tr '\n' ' '))"
+}
+
+check_sum() {
+  [ -f "$DIR/$ARCH.sha256" ] || die "Pruefsumme fehlt: $DIR/$ARCH.sha256 (Sync unvollstaendig?)"
+  local want got
+  want="$(cat "$DIR/$ARCH.sha256")"; got="$(sha256_of "$DIR/$ARCH.tar.zst")"
+  [ "$want" = "$got" ] || die "Pruefsumme stimmt nicht ($ARCH.tar.zst): Datei beschaedigt oder Sync nicht abgeschlossen"
+}
+
+cmd_verify() { locate "$@"; check_sum; echo "OK: $PROJECT/$NAME:$TAG ($ARCH) sha256 $(cut -c1-16 "$DIR/$ARCH.sha256")..."; }
+
+cmd_pull() {
+  locate "$@"; need zstd "brew install zstd | apt install zstd"
+  check_sum
+  echo "Lade $PROJECT/$NAME:$TAG ($ARCH) in $DOCKER ..."
+  zstd -dc -T0 "$DIR/$ARCH.tar.zst" | "$DOCKER" load
+  # Podman speichert Images ohne Registry als "localhost/<name>"; Docker erwartet den Namen so, wie er beim push angegeben wurde
+  local want
+  want="$(grep '^ref=' "$DIR/$ARCH.meta" 2> /dev/null | cut -d= -f2- || true)"
+  if [ -n "$want" ] && ! "$DOCKER" image inspect "$want" > /dev/null 2>&1 && "$DOCKER" image inspect "localhost/$want" > /dev/null 2>&1; then
+    "$DOCKER" tag "localhost/$want" "$want"
+  fi
+}
+
+cmd_list() {
+  local root p n t f arch meta sz when from
+  root="$(store_dir)"; p="${1:-}"
+  printf "%-14s %-26s %-18s %-6s %-10s %s\n" PROJEKT NAME TAG ARCH GROESSE ABGELEGT
+  for f in $(cd "$root" && find . -name '*.tar.zst' -type f | sort); do
+    f="${f#./}"; arch="$(basename "$f" .tar.zst)"
+    t="$(basename "$(dirname "$f")")"; n="$(basename "$(dirname "$(dirname "$f")")")"; pr="$(basename "$(dirname "$(dirname "$(dirname "$f")")")")"
+    [ -z "$p" ] || [ "$p" = "$pr" ] || continue
+    meta="$root/$(dirname "$f")/$arch.meta"
+    sz="$(wc -c < "$root/$f" | tr -d ' ')"; when=""; from=""
+    if [ -f "$meta" ]; then when="$(grep '^pushed=' "$meta" | cut -d= -f2)"; from="$(grep '^pushed_from=' "$meta" | cut -d= -f2)"; fi
+    printf "%-14s %-26s %-18s %-6s %-10s %s %s\n" "$pr" "$n" "$t" "$arch" "$(bytes_h "$sz")" "$when" "${from:+von $from}"
+  done
+}
+
+case "${1:-}" in
+  push) shift; cmd_push "$@" ;;
+  pull) shift; cmd_pull "$@" ;;
+  verify) shift; cmd_verify "$@" ;;
+  list) shift; cmd_list "$@" ;;
+  where) store_dir ;;
+  ""|-h|--help|help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unbekannter Befehl '$1' (imgstore help)" ;;
+esac
