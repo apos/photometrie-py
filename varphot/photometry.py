@@ -4,16 +4,17 @@ import warnings
 import numpy as np
 from astropy.nddata import NDData
 from astropy.table import Table
-from photutils.aperture import CircularAperture, CircularAnnulus, ApertureStats
+from photutils.aperture import CircularAperture, ApertureStats
 from photutils.psf import EPSFBuilder, PSFPhotometry, extract_stars
 
 from .config import CFG
+from .sky import sky_level
 
 
 def aperture_flux(img, xy, r_ap=None, r_in=None, r_out=None, cfg=None):
     """Gibt (flux_array, flux_err_array, bkg_array) zurueck (einfache Aperturphotometrie, Altpfad fuer Notebook-Demos).
 
-    Warum/Wie: Summe in der Kreisapertur minus Himmelsmedian im Ring mal Aperturflaeche. Der Fehler ``sqrt(|Summe|)`` enthaelt nur
+    Warum/Wie: Summe in der Kreisapertur minus Himmel im Ring mal Aperturflaeche (Median der Ringpixel nach Sigma-Clipping, :func:`varphot.sky.sky_level`). Der Fehler ``sqrt(|Summe|)`` enthaelt nur
     Photonenrauschen — fuer Messungen die vollstaendige CCD-Gleichung aus :func:`varphot.batch.measure_frame` verwenden.
     Warnung bei Peak > ``CFG['sat_adu']`` (Saettigung/Nichtlinearitaet).
 
@@ -26,9 +27,7 @@ def aperture_flux(img, xy, r_ap=None, r_in=None, r_out=None, cfg=None):
     r_out = r_out if r_out is not None else cfg["ap_r_out"]
 
     ap = CircularAperture(xy, r=r_ap)
-    an = CircularAnnulus(xy, r_in=r_in, r_out=r_out)
-    sky = ApertureStats(img, an, sigma_clip=None)
-    bkg = sky.median
+    bkg = np.array([sky_level(img, p, r_in, r_out, cfg)[0] for p in np.atleast_2d(np.asarray(xy, float))])
     st = ApertureStats(img, ap, sigma_clip=None)    # Standard-Clipping wuerde helle Sternkerne abschneiden
     flux = st.sum - bkg * ap.area
     peak = st.max - bkg
@@ -134,9 +133,7 @@ def psf_flux(img, xy, epsf, cfg=None):
     # the flux scale consistent across both photometry modes.
     bkg = np.zeros(len(xy))
     for i, (x, y) in enumerate(zip(xs, ys)):
-        an  = CircularAnnulus([(x, y)], r_in=r_in, r_out=r_out)
-        sky = ApertureStats(img, an, sigma_clip=None)
-        bkg[i] = float(np.atleast_1d(sky.median)[0])
+        bkg[i] = sky_level(img, (x, y), r_in, r_out, cfg)[0]
 
     # Subtract global median sky before PSF fitting; individual residuals are small.
     img_sub = img.astype(float) - float(np.median(bkg))

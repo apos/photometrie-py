@@ -22,6 +22,7 @@ from astropy.wcs import WCS
 from photutils.aperture import ApertureStats, CircularAnnulus, CircularAperture
 
 from .config import CFG
+from .sky import sky_level
 from .timeutil import bjd_tdb, mid_exposure
 
 # Bild-Flags (je Bild, in ``qc_frames`` gesetzt); Sterne tragen zusaetzlich ``star_flag``
@@ -80,7 +81,7 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
     Warum: Die Differenzphotometrie braucht je Bild und Stern einen Fluss mit Fehler und Qualitaetsangaben; die Positionen
     kommen aus der WCS, damit Ziel und Comps ohne Registrierung der Bilder gefunden werden.
 
-    Wie: Kreisapertur ``ap_r`` und Himmelsring ``ap_r_in``..``ap_r_out`` (Median, ohne Clipping). ``flux = Summe - Himmel *
+    Wie: Kreisapertur ``ap_r`` und Himmelsring ``ap_r_in``..``ap_r_out`` (Median der Ringpixel nach Sigma-Clipping, :func:`varphot.sky.sky_level`). ``flux = Summe - Himmel *
     Flaeche``. Fehler (ADU) nach der CCD-Gleichung: ``var = F*g + n_ap*(1 + n_ap/n_sky)*(S*g + RN^2)`` (Signal-Poisson plus
     Himmel und Ausleserauschen ueber die Aperturflaeche, korrigiert um die Unsicherheit des Himmelsrings; Dunkelstrom
     vernachlaessigt); Gain ``g``, Ausleserauschen ``RN`` und ``SATURATE`` aus dem Header (``GAIN``, ``RDNOISE``), sonst
@@ -89,7 +90,7 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
     Grundlage der Kernkorrektur gesaettigter Sterne in :func:`light_curve`.
 
     Grenzen: Keine Nachzentrierung, keine PSF-Anpassung; Nachbarsterne in der Apertur werden nicht abgezogen (Auswahl
-    der Comps prueft das vorher). Sigma-Clipping auf der Summe ist bewusst aus: ``photutils.ApertureStats`` clippt standardmaessig
+    der Comps prueft das vorher). Sigma-Clipping gilt nur fuer die Ringpixel (Himmel), auf der Summe der Apertur ist es bewusst aus: ``photutils.ApertureStats`` clippt standardmaessig
     auch die Summe und schnitt helle Sternkerne ab (Fluss 205 statt 251 im Test; Regressionstest ``test_photometry.py``).
 
     Validierung: ``tests/test_batch.py`` (Fluss vs. Eingabe, 5 %); LCO delta Cep.
@@ -97,7 +98,7 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
     Quellen: Die CCD-Gleichung (Signal-Poisson + Himmel + Ausleserauschen, Himmelsring-Korrektur) ist Standard; Howell, S. B.
     2006, Handbook of CCD Astronomy, 2. Aufl., Cambridge UP (Buch existiert, geprueft); die genaue Kapitel-/Seitenangabe der
     Gleichung ist *nicht* geprueft (Buch nicht eingesehen).
-    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, peak, n_sat, star_flag (+ flux_ring, flux_ring_err).
+    Rueckgabe: je Stern ein dict mit x, y, flux, flux_err, sky, sky_n_clipped (im Ring verworfene Pixel), peak, n_sat, star_flag (+ flux_ring, flux_ring_err).
     """
     cfg = cfg or CFG
     hdr = hdr or {}
@@ -110,22 +111,22 @@ def measure_frame(img, wcs: WCS, stars: pd.DataFrame, hdr=None, cfg=None) -> lis
     rows = []
     for sid, x, y in zip(stars["id"], xs, ys):
         row = dict(star_id=sid, x=float(x), y=float(y), flux=np.nan, flux_err=np.nan, sky=np.nan,
-                   peak=np.nan, n_sat=0, star_flag="", flux_ring=np.nan, flux_ring_err=np.nan)
+                   peak=np.nan, sky_n_clipped=0, n_sat=0, star_flag="", flux_ring=np.nan, flux_ring_err=np.nan)
         if not (r_out < x < nx - 1 - r_out and r_out < y < ny - 1 - r_out):
             row["star_flag"] = "EDGE"
             rows.append(row)
             continue
         ap = CircularAperture((x, y), r=r_ap)
-        an = CircularAnnulus((x, y), r_in=r_in, r_out=r_out)
-        sky = float(ApertureStats(img, an, sigma_clip=None).median)
+        sky, n_sky, n_rej = sky_level(img, (x, y), r_in, r_out, cfg)
         st = ApertureStats(img, ap, sigma_clip=None)    # ohne Clipping: sonst werden helle Sternkerne abgeschnitten
         flux = float(st.sum) - sky * ap.area
-        n_ap, n_sky = ap.area, an.area
+        n_ap = ap.area
+        n_sky = max(n_sky, 1)
         var_e = max(flux, 0.0) * gain + n_ap * (1 + n_ap / n_sky) * (max(sky, 0.0) * gain + rn ** 2)
         mask = ap.to_mask(method="center")
         cut = mask.cutout(img)
         n_sat = int(np.sum((cut >= sat) & (mask.data > 0))) if cut is not None else 0
-        row.update(flux=flux, flux_err=float(np.sqrt(var_e) / gain), sky=sky, peak=float(st.max) - sky,
+        row.update(flux=flux, flux_err=float(np.sqrt(var_e) / gain), sky=sky, sky_n_clipped=n_rej, peak=float(st.max) - sky,
                    n_sat=n_sat, star_flag="SAT" if n_sat else "")
         core_r = cfg.get("core_r")
         if core_r:                                    # Ring ohne Kern: fuer gesaettigte Sterne (siehe light_curve)
