@@ -1,6 +1,6 @@
 # photometrie-py
 
-Differentielle Aperturphotometrie für veränderliche Sterne — Python 3.13, Jupyter, astropy, photutils, ASTAP.
+Differentielle Aperturphotometrie für veränderliche Sterne — Python ≥ 3.12, Jupyter oder Datalore, astropy, photutils, ASTAP, Siril.
 
 > **Zielgruppe**: Amateurastronomen mit eigenem Teleskop und FITS-Kamera, die Lichtkurven veränderlicher Sterne (Cepheiden, Be-Sterne, symbiotische Sterne u. a.) selbst auswerten wollen.
 
@@ -21,6 +21,10 @@ Das Projekt liefert eine vollständige Auswertekette: von kalibrierten FITS-Rohb
               │
               ▼
           03_bericht        AAVSO-Export (Format + Inhalt geprüft), Offene Punkte, Reifegrad, KI-Zweitlesung
+              │
+              ▼
+          04_langzeitkurve  mehrere Nächte desselben Ziels: gemeinsame Lichtkurve, Phasenkurve
+          05_archivierung   Archiv im Datenordner: Bericht, Index, Excel, kumulative PDF (nach 03)
 
   Werkzeuge:  07_kamera_charakterisierung (einmalig, vor 00)   08_transformation (Farbkamera/RGB-Filter)
 ```
@@ -35,13 +39,10 @@ git clone https://github.com/apos/photometrie-py.git
 cd photometrie-py
 
 # Virtuelle Umgebung anlegen
-python3.13 -m venv .venv
+python3 -m venv .venv          # Python 3.12 oder neuer
 source .venv/bin/activate
 pip install -r requirements.txt   # installiert auch das Paket varphot (editierbar) und nbstripout
 nbstripout --install --attributes .gitattributes   # einmalig je Klon: Notebook-Outputs nie committen
-
-# Einmalig: Sternbild-Positionen aus SIMBAD laden (~1–3 Min)
-python tools/make_const_data.py
 
 # End-to-End-Test mit synthetischen Daten ausführen
 python varphot_demo.py
@@ -50,7 +51,9 @@ python varphot_demo.py
 code notebooks/00_planung.ipynb      # Modus „LCO-Testdaten“ zum Ausprobieren (vorher: python tools/download_testdata.py lco-dcep)
 ```
 
-**Externe Abhängigkeit**: [ASTAP](https://www.hnsky.org/astap.htm) muss installiert sein (`/Applications/ASTAP.app` auf macOS).
+**Externe Programme**: [ASTAP](https://www.hnsky.org/astap.htm) (Plate Solving, nötig für echte Bilder; `/Applications/ASTAP.app` auf macOS) und [Siril](https://siril.org) (Kalibrierung, RAW-Umwandlung, Kanaltrennung; optional). Das Notebook NB00 zeigt unter „Software“, was gefunden wurde.
+
+**Ohne eigene Installation:** Notebooks und Programme laufen auch in **Datalore** (Docker-Image mit Python, ASTAP und Siril) — Einrichtung für Linux amd64 und Mac Apple Silicon in [deploy/datalore/README.md](deploy/datalore/README.md), Konzept in KONZEPT §17.
 
 ---
 
@@ -78,10 +81,12 @@ Das AAVSO VSP liefert automatisch passende Vergleichssterne im Feld.
 | 01  | `01_vorbereitung`      | Kalibrierweg, Referenzbild, Gaia-Optionen       | kalibrierte Bilder, gelöstes Referenzbild, Comps/Check (`field_config.json`) |
 | 02  | `02_messung`           | WCS-Modus, Apertur, Kernmaske, Periodenbereich  | `messtabelle.csv`, `zeitreihe.csv`, Lichtkurve, Periode |
 | 03  | `03_bericht`           | eigene Daten?, Betriebsart, Band, OBSTYPE, CHART, KI | AAVSO Extended Format, **geprüft** (Format + Inhalt), „Offene Punkte“, Reifegrad, optional KI-Zweitlesung, kein Upload |
+| 04  | `04_langzeitkurve`     | Ziel, Zeitraum, Periode                         | gemeinsame Lichtkurve aller Nächte, Phasenkurve, Nacht-für-Nacht-Übersicht |
+| 05  | `05_archivierung`      | Archivordner, Bilder behalten (alle/beste)      | Archiv je Nacht: `zeitreihe.csv`, AAVSO-Datei, Plots, `bericht.md`, `index.md`, Excel, PDF-Zusammenfassung je Ziel |
 | 07  | `07_kamera_charakterisierung` | Kamera, Einstellung, Bilder              | Kameraprofil (Gain, Rauschen, Linearität, RAW-Kompression) |
 | 08  | `08_transformation`    | Standardfeld, Kanäle                            | Koeffizienten `Tbv`, `Tb_bv`, `Tv_bv`, `Tr_bv`, Gütetest |
 
-**Bedienung:** In jedem Notebook steht oben ein Formular; danach *Ausführen → Diese Zelle und alle folgenden* ab „Ab hier automatisch“. Die **Sitzung** (`session.json` im Siril-Arbeitsordner) verbindet die Notebooks; der Nutzer gibt nichts doppelt an.
+**Bedienung:** In jedem Notebook steht oben ein Formular; danach *Ausführen → Diese Zelle und alle folgenden* ab „Ab hier automatisch“. Die **Sitzung** (`session.json` im Sitzungsordner, zugleich Siril-Arbeitsordner; Standard `PHOTOMETRIE_PY_DATA/sessions/<Datum>`) verbindet die Notebooks; der Nutzer gibt nichts doppelt an. Die Notebooks sind nummeriert in der Reihenfolge des Ablaufs; ältere Verweise auf NB04/NB06 gelten nach der Umnummerierung nicht mehr (Zuordnung: KONZEPT §12).
 
 ---
 
@@ -91,7 +96,7 @@ Die generische Sternkarte zeigt automatisch die Sternbilder rund um den Zielster
 
 ![Sternkarte Demo](docs/images/chart_demo.png)
 
-Alle 88 IAU-Sternbilder werden unterstützt. Beim ersten Start werden Sternpositionen aus der SIMBAD-Datenbank geladen und in `data/constellation_lines.json` gecacht (einmaliger Vorgang, ~1–3 Min).
+Alle 88 IAU-Sternbilder werden unterstützt. Die Sternpositionen (aus SIMBAD) liegen fertig in `data/constellation_lines.json`; neu erzeugen nur bei Bedarf mit `python tools/make_const_data.py` (~1–3 Min, braucht Netz).
 
 ---
 
@@ -105,43 +110,54 @@ Alle 88 IAU-Sternbilder werden unterstützt. Beim ersten Start werden Sternposit
 
 ## Lokale KI-Zweitlesung (optional)
 
-NB03 kann den Bericht von einer **lokalen** KI gegenlesen lassen (Widersprüche, Unklares, Fehlendes; nie Zahlen, ändert nichts). Weg und Reihenfolge: stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama);
+NB03 kann den Bericht von einer KI gegenlesen lassen (Widersprüche, Unklares, Fehlendes; nie Zahlen, ändert nichts). Standard ist eine **lokale** KI: stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama);
 Opencode nur mit lokalem Modell, Aufrufe nur an Rechner im privaten Netz. Einrichtung: Schlüssel `ai` in der privaten `observer.json` (Beispiel im Kopf von `varphot/aireview.py`); NB00 zeigt, welcher Weg gefunden wurde. Abschalten: `VARPHOT_AI=off`.
-Kleine Modelle irren (Fehlalarme, Übersehenes) — maßgeblich bleiben die festen Prüfungen, Details und Probelauf in KONZEPT §11.14.
+Optional und **standardmäßig aus** ist eine **Cloud-KI** (derzeit Claude über die Kommandozeile, `ai.cloud.enabled`): Beobachtercode, Standort, Koordinaten, Pfade und Adressen werden vorher durch Platzhalter ersetzt (`varphot/anonymize.py`), der Text wird vor dem Senden angezeigt und muss bestätigt werden; die Antwort wird lokal zurückübersetzt.
+Kleine Modelle irren (Fehlalarme, Übersehenes) — maßgeblich bleiben die festen Prüfungen, Details und Probelauf in KONZEPT §11.14 (lokal) und §11.15 (Cloud).
 
 ---
 
 ## Entwicklung
 
-Tests: `pytest` (mit Abdeckung: `pytest --cov=varphot --cov-report=term-missing`, aktuell 91 %); statische Prüfung: `ruff check varphot tools tests`.
+Tests: `pytest` (mit Abdeckung: `pytest --cov=varphot --cov-report=term-missing`, Stand 2026-11-16 89 %); statische Prüfung: `ruff check varphot tools tests`. Make-Ziele: `make help` (u. a. `test`, `strip`, `sync-datalore`).
 Git-Regeln, Datenschutz (das Repo ist öffentlich), Test- und **Dokumentationsrichtlinie** (Warum/Wie/Grenzen/Validierung/Quellen
-in jedem Docstring): [docs/entwicklung.md](docs/entwicklung.md). Farbkamera (Siril, TG/TB/TR, AAVSO): KONZEPT.md §11.
+in jedem Docstring): [docs/entwicklung.md](docs/entwicklung.md); Gestaltung der Notebook-Oberfläche: [docs/gui.md](docs/gui.md); Testdaten und Befunde: [docs/testdaten.md](docs/testdaten.md). Farbkamera (Siril, TG/TB/TR, AAVSO): KONZEPT.md §11.
 
 ## Paketstruktur
 
 ```
 photometrie-py/
 ├── varphot/            # Python-Paket (Kernlogik)
-│   ├── config.py       # CFG-Dict: Aperturradien, Detektionsschwellen, …
-│   ├── detect.py       # Quellendetektion (DAOStarFinder)
-│   ├── catalog.py      # Crossmatch, Comp/Check-Auswahl mit QC-Flags
-│   ├── photometry.py   # Aperturphotometrie, Ensemble-Differenzmagnitude
-│   ├── plot.py         # Sternkarte, Lichtkurven-4-Panel
-│   ├── batch.py, plan.py, transform.py, aavso.py, camera.py, cfa.py   # Stapelphotometrie, Planung, Transformation, AAVSO-Export, Kamera, Kanaltrennung
-│   ├── maturity.py     # Reifegrad: was ist an echten Daten geprüft
-│   ├── aireview.py     # lokale KI-Zweitlesung (Opencode/Ollama), nur privates Netz
-│   └── synthetic.py    # Synthetische Testdaten (nur für Tests)
-├── notebooks/          # Jupyter-Notebooks (00–08)
+│   ├── config.py, detect.py, catalog.py, photometry.py, aperture.py   # Konfiguration, Detektion, Comp/Check-Auswahl (QC-Flags), Aperturphotometrie
+│   ├── astrometry.py, wcscheck.py, registration.py, siril.py          # Plate Solving (ASTAP), WCS-Prüfung, Registrierung ohne WCS, Siril-Aufrufe
+│   ├── batch.py, plan.py, workflow.py, session.py                     # Stapelphotometrie, Beobachtungsplan, Abläufe der Notebooks, Sitzung
+│   ├── transform.py, camera.py, camera_presets.py, cfa.py             # Transformation, Kameraprofile, Kanaltrennung (Bayer)
+│   ├── aavso.py, vsp.py, vsx.py, visibility.py, timeutil.py           # AAVSO-Export und Prüfung, Vergleichssterne (VSP), Katalogbereich (VSX), Sichtbarkeit, Zeit
+│   ├── periodfit.py, longterm.py, archive.py, plot.py                 # Periode, Langzeitkurve, Archivierung, Sternkarte/Lichtkurve
+│   ├── maturity.py, readiness.py, hints.py, nbui.py, observer.py      # Reifegrad, Vorbedingungen, Hinweise, Notebook-Oberfläche, Beobachter-/Standortdaten
+│   ├── aireview.py, anonymize.py                                      # KI-Zweitlesung (lokal/Cloud), Anonymisierung für die Cloud
+│   └── synthetic.py, testdata.py, cache.py                            # Synthetische Daten (Tests), Testdatensätze, Zwischenspeicher
+├── notebooks/          # Jupyter-Notebooks 00–05, 07, 08 (*_dl_ids.json: Zuordnung zu Datalore-Zellen)
 ├── data/
-│   ├── const_topology.json        # 88 IAU-Sternbilder (topologisch, gebündelt)
-│   └── constellation_lines.json   # Sternpositionen aus SIMBAD (generiert)
+│   ├── const_topology.json        # 88 IAU-Sternbilder (topologisch)
+│   └── constellation_lines.json   # Sternpositionen aus SIMBAD (im Repo, bei Bedarf neu erzeugbar)
 ├── tools/
-│   ├── make_const_data.py         # Einmaliger SIMBAD-Datenaufbau
+│   ├── download_testdata.py       # öffentliche Testdaten laden (LCO, EXOTIC)
+│   ├── sync_datalore.py           # Notebook-Zellen nach Datalore übertragen
+│   ├── run_notebook.py            # Notebook headless ausführen (Beleg mit Ausgaben)
+│   ├── make_const_data.py         # SIMBAD-Datenaufbau
 │   ├── split_cfa.py               # Bayer-FITS → R, G, B (WCS angepasst)
-│   └── siril_calibrate_cfa.ssf    # Siril-Kalibrierung im CFA-Bereich (ungetestet)
+│   ├── siril_convert_raw.ssf, siril_calibrate_cfa.ssf   # Siril: RAW umwandeln, CFA kalibrieren (Kalibrierskript ungetestet)
+│   └── check_*.py, compare_gaia_vsp.py, benchmark_registration.py, …   # Prüf- und Messwerkzeuge
+├── deploy/
+│   ├── datalore/       # Datalore mit varphot als umziehbares Docker-Paket (Image, Compose, Backup)
+│   └── imgstore/       # Image-Ablage als Ordner im Nextcloud-Sync
+├── docs/               # Entwicklungsrichtlinien, Notebook-Oberfläche, Testdaten, Bilder
+├── tests/              # pytest-Tests
 ├── demo/               # Synthetischer Demo-Workspace (Siril-Struktur)
 ├── varphot_demo.py     # End-to-End-Test / Regressions-Check
 ├── KONZEPT.md          # Architektur, ADRs, Roadmap (arc42)
+├── QUELLEN.md          # Quellen und Lizenzen
 └── CHANGELOG.md        # Versionsgeschichte
 ```
 
@@ -214,7 +230,7 @@ Das Paket läuft mit jedem anderen Teleskop/Kamera-Kombination, das kalibrierte 
 
 | Komponente       | Version  | Zweck                              |
 |------------------|----------|------------------------------------|
-| Python           | 3.13     |                                    |
+| Python           | ≥ 3.12   | entwickelt unter 3.13, Datalore-Image 3.12 |
 | astropy          | 8.0.2    | WCS, FITS, Zeitumrechnung          |
 | photutils        | 3.1.1    | Detektion, Aperturphotometrie      |
 | astroalign       | –        | Bildregistrierung ohne WCS         |
@@ -222,6 +238,7 @@ Das Paket läuft mit jedem anderen Teleskop/Kamera-Kombination, das kalibrierte 
 | scipy            | –        | Lomb-Scargle                       |
 | matplotlib       | –        | Plots                              |
 | ASTAP            | extern   | Plate Solving                      |
+| Siril            | extern, optional | Kalibrierung, RAW-Umwandlung (Skripte in `tools/`) |
 
 ---
 

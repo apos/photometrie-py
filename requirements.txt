@@ -1,4 +1,4 @@
-# Photometrie-Pipeline — Python 3.13
+# Photometrie-Pipeline — Python ≥ 3.12
 # Kern-Astronomie
 astropy>=6.0
 photutils>=3.1
