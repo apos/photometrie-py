@@ -121,9 +121,12 @@ def nb00_observer_hints(site_name: str, is_test_site: bool, is_new: bool, aavso_
 
 # ---------------------------------------------------------------- NB01
 
-def nb01_hints(cal: str, siril_found: bool, method: str, ref: str, ref_exists: bool, radius: float, gaia_fill: bool, gaia_check: bool, lco: bool = False) -> list[Hint]:
-    """Hinweise zum Formular von NB01 (Kalibrierung, Referenzbild, ASTAP, Gaia)."""
+def nb01_hints(cal: str, siril_found: bool, method: str, ref: str, ref_exists: bool, radius: float, gaia_fill: bool, gaia_check: bool, lco: bool = False, demo: bool = False) -> list[Hint]:
+    """Hinweise zum Formular von NB01 (Kalibrierung, Referenzbild, ASTAP, Gaia); ``demo``: Sitzung stammt aus dem NB00-Demo (keine Bilder)."""
     h: list[Hint] = []
+    if demo:
+        from .session import DEMO_SESSION_TEXT
+        h.append(("error", f"<b>{DEMO_SESSION_TEXT}</b>"))
     if cal == "run":
         if siril_found:
             extra = " Farbkamera/DSLR: im CFA-Bereich, ohne Debayern." if method in ("osc", "dslr") else ""

@@ -52,6 +52,13 @@ def test_nb01_hints():
     assert sum(lv == "warn" for lv, _ in H.nb01_hints("done", True, "mono", "", False, 10, False, False)) == 2
 
 
+def test_nb01_hints_demo_session_is_an_error():
+    """Sitzung aus dem NB00-Demo hat keine Bilder: NB01 sagt das im Formular (rot) und nennt den Ausweg."""
+    h = H.nb01_hints("done", True, "osc", "", False, 10, True, True, demo=True)
+    assert h[0][0] == "error" and "NB00-Demo" in h[0][1] and "LCO-Testdaten" in h[0][1]
+    assert not any("NB00-Demo" in t for _, t in H.nb01_hints("done", True, "osc", "", False, 10, True, True))
+
+
 def test_nb02_hints():
     assert "error" in levels(H.nb02_hints("auto", "auto", 8, 1.5, "10", "5", "0.4", True))               # Periode von >= bis
     assert "error" in levels(H.nb02_hints("auto", "auto", 8, 1.5, "x", "5", "0.4", True))

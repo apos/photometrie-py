@@ -15,6 +15,10 @@ import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
+# Meldung fuer NB01 (Hinweisbox und Abbruch): NB00 im Modus „Demo“ legt zwar eine Sitzung an, aber ohne Aufnahmereihe
+DEMO_SESSION_TEXT = ("Diese Sitzung stammt aus dem NB00-Demo (synthetische Probebilder, keine Aufnahmereihe): NB01 findet darin keine Bilder. "
+                     "Für einen Testlauf NB00 mit Modus „LCO-Testdaten“ ausführen, für eigene Aufnahmen mit „Echte Probebilder“ (derselbe Sitzungsordner ist ok), dann NB01 erneut.")
+
 SUBDIRS = ("lights", "darks", "flats", "biases", "probe", "probe/scharf", "process", "masters", "scripts", "results")
 
 
