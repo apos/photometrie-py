@@ -17,7 +17,8 @@ DOCKER="${DOCKER:-docker}"
 [ -f "$HERE/.env" ] && { set -a; . "$HERE/.env"; set +a; }
 IMAGE="${AGENT_IMAGE:?AGENT_IMAGE fehlt (.env)}"
 VOL="${AI_AUTH_VOLUME:-varphot-ai-auth}"
-RUN=("$DOCKER" run --rm -it -v "$VOL:/auth" -e CLAUDE_CONFIG_DIR=/auth/claude --entrypoint)
+TTY=(); [ -t 0 ] && [ -t 1 ] && TTY=(-it)      # status/logout gehen auch ohne Terminal (cron, Skript); die Anmeldung braucht eins
+RUN=("$DOCKER" run --rm ${TTY[@]+"${TTY[@]}"} -v "$VOL:/auth" -e CLAUDE_CONFIG_DIR=/auth/claude --entrypoint)
 
 case "${1:-}" in
   claude) "${RUN[@]}" claude "$IMAGE" auth login ;;
