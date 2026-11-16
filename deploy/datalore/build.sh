@@ -5,7 +5,8 @@
 # Ablauf:  1. requirements.agent.txt aus requirements_datalore_base.txt + requirements.txt des Repos erzeugen (Zeilen mit -e/-r/-- fallen weg)
 #          2. docker build mit der Repo-Wurzel als Kontext
 #          3. Paketstand (pip freeze) nach deploy/datalore/freeze.<arch>.txt schreiben (zum Vergleichen, nicht zur Eingabe)
-# Umgebung: DOCKER (docker|podman, Standard docker), DATALORE_VERSION (Standard aus .env, sonst 2026.4.1), PLATFORM, IMAGE (voller Name), ASTAP_SHA256.
+# Umgebung: DOCKER (docker|podman, Standard docker), DATALORE_VERSION (Standard aus .env, sonst 2026.4.1), PLATFORM, IMAGE (voller Name), ASTAP_SHA256,
+#           NO_CACHE=1 (alles neu holen: Basis-Image, apt, pip, npm, ASTAP — so werden Pakete aktualisiert; update.sh setzt es), CLAUDE_CHANNEL (stable|latest), NODE_MAJOR.
 # Kompatibel mit macOS (bash 3.2).
 set -euo pipefail
 
@@ -35,6 +36,9 @@ ARGS=(build -f "$HERE/Dockerfile" -t "$IMAGE"
       --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)")
 [ -n "${PLATFORM:-}" ] && ARGS+=(--platform "$PLATFORM")
 [ -n "${ASTAP_SHA256:-}" ] && ARGS+=(--build-arg "ASTAP_SHA256=$ASTAP_SHA256")
+[ -n "${CLAUDE_CHANNEL:-}" ] && ARGS+=(--build-arg "CLAUDE_CHANNEL=$CLAUDE_CHANNEL")
+[ -n "${NODE_MAJOR:-}" ] && ARGS+=(--build-arg "NODE_MAJOR=$NODE_MAJOR")
+[ -n "${NO_CACHE:-}" ] && ARGS+=(--no-cache --pull)
 ARGS+=("$ROOT")
 
 echo "Baue $IMAGE (Git-Stand $COMMIT$DIRTY, ${PLATFORM:-native Architektur}) mit $DOCKER ..."
@@ -43,4 +47,6 @@ echo "Baue $IMAGE (Git-Stand $COMMIT$DIRTY, ${PLATFORM:-native Architektur}) mit
 ARCH="$("$DOCKER" image inspect "$IMAGE" --format '{{.Architecture}}')"
 "$DOCKER" run --rm --entrypoint cat "$IMAGE" /opt/python/envs/photometrie/freeze.txt > "$HERE/freeze.$ARCH.txt"
 echo "Fertig: $IMAGE ($ARCH, $("$DOCKER" image inspect "$IMAGE" --format '{{.Size}}' | awk '{printf "%.1f GB", $1/1e9}'))"
-echo "Pruefen: $DOCKER run --rm --entrypoint sh $IMAGE -c 'astap_cli -h | head -2; siril-cli --version; python -c \"import varphot\"'"
+# Werkzeugstand des Images (zum Vergleichen mit dem vorigen Bau)
+"$DOCKER" run --rm --entrypoint sh "$IMAGE" -c 'echo "claude $(claude --version 2>&1 | head -1)"; echo "gemini $(gemini --version 2>&1 | head -1)"; echo "node $(node --version)"; echo "siril $(siril-cli --version 2>&1 | head -1)"; echo "astap $(astap_cli -h 2>&1 | head -1)"' | tee "$HERE/tools.$ARCH.txt"
+echo "Pruefen: $DOCKER run --rm --entrypoint sh $IMAGE -c 'astap_cli -h | head -2; siril-cli --version; claude --version; gemini --version; python -c \"import varphot\"'"
