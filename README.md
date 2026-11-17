@@ -110,7 +110,7 @@ Alle 88 IAU-Sternbilder werden unterstützt. Die Sternpositionen (aus SIMBAD) li
 
 ## KI-Zweitlesung (optional): lokal oder Cloud (Claude, Gemini)
 
-NB03 kann den Bericht von einer KI gegenlesen lassen: Widersprüche, Unklares, Fehlendes — nie Zahlen, ändert nichts. Kleine Modelle irren (Fehlalarme, Übersehenes); maßgeblich bleiben die **festen Prüfungen**, Details und Probeläufe in KONZEPT §11.14 (lokal) und §11.15 (Cloud). Die KI bekommt zusätzlich Kontext aus der Software und muss jedes Urteil mit einem wörtlichen Zitat belegen (§11.15.8). Im Formular von NB03 steht die Auswahl **KI-Zweitlesung: Aus / Lokal / Claude (Cloud) / Gemini (Cloud)**; Standard ist „Lokal“, die Cloud nie von selbst.
+NB03 kann den Bericht von einer KI gegenlesen lassen: Widersprüche, Unklares, Fehlendes — nie Zahlen, ändert nichts. Kleine Modelle irren (Fehlalarme, Übersehenes); maßgeblich bleiben die **festen Prüfungen**, Details und Probeläufe in KONZEPT §11.14 (lokal) und §11.15 (Cloud). Die KI bekommt zusätzlich Kontext aus der Software und muss jedes Urteil mit einem wörtlichen Zitat belegen (§11.15.8). Wie zuverlässig sie ist, misst der **Prüfstand** `tools/eval_ai_review.py` mit eingebauten Fehlern und Kontrollfällen (Übersehens- und Fehlalarmrate, §11.15.9; `--list` zeigt die Fälle, ohne `--run` wird nichts ausgeführt, Cloud nur mit `--run --yes-send-cloud`). Im Formular von NB03 steht die Auswahl **KI-Zweitlesung: Aus / Lokal / Claude (Cloud) / Gemini (Cloud)**; Standard ist „Lokal“, die Cloud nie von selbst.
 
 ### Weg 1: lokal (Standard)
 

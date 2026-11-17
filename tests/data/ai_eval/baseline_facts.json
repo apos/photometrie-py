@@ -1,0 +1,20 @@
+{
+ "method": "mono",
+ "camera": "QHY268M",
+ "mode": "untransformiert",
+ "exp_filter": "V",
+ "exp_trans": false,
+ "exp_obstype": "CCD",
+ "obstype_open": false,
+ "is_test": true,
+ "n_points": 100,
+ "n_comps_sel": 6,
+ "n_comps_ens": 5,
+ "n_gaia": 6,
+ "chart": "Gaia DR3 V-deriv",
+ "jd_range": [
+  2458802.65081,
+  2458858.548
+ ],
+ "eval_date": "2026-11-17"
+}
