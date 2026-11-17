@@ -460,3 +460,9 @@ def test_system_prompt_forbids_bare_ok_and_limits_scope():
 def test_context_and_prompt_hold_no_personal_data():
     blob = A.build_context(FACTS) + A.build_system_prompt(FACTS)
     assert "@" not in blob and "/Users/" not in blob and "/work/" not in blob
+
+
+def test_context_explains_session_date_and_truncated_head():
+    c = A.build_context(FACTS)
+    assert "Tag der **Auswertung**" in c and "nicht der Beobachtung" in c      # Sitzungsdatum gegen JD der Archivdaten war ein Fehlalarm (Probelauf 2026-11-17)
+    assert "nur die ersten Datenzeilen" in c and "(100)" in c

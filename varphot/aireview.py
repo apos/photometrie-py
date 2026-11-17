@@ -93,6 +93,9 @@ def build_context(f: dict) -> str:
         L.append(f"  * 'Comps' ({f['n_comps_sel']}, ausgewaehlte Vergleichssterne) und 'Ensemble' ({f.get('n_comps_ens', '?')}, Median der je Bild tatsaechlich benutzten Comps) sind **zwei verschiedene Groessen**; Ensemble <= Comps ist normal (Ausreisser-Verwurf je Bild).")
     if f.get("chart") and str(f["chart"]).startswith("Gaia"):
         L.append("  * CHART 'Gaia DR3 V-deriv' ist der vorgesehene Notbehelf, wenn keine AAVSO-Sequenz-ID vorliegt; er steht schon als Warnung im Bericht (nicht erneut melden, nur auf Widersprueche achten).")
+    L.append("  * Das Datum in 'Quelle:' und im Dateinamen ist der Tag der **Auswertung** (Sitzung), nicht der Beobachtung; die Beobachtungszeit steht nur im JD. Beide duerfen weit auseinanderliegen (bei Testdaten aus einem Archiv: Jahre).")
+    if f.get("n_points") is not None:
+        L.append(f"  * 'Kopf der Datei' zeigt nur die ersten Datenzeilen; die Zahl der Punkte ({f['n_points']}) steht nur im Bericht. Fehlende weitere Datenzeilen sind kein Fehler.")
     L.append("  * Platzhalter in eckigen Klammern (z. B. [BEOBACHTERCODE]) sind ausgeblendete Angaben, ausgefuellt und kein Fehler.")
     L.append("- Von der Software schon sicher geprueft (nicht wiederholen): Pflichtfelder und Format, Zeit (Zukunft, doppelte Zeilen), Helligkeitsbereich, Fehler > 0, Luftmasse, Check-Stern-Streuung, Filter/TRANS/OBSTYPE-Regeln.")
     return "\n".join(L)
