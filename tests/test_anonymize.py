@@ -93,7 +93,7 @@ def test_save_sent_text_writes_only_the_anonymized_text(tmp_path, secrets):
     t = p.read_text(encoding="utf-8")
     assert p.name == "bericht_ki_gesendet.md" and "Claude, modell-x" in t and "[BEOBACHTERCODE]" in t
     assert "ABCD" not in t and "maxmuster" not in t and "49.3212" not in t
-    assert oct(p.stat().st_mode & 0o777) == "0o600"
+    assert oct(p.stat().st_mode & 0o777) == "0o644"
 
 
 def test_coordinate_variants_do_not_hit_longer_numbers(secrets):

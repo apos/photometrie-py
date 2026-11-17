@@ -58,6 +58,69 @@ SYSTEM_PROMPT = (
 )
 
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Eingegrenzter Pruefauftrag mit Kontext (Stand 2026-11-17)
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Warum: Der allgemeine :data:`SYSTEM_PROMPT` liess die KI selbst entscheiden, was gilt. Ergebnis im Probelauf (2026-11-16, Claude): "OK: Es gibt keine Hinweise auf Farb-, Bayer- oder RGB-Kamera" — ein
+# Urteil ohne Beleg und ohne zu wissen, welche Kamera es war; zugleich meldete sie mit Recht Widersprueche im Bericht, die die Software selbst haette vermeiden muessen. Hier gilt die Methode der
+# Regel "praezise, konkrete, belegte Aussagen" (BM 00012): (1) der **Kontext** (was ist das, was wurde erwartet, was ist Absicht) kommt aus den Daten der Software, nicht aus der Annahme der KI;
+# (2) die **Pruefpunkte** werden von der Software je Fall zusammengestellt (die KI entscheidet nie, ob ein Punkt gilt); (3) jedes Urteil muss ein **woertliches Zitat** enthalten, kein nacktes "OK";
+# (4) was feste Regeln schon sicher pruefen (Zahlenbereiche, Format, Filter/TRANS/OBSTYPE-Regeln), wird **nicht** wiederholt.
+METHOD_TEXT = {"mono": "Mono-Kamera mit Messfilter (Johnson V)", "monorgb": "Mono-Kamera mit RGB-Filterrad (Kanaele TB/TG/TR)",
+               "osc": "Farbkamera mit Bayer-Matrix (Gruenkanal TG)", "dslr": "DSLR/spiegellose Kamera, RAW, Gruenkanal TG"}
+VERDICTS = "OK, AUFFAELLIG oder NICHT_PRUEFBAR"
+
+
+def build_context(f: dict) -> str:
+    """Abschnitt ``## Kontext`` fuer die KI: was der Text ist, was erwartet wurde, was Absicht ist, was die Software schon geprueft hat.
+
+    ``f`` (alle Schluessel optional): ``method``, ``camera``, ``mode`` (``untransformiert``/``transformiert``), ``exp_filter``, ``exp_trans`` (bool), ``exp_obstype``, ``is_test``, ``n_points``,
+    ``n_comps_sel`` (ausgewaehlt), ``n_comps_ens`` (Median der je Bild im Ensemble benutzten), ``n_gaia``, ``chart``, ``obstype_open`` (bei Farbkamera bei der AAVSO noch nicht geklaert).
+    Enthaelt keine persoenlichen Angaben (Beobachtercode/Standort stehen nur im Bericht und werden vor dem Senden ersetzt).
+    """
+    L = ["## Kontext (verbindlich; gilt als wahr, nicht anzweifeln)",
+         "- Der folgende Text ist ein **automatisch erzeugter** Bericht der Auswertesoftware varphot zu einer Datei im AAVSO Extended Format (Veraenderlichen-Photometrie). Kein Mensch hat ihn geschrieben.",
+         "- Du bist die **zweite Leserin**: Du pruefst nur Text, Widersprueche und Verstaendlichkeit. Zahlenbereiche, Format und Regeln hat die Software schon geprueft (Abschnitt 'Ergebnis der festen Pruefungen')."]
+    m = f.get("method")
+    if m:
+        L.append(f"- Aufnahme: {METHOD_TEXT.get(m, m)}" + (f", Kamera {f['camera']}" if f.get("camera") else "") + f"; Betriebsart: {f.get('mode') or 'untransformiert'}.")
+    if f.get("exp_filter") is not None:
+        L.append(f"- Erwartet fuer diese Datei (aus Plan und Regel): Filter {f['exp_filter']}, TRANS {'YES' if f.get('exp_trans') else 'NO'}, OBSTYPE {f.get('exp_obstype') or 'CCD'}"
+                 + (" (OBSTYPE bei Farbkamera/RGB-Filter ist bei der AAVSO noch **nicht geklaert**: ein Abweichen von DSLR/CCD melden, aber nicht als Programmfehler bewerten)." if f.get("obstype_open") else "."))
+    L.append("- Testdaten: " + ("**ja** — Kennzeichnung 'TESTDATEN' und der Beobachtercode TST01 sind Absicht; die Datei ist nicht zum Einreichen." if f.get("is_test") else "nein — Echtdaten."))
+    L.append("- Bewusst so, **kein Fehler**:")
+    if f.get("n_comps_sel") is not None:
+        L.append(f"  * 'Comps' ({f['n_comps_sel']}, ausgewaehlte Vergleichssterne) und 'Ensemble' ({f.get('n_comps_ens', '?')}, Median der je Bild tatsaechlich benutzten Comps) sind **zwei verschiedene Groessen**; Ensemble <= Comps ist normal (Ausreisser-Verwurf je Bild).")
+    if f.get("chart") and str(f["chart"]).startswith("Gaia"):
+        L.append("  * CHART 'Gaia DR3 V-deriv' ist der vorgesehene Notbehelf, wenn keine AAVSO-Sequenz-ID vorliegt; er steht schon als Warnung im Bericht (nicht erneut melden, nur auf Widersprueche achten).")
+    L.append("  * Platzhalter in eckigen Klammern (z. B. [BEOBACHTERCODE]) sind ausgeblendete Angaben, ausgefuellt und kein Fehler.")
+    L.append("- Von der Software schon sicher geprueft (nicht wiederholen): Pflichtfelder und Format, Zeit (Zukunft, doppelte Zeilen), Helligkeitsbereich, Fehler > 0, Luftmasse, Check-Stern-Streuung, Filter/TRANS/OBSTYPE-Regeln.")
+    return "\n".join(L)
+
+
+def build_system_prompt(f: dict) -> str:
+    """Systemanweisung mit den **fuer diesen Fall zusammengestellten** Pruefpunkten (die KI entscheidet nie selbst, ob ein Punkt gilt)."""
+    pts = []
+    if f.get("exp_filter") is not None:
+        pts.append(f"Abgleich mit der Erwartung aus dem Kontext (Filter {f['exp_filter']}, TRANS {'YES' if f.get('exp_trans') else 'NO'}, OBSTYPE {f.get('exp_obstype') or 'CCD'}): zitiere aus 'Kopf der Datei' die Zeile #OBSTYPE und aus der ersten Datenzeile die Felder FILT und TRANS. Gleich = OK, abweichend = AUFFAELLIG.")
+    pts.append("Zahlen, die im Bericht mehr als einmal vorkommen (Punkte, Zeitraum, Zahl der Comps, Check-Stern): zitiere jeweils beide Fundstellen. Gleiche Groesse mit verschiedenem Wert = AUFFAELLIG; Groessen, die der Kontext als verschieden erklaert, sind kein Widerspruch.")
+    pts.append("Mengenwoerter ('teils', 'alle', 'keine', 'einige', 'ein Teil') gegen die Zahl in derselben Datei: zitiere Wort und Zahl; passen sie nicht zusammen = AUFFAELLIG.")
+    pts.append("Ueberschriften gegen ihren Inhalt (zum Beispiel 'nicht an echten Daten geprueft' ueber einer Liste, die sagt, alles sei geprueft): zitiere Ueberschrift und erste Zeile darunter.")
+    pts.append("Warnungen: steht jede Zeile aus 'Ergebnis der festen Pruefungen' auch unter 'Offene Punkte'? Und sagt 'Warnungen:' oben nicht 'keine', obwohl Punkte aufgelistet sind? Zitiere die Gegenstellen.")
+    pts.append("Verstaendlichkeit: Nennt jede Zeile unter 'Offene Punkte' den gemessenen Wert **und** die Schwelle, sodass ein Beobachter ohne Programmkenntnis sie versteht? Zitiere jede Zeile, der das fehlt (sonst: 'alle Zeilen nennen Wert und Schwelle' mit Zitat einer Zeile).")
+    if f.get("is_test"):
+        pts.append("Testkennzeichnung: zitiere aus 'Kopf der Datei' die Zeile mit 'TESTDATEN'. Fehlt sie = AUFFAELLIG.")
+    if f.get("mode") == "transformiert":
+        pts.append("Transformiert: zitiere aus der NOTES-Spalte der ersten Datenzeile die Koeffizienten (Tbv, Tv_bv ...). Fehlen sie = AUFFAELLIG.")
+    num = "\n".join(f"{i}. {t}" for i, t in enumerate(pts, 1))
+    return ("Du bist die zweite Leserin eines automatisch erzeugten Photometrie-Berichts (AAVSO). Antworte auf Deutsch. Der Abschnitt '## Kontext' ist verbindlich und wahr; er sagt, was erwartet und was Absicht ist.\n"
+            "Pruefe NUR die folgenden Punkte, keine weiteren. Fuege keine eigenen Punkte, keine Empfehlungen zur Messmethode und keine Aussagen ueber Daten hinzu, die nicht im Text stehen. Rechne keine Zahlen nach, aendere nichts.\n"
+            f"Antwortformat, genau eine Zeile je Punkt, mit der Nummer des Punkts: '<Nr>. <Urteil> | Gefunden: \"<woertliches Zitat oder Zahl mit Fundstelle>\" | Grund: <ein Satz>'. Urteil ist {VERDICTS}. "
+            "**Kein Urteil ohne woertliches Zitat**: auch bei OK muss das Zitat zeigen, was geprueft wurde. NICHT_PRUEFBAR nur, wenn die benoetigte Stelle im Text fehlt (nenne, was fehlt); raten ist verboten.\n"
+            f"Pruefpunkte:\n{num}\n"
+            "Danach eine Zeile 'Fazit:' mit der Zahl der AUFFAELLIG-Punkte und deren Nummern, hoechstens ein Satz.")
+
+
 ANON_NOTE = ("\n\nHINWEIS: Der Text ist anonymisiert. Angaben in eckigen Klammern in Grossbuchstaben, zum Beispiel [BEOBACHTERCODE], [STANDORT], [BREITE], [LAENGE], [PFAD] oder [HOST], "
              "stehen fuer ausgeblendete persoenliche Angaben. Sie sind ausgefuellt und kein Fehler; melde sie nicht als fehlend oder unausgefuellt (bei Punkt 7 gilt zum Beispiel [BEOBACHTERCODE] als vorhanden).")
 """Anhang an den Systemprompt bei anonymisiertem Text. Ohne ihn hielt Claude im Probelauf (2026-11-14) den Platzhalter ``[BEOBACHTERCODE]`` für einen unausgefüllten Code (Fehlalarm bei Punkt 7)."""

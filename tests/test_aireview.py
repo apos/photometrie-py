@@ -415,3 +415,48 @@ def test_cloud_roundtrip_anonymize_send_restore(tmp_path, monkeypatch):
 
 def test_anonymization_note_tells_the_model_that_placeholders_are_filled():
     assert "[BEOBACHTERCODE]" in A.ANON_NOTE and "kein Fehler" in A.ANON_NOTE and A.SYSTEM_PROMPT.endswith("hoechstens einem Satz.")
+
+
+# ---- Eingegrenzter Pruefauftrag mit Kontext (build_context / build_system_prompt) ---------------------------------------------------------------------------------------------
+
+FACTS = dict(method="mono", camera="QHY268M", mode="untransformiert", exp_filter="V", exp_trans=False, exp_obstype="CCD", is_test=True, n_points=100, n_comps_sel=6, n_comps_ens=5, n_gaia=6, chart="Gaia DR3 V-deriv")
+
+
+def test_context_states_expectation_intent_and_test_flag():
+    c = A.build_context(FACTS)
+    assert "Mono-Kamera" in c and "QHY268M" in c
+    assert "Filter V, TRANS NO, OBSTYPE CCD" in c
+    assert "zwei verschiedene Groessen" in c and "(6, ausgewaehlte" in c and "(5, Median" in c            # Comps 6 / Ensemble 5 ist erklaert, kein Widerspruch
+    assert "Gaia DR3 V-deriv" in c and "TST01" in c
+
+
+def test_context_without_test_and_gaia_has_no_such_lines():
+    c = A.build_context(dict(FACTS, is_test=False, chart="X43370IPN"))
+    assert "Echtdaten" in c and "TST01" not in c and "Notbehelf" not in c
+
+
+def test_context_marks_open_obstype_question_for_colour():
+    c = A.build_context(dict(FACTS, method="osc", exp_filter="TG", exp_obstype="DSLR", obstype_open=True))
+    assert "nicht geklaert" in c and "Farbkamera mit Bayer" in c
+
+
+def test_system_prompt_points_are_assembled_per_case():
+    base = A.build_system_prompt(dict(FACTS, is_test=False))
+    assert "Filter V, TRANS NO, OBSTYPE CCD" in base and "Testkennzeichnung" not in base and "Koeffizienten" not in base
+    test = A.build_system_prompt(FACTS)
+    assert "Testkennzeichnung" in test
+    tr = A.build_system_prompt(dict(FACTS, mode="transformiert", exp_trans=True))
+    assert "Koeffizienten" in tr and "TRANS YES" in tr
+
+
+def test_system_prompt_forbids_bare_ok_and_limits_scope():
+    s = A.build_system_prompt(FACTS)
+    assert "Kein Urteil ohne woertliches Zitat" in s and "NICHT_PRUEFBAR" in s and "NUR die folgenden Punkte" in s
+    assert "Fazit:" in s and s.count("\n") >= 8
+    nums = [l.split(".")[0] for l in s.splitlines() if l[:1].isdigit()]
+    assert nums == [str(i) for i in range(1, len(nums) + 1)]                                    # fortlaufend nummeriert
+
+
+def test_context_and_prompt_hold_no_personal_data():
+    blob = A.build_context(FACTS) + A.build_system_prompt(FACTS)
+    assert "@" not in blob and "/Users/" not in blob and "/work/" not in blob
