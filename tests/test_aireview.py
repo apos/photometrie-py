@@ -3,6 +3,7 @@ import json
 import os
 import stat
 import threading
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -362,8 +363,11 @@ def test_cloud_backends_off_by_default_and_never_called(tmp_path, monkeypatch):
     assert not (rec / "auth_called").exists()                                                  # ohne Einschalten wird das Programm nicht einmal gestartet
     assert A.cloud_preflight_lines(cfg)[0][1] is False
     cfg["cloud"]["enabled"] = True
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("GEMINI_CLI_HOME", str(tmp_path / "leer"))                              # keine Gemini-Anmeldung auf diesem Rechner
     out = A.detect_cloud_backends(cfg)
-    assert out[0].usable and not out[1].usable and "noch nicht eingerichtet" in out[1].detail
+    assert [b.kind for b in out] == ["claude-cli", "gemini-cli"] and out[0].usable and not out[1].usable
+    assert [r[0] for r in A.cloud_preflight_lines(cfg)] == ["Cloud-KI Claude", "Cloud-KI Gemini"]
     monkeypatch.setenv("VARPHOT_AI_CLOUD", "off")
     assert A.load_ai_config(tmp_path / "keine.json")["cloud"]["enabled"] is False
 
@@ -374,8 +378,8 @@ def test_cloud_is_never_chosen_automatically(tmp_path, monkeypatch):
     cfg["cloud"]["enabled"] = True
     cfg["local"]["opencode"] = False
     chosen = A.choose_backend(A.detect_backends(cfg, check_opencode_remote=False))
-    assert chosen is None or chosen.kind not in ("claude-cli", "gemini-api")
-    assert all(b.kind not in ("claude-cli", "gemini-api") for b in A.detect_backends(cfg, check_opencode_remote=False))
+    assert chosen is None or chosen.kind not in ("claude-cli", "gemini-cli")
+    assert all(b.kind not in ("claude-cli", "gemini-cli") for b in A.detect_backends(cfg, check_opencode_remote=False))
 
 
 def test_ai_review_claude_cli_is_isolated(tmp_path, monkeypatch):
@@ -472,3 +476,110 @@ def test_context_gives_calendar_dates_computed_by_the_software():
     assert A.jd_to_date(2458802.651) == "2019-11-15" and A.jd_to_date(2458858.548) == "2020-01-10"      # LCO-Testdaten (docs/testdaten.md)
     c = A.build_context(dict(FACTS, jd_range=(2458802.651, 2458858.548), eval_date="2026-11-17"))
     assert "2019-11-15 bis 2020-01-10" in c and "ausgewertet am 2026-11-17" in c and "Rechne nicht selbst um" in c
+
+
+def _fake_gemini(tmp_path, monkeypatch, rc=0):
+    """Attrappe des Programms ``gemini``: schreibt Argumente, Umgebung, Ordner, Eingabe, Systemanweisung, Richtlinie und Einstellungen in ``grec/`` und antwortet mit einer Anmerkung."""
+    rec = tmp_path / "grec"
+    rec.mkdir(exist_ok=True)
+    exe = tmp_path / "gbin" / "gemini"
+    exe.parent.mkdir(exist_ok=True)
+    exe.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$@\" > \"{rec}/argv.txt\"\n"
+        f"env > \"{rec}/env.txt\"\n"
+        f"pwd > \"{rec}/cwd.txt\"\n"
+        f"cat > \"{rec}/stdin.txt\"\n"
+        f"cp \"$GEMINI_SYSTEM_MD\" \"{rec}/system.md\"\n"
+        f"cp \"$GEMINI_CLI_HOME/.gemini/settings.json\" \"{rec}/settings.json\"\n"
+        f"if [ -f \"$GEMINI_CLI_HOME/.gemini/oauth_creds.json\" ]; then touch \"{rec}/oauth_copied\"; fi\n"
+        f"for a in \"$@\"; do case \"$a\" in *deny.toml) cp \"$a\" \"{rec}/policy.toml\";; esac; done\n"
+        f"if [ {rc} -ne 0 ]; then echo 'Warning: 256-color' >&2; echo 'Error when talking to Gemini API Full report available at: /tmp/x/bericht.json ModelNotFoundError: Modell weg, Schluessel geheim-123' >&2; echo '    at async foo (file:///x.js:1:1)' >&2; exit {rc}; fi\n"
+        "echo '1. Anmerkung von Gemini: [BEOBACHTERCODE] steht im Kopf.'\n")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", str(exe.parent) + os.pathsep + os.environ["PATH"])
+    return rec
+
+
+def _gemini_home(tmp_path, monkeypatch, key=None, oauth=False, env_file=None):
+    """Eigener Heimordner fuer die Anmeldung (nie die echte ``~/.gemini`` des Rechners)."""
+    d = tmp_path / "ghome" / ".gemini"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "GEMINI.md").write_text("PRIVATE ANWEISUNG DES NUTZERS", encoding="utf-8")
+    monkeypatch.setenv("GEMINI_CLI_HOME", str(tmp_path / "ghome"))
+    monkeypatch.setenv("GEMINI_API_KEY", key or "")
+    if oauth:
+        (d / "oauth_creds.json").write_text('{"refresh_token": "oauth-geheim-456"}', encoding="utf-8")
+    if env_file:
+        (d / ".env").write_text(env_file, encoding="utf-8")
+
+
+def test_gemini_auth_sources_and_probe(tmp_path, monkeypatch):
+    _fake_gemini(tmp_path, monkeypatch)
+    _gemini_home(tmp_path, monkeypatch)
+    assert A.gemini_auth() == (None, None)
+    b = A.probe_gemini_cli()
+    assert not b.usable and "keine Anmeldung" in b.detail and "/auth/gemini/.env" in b.detail
+    _gemini_home(tmp_path, monkeypatch, env_file="# Kommentar\nexport GEMINI_API_KEY='aus-env-datei'\n")             # Datalore: Schluessel im Volume
+    assert A.gemini_auth() == ("api-key", "aus-env-datei")
+    _gemini_home(tmp_path, monkeypatch, key="aus-umgebung")
+    assert A.gemini_auth() == ("api-key", "aus-umgebung")
+    b = A.probe_gemini_cli()
+    assert b.usable and "aus-umgebung" not in b.detail                                         # nie der Schluessel in der Meldung
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    (tmp_path / "ghome" / ".gemini" / ".env").unlink()
+    _gemini_home(tmp_path, monkeypatch, oauth=True)
+    assert A.gemini_auth() == ("oauth", None) and "Google-Anmeldung" in A.probe_gemini_cli().detail
+    monkeypatch.setattr(A.shutil, "which", lambda n: None)
+    assert not A.probe_gemini_cli().usable and "nicht installiert" in A.probe_gemini_cli().detail
+
+
+def test_ai_review_gemini_cli_is_isolated(tmp_path, monkeypatch):
+    rec = _fake_gemini(tmp_path, monkeypatch)
+    _gemini_home(tmp_path, monkeypatch, key="schluessel-abc")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anderer-geheimer-schluessel")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "mein-projekt")
+    bk = A.Backend("gemini-cli", "Cloud", True, "x", model="gemini-modell-x")
+    res = A.ai_review("Text mit [BEOBACHTERCODE]", bk, system="Systemanweisung", timeout=30)
+    assert res.error == "" and "Anmerkung von Gemini" in res.text and res.model == "gemini-modell-x" and res.backend.startswith("gemini-cli")
+    argv = (rec / "argv.txt").read_text().split("\n")
+    assert "--skip-trust" in argv and argv[argv.index("--model") + 1] == "gemini-modell-x" and argv[argv.index("--output-format") + 1] == "text"
+    assert (rec / "stdin.txt").read_text() == "Text mit [BEOBACHTERCODE]"                      # Text ueber die Standardeingabe
+    assert "Text mit" not in " ".join(argv) and "schluessel-abc" not in " ".join(argv)        # weder Text noch Schluessel in der Prozessliste
+    assert (rec / "system.md").read_text() == "Systemanweisung"                                # eigene Systemanweisung ersetzt die eingebaute
+    assert 'toolName = "*"' in (rec / "policy.toml").read_text() and 'decision = "deny"' in (rec / "policy.toml").read_text()      # alle Werkzeuge verboten
+    env = dict(ln.split("=", 1) for ln in (rec / "env.txt").read_text().splitlines() if "=" in ln)
+    assert env["GEMINI_API_KEY"] == "schluessel-abc" and "ANTHROPIC_API_KEY" not in env and "GOOGLE_CLOUD_PROJECT" not in env
+    assert env["GEMINI_CLI_HOME"] != str(tmp_path / "ghome")                                   # Wegwerf-Heimordner: die GEMINI.md des Nutzers wird nicht geladen
+    assert (rec / "cwd.txt").read_text().strip() != os.getcwd()
+    assert '"selectedType": "gemini-api-key"' in (rec / "settings.json").read_text()
+    assert not Path(env["GEMINI_CLI_HOME"]).exists()                                           # nach dem Lauf geloescht (auch eine Kopie der Anmeldung)
+
+
+def test_ai_review_gemini_cli_oauth_copies_login_only_temporarily(tmp_path, monkeypatch):
+    rec = _fake_gemini(tmp_path, monkeypatch)
+    _gemini_home(tmp_path, monkeypatch, oauth=True)
+    res = A.ai_review("Text", A.Backend("gemini-cli", "Cloud", True, "x"), timeout=30)
+    assert res.error == "" and (rec / "oauth_copied").exists() and "--model" not in (rec / "argv.txt").read_text()
+    assert '"selectedType": "oauth-personal"' in (rec / "settings.json").read_text()
+    env = dict(ln.split("=", 1) for ln in (rec / "env.txt").read_text().splitlines() if "=" in ln)
+    assert "GEMINI_API_KEY" not in env and not Path(env["GEMINI_CLI_HOME"]).exists()
+
+
+def test_ai_review_gemini_cli_errors_are_results_without_secrets(tmp_path, monkeypatch):
+    _fake_gemini(tmp_path, monkeypatch, rc=1)
+    _gemini_home(tmp_path, monkeypatch, key="geheim-123")
+    res = A.ai_review("Geheimer Berichtstext", A.Backend("gemini-cli", "Cloud", True, "x"), timeout=30)
+    assert "Rueckgabecode 1" in res.error and "ModelNotFoundError: Modell weg" in res.error and "geheim-123" not in res.error and "256-color" not in res.error
+    assert "/tmp/x/bericht.json" not in res.error and "async foo" not in res.error and res.text == ""
+    _gemini_home(tmp_path, monkeypatch)                                                        # keine Anmeldung: Ergebnis mit Fehler, kein Aufruf
+    res = A.ai_review("Text", A.Backend("gemini-cli", "Cloud", True, "x"), timeout=30)
+    assert "keine Gemini-Anmeldung" in res.error
+
+
+def test_gemini_model_comes_from_config(tmp_path, monkeypatch):
+    _fake_gemini(tmp_path, monkeypatch)
+    _gemini_home(tmp_path, monkeypatch, key="k")
+    cfg = A.load_ai_config(tmp_path / "keine.json")
+    cfg["cloud"].update(enabled=True, gemini_model="gemini-aus-konfig")
+    assert A.detect_cloud_backends(cfg)[1].model == "gemini-aus-konfig"
