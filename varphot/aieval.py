@@ -85,7 +85,7 @@ CASES: tuple[Case, ...] = (
     Case("p1_trans_yes", "measure", (1,), "TRANS YES statt erwartet NO (Datenzeilen und Bericht)", ((",V,NO,", ",V,YES,"), ("- **TRANS**: NO", "- **TRANS**: YES"))),
     # ---- Punkt 2: dieselbe Zahl, zwei Werte
     Case("p2_zeitraum", "tune", (2,), "Zeitraum im Bericht beginnt 10 Tage nach der ersten Datenzeile", (("JD 2458802.651 –", "JD 2458812.651 –"),)),
-    Case("p2_ensemble", "measure", (2,), "NOTES nennen Ensemble 4, der Bericht 5", (("Ensemble 5 von 6 Comps", "Ensemble 4 von 6 Comps"),)),
+    Case("p2_comps_ausgewaehlt", "measure", (2,), "Bericht nennt 7 ausgewählte Comps, die NOTES und Gaia_Comps 'von 6'", (("- **Comps_ausgewaehlt**: 6", "- **Comps_ausgewaehlt**: 7"),)),
     Case("p2_comps_gesamt", "measure", (2,), "NOTES nennen 8 Comps, der Bericht 6", (("Ensemble 5 von 6 Comps", "Ensemble 5 von 8 Comps"),)),
     # ---- Punkt 3: Mengenwort gegen Zahl
     Case("p3_keine", "tune", (3,), "'keine Comps Gaia-abgeleitet' bei 6 von 6", (("alle Comps Gaia-abgeleitet", "keine Comps Gaia-abgeleitet"),)),

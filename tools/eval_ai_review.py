@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--tag", default="", help="Zusatz im Dateinamen (z. B. v2), damit ein neuer Lauf desselben Tages nicht an die alte Datei anhängt")
     ap.add_argument("--list", action="store_true", help="Fälle anzeigen und enden")
     ap.add_argument("--rescore", type=Path, metavar="JSONL", help="gespeicherte Antworten neu werten (nichts senden, kein Aufruf); schreibt <Datei>_neu.md")
     ap.add_argument("--run", action="store_true", help="Aufrufe wirklich ausführen (ohne: nur Plan zeigen)")
@@ -111,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
 
     out = a.out or ((data_dir() / "ai_eval") if data_dir().is_dir() else Path("ai_eval"))
     out.mkdir(parents=True, exist_ok=True)
-    stem = f"ai_eval_{a.backend}_{datetime.date.today().isoformat()}"
+    stem = f"ai_eval_{a.backend}_{datetime.date.today().isoformat()}" + (f"_{a.tag}" if a.tag else "")
     jsonl = out / f"{stem}.jsonl"
     runs: list[dict] = []
 

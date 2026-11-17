@@ -468,7 +468,7 @@ def test_context_and_prompt_hold_no_personal_data():
 
 def test_context_explains_session_date_and_truncated_head():
     c = A.build_context(FACTS)
-    assert "Tag der **Auswertung**" in c and "nicht der Beobachtung" in c      # Sitzungsdatum gegen JD der Archivdaten war ein Fehlalarm (Probelauf 2026-11-17)
+    assert "Sitzung angelegt" in c and "Tag der **Ausgabe**" in c and "schon um einen Tag" in c and "nicht der Beobachtungstag" in c      # Sitzungsdatum gegen JD der Archivdaten war ein Fehlalarm (Probelauf 2026-11-17)
     assert "nur die ersten Datenzeilen" in c and "(100)" in c
 
 

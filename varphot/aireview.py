@@ -99,7 +99,8 @@ def build_context(f: dict) -> str:
         L.append(f"  * 'Comps' ({f['n_comps_sel']}, ausgewaehlte Vergleichssterne) und 'Ensemble' ({f.get('n_comps_ens', '?')}, Median der je Bild tatsaechlich benutzten Comps) sind **zwei verschiedene Groessen**; Ensemble <= Comps ist normal (Ausreisser-Verwurf je Bild).")
     if f.get("chart") and str(f["chart"]).startswith("Gaia"):
         L.append("  * CHART 'Gaia DR3 V-deriv' ist der vorgesehene Notbehelf, wenn keine AAVSO-Sequenz-ID vorliegt; er steht schon als Warnung im Bericht (nicht erneut melden, nur auf Widersprueche achten).")
-    L.append("  * Das Datum in 'Quelle:' und im Dateinamen ist der Tag der **Auswertung** (Sitzung), nicht der Beobachtung; die Beobachtungszeit steht nur im JD. Beide duerfen weit auseinanderliegen (bei Testdaten aus einem Archiv: Jahre).")
+    L.append("  * Das Datum in 'Quelle:' ist der Tag, an dem die **Sitzung angelegt** wurde (Name des Sitzungsordners), das Datum im Dateinamen der Tag der **Ausgabe** (Auswertung); beide sind nicht der Beobachtungstag, dessen Zeit steht nur im JD. "
+             "Alle drei Daten duerfen verschieden sein, schon um einen Tag (Sitzung am Vortag angelegt) und bei Testdaten aus einem Archiv um Jahre. Das ist kein Widerspruch.")
     if f.get("jd_range"):
         a, b = (jd_to_date(x) for x in f["jd_range"])
         L.append(f"  * Beobachtet (von der Software aus dem JD in Kalenderdaten umgerechnet, UT): {a} bis {b}" + (f"; ausgewertet am {f['eval_date']}." if f.get("eval_date") else ".") + " Rechne nicht selbst um, vergleiche mit diesen Daten.")
