@@ -12,7 +12,7 @@ Ziel: dieselbe Datalore-Installation (Server, Postgres, Agent mit Python, ASTAP 
 | `astap-db.sh` | lädt die ASTAP-Sterndatenbank (1,7 GB) in ein Docker-Volume |
 | `bootstrap.sh` | richtet alles ein und startet (Image beschaffen, Konfiguration, Datenbank, `docker compose up`) |
 | `backup.sh`, `restore.sh` | Notebooks, Konten und Einstellungen sichern und auf einem anderen Host einspielen |
-| `ai-login.sh` | einmalige Anmeldung von Claude Code / Gemini CLI im Volume `/auth` (durch den Nutzer im Browser) |
+| `ai-login.sh` | einmalige Anmeldung von Claude Code (Browser) und Ablage des Gemini-Schlüssels (`gemini-key`) im Volume `/auth`, jeweils durch den Nutzer |
 | `update.sh` | Pakete im Image prüfen (`check`) und mit frischem Stand neu bauen (`build`) |
 
 ## Schnellstart (neuer Rechner)
@@ -50,8 +50,8 @@ Entkopplung vom Betriebssystem: der Socket-Pfad ist die Variable `DOCKER_SOCK` (
 | **Datalore-Lizenzschlüssel** | JetBrains Account → Organisation (jederzeit neu abrufbar) | im Admin-Panel von Datalore (steckt dann in der Datenbank); Kopie im Passwortmanager | nein |
 | **DB_PASSWORD** | `bootstrap.sh` erzeugt es | `deploy/datalore/.env` (chmod 600); Kopie im Passwortmanager | nein (`.env` ist in `.gitignore`, nicht im Image-Kontext) |
 | **Datalore-Admin-Passwort** | beim ersten Start gewählt | Passwortmanager | nein |
-| Anmeldung Claude Code / Gemini CLI | `./ai-login.sh claude` (Browser, durch den Nutzer) | Docker-Volume `varphot-ai-auth` (im Agent `/auth`); nicht im Image, nicht im Nextcloud-Ordner, nicht in `observer.json` | nein |
-| API-Schlüssel der KI-Backends | je Nutzer, Umgebung/Passwortmanager | nie in `observer.json`, nie im Repo; für die Gemini CLI nur von Hand in `/auth/gemini/.env` im Volume | nein |
+| Anmeldung Claude Code / Gemini-Schlüssel | `./ai-login.sh claude` (Browser) bzw. `./ai-login.sh gemini-key` (verdeckte Eingabe), jeweils durch den Nutzer | Docker-Volume `varphot-ai-auth` (im Agent `/auth`); nicht im Image, nicht im Nextcloud-Ordner, nicht in `observer.json` | nein |
+| API-Schlüssel der KI-Backends | je Nutzer, Passwortmanager | nie in `observer.json`, nie im Repo, nie in `.env` dieses Ordners; für die Gemini CLI nur im Volume (`/auth/gemini/.env`, über `gemini-key`) | nein |
 
 **Empfehlung:** die KeePass-Datenbank im Nextcloud-Ordner (läuft auf Mac, Linux, iPad) für den Lizenzschlüssel (Notiz oder Anhang) und `.env` (Anhang). Apple-Passwörter (iCloud-Schlüsselbund) eignen sich für das Datalore-Admin-Passwort — Autofill auf dem Tablet —, aber nicht für eine 2-KB-Lizenz oder eine ganze `.env`. Verloren ist ohnehin wenig: der Lizenzschlüssel ist beim JetBrains Account abrufbar, und `restore.sh` braucht kein altes `DB_PASSWORD` (der Dump ist besitzerfrei). Das Image enthält keinen Schlüssel und kein Passwort; es darf daher im Nextcloud-Ordner liegen.
 
@@ -65,16 +65,21 @@ Gelesen: Lizenzvereinbarung Version 3.3 (jetbrains.com/legal/docs/datalore/datal
 
 ## KI-Kommandozeilen im Agent (Claude Code, Gemini CLI)
 
-NB03 (Schritt KI-Zweitlesung) ruft für den Cloud-Weg die Kommandozeile `claude` auf (KONZEPT §11.15). Das Image enthält sie deshalb: **Claude Code** aus dem signierten apt-Repository von Anthropic (Kanal `stable`, Schlüssel-Fingerabdruck wird beim Bau geprüft) und die **Gemini CLI** (`@google/gemini-cli` über npm, Node.js 22 aus NodeSource). Beides ist nur installiert; keine Anmeldung, kein Schlüssel im Image.
+NB03 (Schritt KI-Zweitlesung) ruft für den Cloud-Weg die Kommandozeile `claude` oder `gemini` auf (KONZEPT §11.15). Das Image enthält beide: **Claude Code** aus dem signierten apt-Repository von Anthropic (Kanal `stable`, Schlüssel-Fingerabdruck wird beim Bau geprüft) und die **Gemini CLI** (`@google/gemini-cli` über npm, Node.js 22 aus NodeSource). Im Image steckt keine Anmeldung und kein Schlüssel. Was NB03 daraus macht (anonymisieren, Vorschau, Bestätigung, Isolation, Modellwahl), steht im Haupt-[README](../../README.md#ki-zweitlesung-optional-lokal-oder-cloud-claude-gemini); hier nur, was Datalore betrifft.
+
+**Einrichten in Datalore (einmal, auf dem Docker-Host in diesem Ordner):**
 
 ```bash
-./ai-login.sh claude     # einmal: Adresse im Browser öffnen, anmelden, Code ins Terminal einfügen
-./ai-login.sh status     # was ist angemeldet (ohne Kontodaten)
+./ai-login.sh claude       # Claude: Adresse im Browser öffnen, anmelden, Code ins Terminal einfügen
+./ai-login.sh gemini-key   # Gemini: API-Schlüssel (Google AI Studio) verdeckt eingeben; wird nur im Volume abgelegt
+./ai-login.sh status       # was ist angemeldet (ohne Kontodaten, Schlüssel nie angezeigt)
 ```
 
-Die Anmeldung liegt im Docker-Volume `varphot-ai-auth` (`AI_AUTH_VOLUME`), das jeder Agent als `/auth` einhängt (`CLAUDE_CONFIG_DIR=/auth/claude`, `~/.gemini` → `/auth/gemini`). Sie überlebt Neustarts und Neubauten des Images. Wer Zugriff auf den Agent hat, hat Zugriff auf diese Anmeldung; Datalore ist hier ein Ein-Personen-Betrieb. Die Anonymisierung und die Bestätigung vor dem Senden (KONZEPT §11.15.3) gelten unverändert.
+Dazu in der privaten `observer.json` (im Datenordner) die Cloud einschalten, siehe Haupt-README Schritt 1: `{"ai": {"cloud": {"enabled": true, "gemini_model": "gemini-3.1-flash-lite"}}}`. Ein bereits laufender Agent sieht das Volume sofort; NB03 erkennt die Anmeldung beim nächsten Start der Zelle. Wieder entfernen: `./ai-login.sh logout claude` bzw. `logout gemini`.
 
-**Gemini:** Die Gemini CLI ist installiert, NB03 ruft sie aber noch nicht auf („Gemini ist noch nicht eingerichtet“). Außerdem hat Google „Login mit Google“ für private Konten ohne Bezahltarif am 2026-06-18 auf die Antigravity CLI verlegt (Seite der Gemini CLI, geprüft 2026-11-16); die Gemini CLI selbst geht dann mit API-Schlüssel oder Code Assist.
+Die Anmeldungen liegen im Docker-Volume `varphot-ai-auth` (`AI_AUTH_VOLUME`), das jeder Agent als `/auth` einhängt (`CLAUDE_CONFIG_DIR=/auth/claude`, `~/.gemini` → `/auth/gemini`; der Gemini-Schlüssel steht in `/auth/gemini/.env`, Rechte 600). Sie überleben Neustarts und Neubauten des Images. **Rest-Risiko:** Jeder Notebook-Code im Agent kann diese Anmeldungen lesen; Datalore ist hier ein Ein-Personen-Betrieb. Die Anonymisierung und die Bestätigung vor dem Senden (KONZEPT §11.15.3) gelten unverändert.
+
+**Gemini:** Google hat „Login mit Google“ für private Konten ohne Bezahltarif am 2026-06-18 auf die Antigravity CLI verlegt (Seite der Gemini CLI, geprüft 2026-11-16); darum ist der API-Schlüssel der Weg (`gemini-key`). Bei der kostenlosen Stufe darf Google Eingaben zur Produktverbesserung nutzen (Haupt-README, „Gemini — Besonderheiten“). Gemessen am 2026-11-17: ohne `gemini_model` wählt die Kommandozeile selbst und lief bei hoher Last bei Google in „503“ oder ins Zeitlimit; mit `gemini-3.1-flash-lite` antwortete sie nach 16 s.
 
 ## Pakete aktuell halten
 

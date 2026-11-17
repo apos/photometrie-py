@@ -27,6 +27,14 @@ def _setup(tmp_path, monkeypatch, mode="claude", enabled=True):
     exe.write_text(f"#!/bin/sh\nif [ \"$1\" = auth ]; then echo '{{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}}'; exit 0; fi\n"
                    f"printf '%s\\n' \"$@\" > \"{rec}/argv.txt\"\ncat > \"{rec}/stdin.txt\"\necho '7. [BEOBACHTERCODE] steht im Kopf, aber ein Check-Stern fehlt.'\n")
     exe.chmod(0o755)
+    gexe = exe.parent / "gemini"                                                                   # Attrappe der Gemini-Kommandozeile
+    gexe.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{rec}/gargv.txt\"\ncat > \"{rec}/gstdin.txt\"\ncp \"$GEMINI_SYSTEM_MD\" \"{rec}/gsystem.md\"\n"
+                    "echo '7. [BEOBACHTERCODE] steht im Kopf (Gemini).'\n")
+    gexe.chmod(0o755)
+    (tmp_path / "ghome" / ".gemini").mkdir(parents=True)
+    (tmp_path / "ghome" / ".gemini" / ".env").write_text("GEMINI_API_KEY=testschluessel\n")
+    monkeypatch.setenv("GEMINI_CLI_HOME", str(tmp_path / "ghome"))
+    monkeypatch.setenv("GEMINI_API_KEY", "")
     monkeypatch.setenv("PATH", str(exe.parent) + os.pathsep + os.environ["PATH"])
     cfg = tmp_path / "observer.json"
     cfg.write_text(json.dumps({"aavso_code": "ABCD", "site_name": "Balkon Musterstadt", "ai": {"cloud": {"enabled": enabled}}}))
@@ -85,14 +93,46 @@ def test_cloud_cell_is_inert_when_cloud_is_not_enabled(tmp_path, monkeypatch):
     assert "nicht eingeschaltet" in _html(shown) and not any(isinstance(o, widgets.VBox) for o in shown) and not (rec / "stdin.txt").exists()
 
 
-def test_cloud_cell_skips_when_mode_is_off_or_gemini(tmp_path, monkeypatch):
+def test_cloud_cell_skips_when_mode_is_off(tmp_path, monkeypatch):
     ns, shown, rec, exports = _setup(tmp_path, monkeypatch, mode="aus")
     exec(compile(_cell("from varphot import detect_backends"), "nb03[13]", "exec"), ns)
-    assert not (rec / "stdin.txt").exists()
-    (tmp_path / "zwei").mkdir()
-    ns, shown, rec, exports = _setup(tmp_path / "zwei", monkeypatch, mode="gemini")
+    assert not (rec / "stdin.txt").exists() and not (rec / "gstdin.txt").exists()
+
+
+def test_cloud_cell_gemini_preview_confirmation_send_and_restore(tmp_path, monkeypatch):
+    """Gemini wie Claude: Vorschau (mit Hinweis zur Datennutzung), nichts ohne Bestaetigung, dann anonymisiert gesendet und lokal zurueckuebersetzt."""
+    ns, shown, rec, exports = _setup(tmp_path, monkeypatch, mode="gemini")
     exec(compile(_cell("from varphot import detect_backends"), "nb03[13]", "exec"), ns)
-    assert "Gemini ist noch nicht eingerichtet" in _html(shown)
+    html = _html(shown)
+    assert "Anbieter: Gemini" in html and "Datennutzung bei Google" in html and "ABCD" not in html and "Musterstadt" not in html
+    ok, go, out = next(o for o in shown if isinstance(o, widgets.VBox)).children
+    assert "Gemini" in go.description and not (rec / "gstdin.txt").exists()
+    go.click()                                                                                 # ohne Bestaetigung
+    assert not (rec / "gstdin.txt").exists() and not (exports / "aavso_x_V_ki_gesendet.md").exists()
+    ok.value = True
+    go.click()
+    sent = (rec / "gstdin.txt").read_text()
+    assert sent.startswith("## Kontext") and "ABCD" not in sent and "Musterstadt" not in sent and "[BEOBACHTERCODE]" in sent
+    assert not (rec / "stdin.txt").exists()                                                    # Claude wurde nicht aufgerufen
+    system = (rec / "gsystem.md").read_text()
+    assert "Kein Urteil ohne woertliches Zitat" in system and "HINWEIS: Der Text ist anonymisiert" in system
+    assert "ABCD" not in (exports / "aavso_x_V_ki_gesendet.md").read_text(encoding="utf-8")
+    bericht = (exports / "aavso_x_V_bericht.md").read_text(encoding="utf-8")
+    assert "ABCD steht im Kopf (Gemini)" in bericht and "KI-Zweitlesung (unverbindlich; Gemini (Cloud)" in bericht
+    assert ns["AI_RESULT"].error == "" and "ABCD steht im Kopf" in ns["AI_RESULT"].text
+
+
+def test_cloud_cell_gemini_without_login_is_not_available(tmp_path, monkeypatch):
+    ns, shown, rec, exports = _setup(tmp_path, monkeypatch, mode="gemini")
+    (tmp_path / "ghome" / ".gemini" / ".env").unlink()
+    exec(compile(_cell("from varphot import detect_backends"), "nb03[13]", "exec"), ns)
+    assert "Gemini ist nicht verfügbar" in _html(shown) and "keine Anmeldung" in _html(shown) and not any(isinstance(o, widgets.VBox) for o in shown)
+
+
+def test_form_offers_gemini_with_state(tmp_path, monkeypatch):
+    """Das Auswahlfeld nennt Gemini mit seinem Zustand (nicht mehr "noch nicht eingerichtet")."""
+    src = _cell("from varphot import nbui as ui\nimport os, json, datetime")
+    assert "noch nicht eingerichtet" not in src and '_cl["gemini-cli"]' in src
 
 
 def test_cloud_cell_sends_context_and_case_specific_system_prompt(tmp_path, monkeypatch):

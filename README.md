@@ -53,7 +53,7 @@ code notebooks/00_planung.ipynb      # Modus „LCO-Testdaten“ zum Ausprobiere
 
 **Externe Programme**: [ASTAP](https://www.hnsky.org/astap.htm) (Plate Solving, nötig für echte Bilder; `/Applications/ASTAP.app` auf macOS) und [Siril](https://siril.org) (Kalibrierung, RAW-Umwandlung, Kanaltrennung; optional). Das Notebook NB00 zeigt unter „Software“, was gefunden wurde.
 
-**Ohne eigene Installation:** Notebooks und Programme laufen auch in **Datalore** (Docker-Image mit Python, ASTAP und Siril) — Einrichtung für Linux amd64 und Mac Apple Silicon in [deploy/datalore/README.md](deploy/datalore/README.md), Konzept in KONZEPT §17.
+**Ohne eigene Installation:** Notebooks und Programme laufen auch in **Datalore** (Docker-Image mit Python, ASTAP und Siril) — Einrichtung für Linux amd64 und Mac Apple Silicon in [deploy/datalore/README.md](deploy/datalore/README.md), Konzept in KONZEPT §17. Die Cloud-KI (Claude, Gemini) lässt sich dort ebenfalls nutzen: Anmeldung siehe [KI-Zweitlesung](#ki-zweitlesung-optional-lokal-oder-cloud-claude-gemini).
 
 ---
 
@@ -108,12 +108,42 @@ Alle 88 IAU-Sternbilder werden unterstützt. Die Sternpositionen (aus SIMBAD) li
 
 ---
 
-## Lokale KI-Zweitlesung (optional)
+## KI-Zweitlesung (optional): lokal oder Cloud (Claude, Gemini)
 
-NB03 kann den Bericht von einer KI gegenlesen lassen (Widersprüche, Unklares, Fehlendes; nie Zahlen, ändert nichts). Standard ist eine **lokale** KI: stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama);
-Opencode nur mit lokalem Modell, Aufrufe nur an Rechner im privaten Netz. Einrichtung: Schlüssel `ai` in der privaten `observer.json` (Beispiel im Kopf von `varphot/aireview.py`); NB00 zeigt, welcher Weg gefunden wurde. Abschalten: `VARPHOT_AI=off`.
-Optional und **standardmäßig aus** ist eine **Cloud-KI** (derzeit Claude über die Kommandozeile, `ai.cloud.enabled`): Beobachtercode, Standort, Koordinaten, Pfade und Adressen werden vorher durch Platzhalter ersetzt (`varphot/anonymize.py`), der Text wird vor dem Senden angezeigt und muss bestätigt werden; die Antwort wird lokal zurückübersetzt.
-Kleine Modelle irren (Fehlalarme, Übersehenes) — maßgeblich bleiben die festen Prüfungen, Details und Probelauf in KONZEPT §11.14 (lokal) und §11.15 (Cloud).
+NB03 kann den Bericht von einer KI gegenlesen lassen: Widersprüche, Unklares, Fehlendes — nie Zahlen, ändert nichts. Kleine Modelle irren (Fehlalarme, Übersehenes); maßgeblich bleiben die **festen Prüfungen**, Details und Probeläufe in KONZEPT §11.14 (lokal) und §11.15 (Cloud). Die KI bekommt zusätzlich Kontext aus der Software und muss jedes Urteil mit einem wörtlichen Zitat belegen (§11.15.8). Im Formular von NB03 steht die Auswahl **KI-Zweitlesung: Aus / Lokal / Claude (Cloud) / Gemini (Cloud)**; Standard ist „Lokal“, die Cloud nie von selbst.
+
+### Weg 1: lokal (Standard)
+
+Stärkerer Rechner im Heimnetz (Opencode-Prüfung, sonst Ollama), sonst lokal (Opencode, dann Ollama); Opencode nur mit lokalem Modell, Aufrufe nur an Rechner im privaten Netz. Einrichtung: Schlüssel `ai` in der privaten `observer.json` (Beispiel im Kopf von `varphot/aireview.py`). NB00 zeigt unter „Vorbedingungen“, welcher Weg gefunden wurde. Abschalten: `VARPHOT_AI=off`.
+
+### Weg 2: Cloud (Claude oder Gemini) — drei Schritte, auf dem eigenen Rechner und in Datalore gleich
+
+Die Cloud ist **standardmäßig aus**. Der Berichtstext verlässt dann das Heimnetz; vorher werden Beobachtercode, Standort, Koordinaten, Namen, Pfade und Adressen durch Platzhalter ersetzt (`varphot/anonymize.py`). NB03 zeigt den **genauen** anonymisierten Text, gesendet wird erst nach Ihrer Bestätigung; der gesendete Text liegt danach als `…_ki_gesendet.md` neben dem Bericht, die Antwort wird lokal zurückübersetzt. Zielstern, Beobachtungszeiten und Gerätetyp bleiben im Text (akzeptiertes Restrisiko, KONZEPT §11.15.3).
+
+**1. Einschalten** — in der privaten `observer.json` (liegt im Datenordner `PHOTOMETRIE_PY_DATA`, sonst unter `~/.config/varphot/`; NB00 Schritt 1.2 behält den Schlüssel `ai` beim Speichern bei):
+
+```json
+{ "ai": { "cloud": { "enabled": true, "gemini_model": "gemini-3.1-flash-lite" } } }
+```
+
+Weitere Schlüssel unter `ai.cloud`: `model` (Claude; leer = Standard der Kommandozeile), `gemini_model` (Gemini; leer = die Kommandozeile wählt selbst, siehe unten), `max_chars` (Obergrenze des gesendeten Textes, Standard 20000). Jederzeit abschalten: Umgebungsvariable `VARPHOT_AI_CLOUD=off`.
+
+**2. Anmelden** (einmal; die Anmeldung gehört nie in `observer.json`, ins Repo oder ins Image):
+
+| Anbieter | Eigener Rechner (Mac/Linux) | Datalore (auf dem Docker-Host, Ordner `deploy/datalore`) |
+|---|---|---|
+| **Claude** (Kommandozeile `claude`, Abo-Konto) | `claude auth login`, prüfen mit `claude auth status` | `./ai-login.sh claude` (Adresse im Browser öffnen, Code ins Terminal einfügen) |
+| **Gemini** (Kommandozeile `gemini`, API-Schlüssel aus [Google AI Studio](https://aistudio.google.com/apikey)) | Umgebungsvariable `GEMINI_API_KEY` **oder** Zeile `GEMINI_API_KEY=…` in `~/.gemini/.env` | `./ai-login.sh gemini-key` (Schlüssel wird verdeckt abgefragt und nur im Docker-Volume abgelegt) |
+
+Beide Kommandozeilen müssen installiert sein (eigener Rechner: Claude Code und Gemini CLI nach deren Anleitung; Datalore: sind im Image, siehe [deploy/datalore/README.md](deploy/datalore/README.md)). Eine bereits zwischengespeicherte Google-Anmeldung der Gemini CLI wird ebenfalls erkannt; Google hat „Login mit Google“ für private Konten ohne Bezahltarif aber am 2026-06-18 auf die Antigravity CLI verlegt, ein API-Schlüssel ist daher der verlässliche Weg.
+
+**3. Prüfen** — NB00 zeigt unter „Vorbedingungen“ die Zeilen *Cloud-KI Claude* und *Cloud-KI Gemini* (ohne Netzaufruf: Programm und Anmeldung vorhanden?). In NB03 steht hinter der Auswahl „nicht verfügbar“, solange etwas fehlt; Schritt 6 nennt dann die Ursache (z. B. „keine Anmeldung“). Ob ein Schlüssel **gültig** ist, zeigt erst der erste Lauf.
+
+**Gemini — Besonderheiten:**
+- **Datennutzung:** Bei der **kostenlosen** Stufe darf Google Eingaben laut Nutzungsbedingungen (Sekundärquellen, KONZEPT §11.15.1) zur Produktverbesserung nutzen und von Menschen lesen lassen; die **bezahlte** Stufe nicht (Abrechnungskonto aktiv). Die Software kann nicht erkennen, welche Stufe ein Schlüssel hat; NB03 weist vor dem Senden darauf hin. Bis zur Klärung: nur Testdaten oder bezahlte Stufe.
+- **Modell:** Ohne `gemini_model` entscheidet die Kommandozeile („auto“); bei hoher Last bei Google dauerte das am 2026-11-17 bis zum Zeitlimit oder endete mit „503 … high demand“. Mit `gemini_model: "gemini-3.1-flash-lite"` antwortete derselbe Aufruf nach 16 s. Welche Modelle es gibt: `gemini --list-models` (veraltete Namen, z. B. `gemini-2.5-pro`, werden abgelehnt).
+- **Isolation:** Der Aufruf läuft in einem leeren Wegwerf-Ordner, der zugleich als Heimordner der Kommandozeile dient (keine eigene `GEMINI.md`, keine Einstellungen oder Erweiterungen, kein Heimverzeichnis in der Anfrage), mit eigener Systemanweisung, **ohne jedes Werkzeug** (Richtlinie „alles verboten“) und mit dem Text über die Standardeingabe. Gemessen gegen einen Attrappen-Server (KONZEPT §11.15.2); die Tests in `tests/test_aireview.py` halten das fest.
+- **Stand der Prüfung:** Ein echter Aufruf mit einem Schlüssel und einem harmlosen Text („OK“) lief am 2026-11-17 durch. Ein Lauf von NB03 mit Gemini auf einem ganzen Bericht ist noch nicht ausgewertet.
 
 ---
 

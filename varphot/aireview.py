@@ -139,7 +139,7 @@ ANON_NOTE = ("\n\nHINWEIS: Der Text ist anonymisiert. Angaben in eckigen Klammer
 
 @dataclass
 class Backend:
-    """Ein moeglicher Weg zur KI: ``kind`` ``ollama`` oder ``opencode``; ``usable`` = kann jetzt benutzt werden; ``detail`` erklaert den Zustand."""
+    """Ein moeglicher Weg zur KI: ``kind`` ``ollama``, ``opencode`` oder (Cloud) ``claude-cli``/``gemini-cli``; ``usable`` = kann jetzt benutzt werden; ``detail`` erklaert den Zustand."""
     kind: str
     where: str
     usable: bool
@@ -271,7 +271,7 @@ def _http_json(url: str, payload: dict | None = None, timeout: float = 5.0) -> d
 # Konfiguration
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 DEFAULT_AI = {"enabled": True, "hosts": [], "local": {"ollama_url": "http://127.0.0.1:11434", "opencode": True, "opencode_model": None}, "models": list(PREFERRED_MODELS),
-              "cloud": {"enabled": False, "model": None, "max_chars": 20000}}
+              "cloud": {"enabled": False, "model": None, "gemini_model": None, "max_chars": 20000}}
 
 
 def load_ai_config(path=None) -> dict:
@@ -431,26 +431,81 @@ def probe_claude_cli(timeout: float = 20.0) -> Backend:
     return Backend("claude-cli", "Cloud", True, f"angemeldet ({info.get('authMethod', '?')})")
 
 
-def detect_cloud_backends(cfg: dict | None = None) -> list[Backend]:
-    """Cloud-Wege (nie automatisch gewaehlt: :func:`choose_backend` und :func:`detect_backends` kennen sie nicht).
+GEMINI_DENY_ALL = '[[rule]]\ntoolName = "*"\ndecision = "deny"\npriority = 999\n'
+"""Richtlinie der Gemini-Kommandozeile: **jedes** Werkzeug (eingebaut oder MCP) verboten. Gemessen am 2026-11-17 (Version 0.68.0, Attrappen-Server): Mit dieser Datei (``--policy``) und
+``GEMINI_SYSTEM_MD`` enthält die Anfrage an die API die eigene Systemanweisung **allein** (die eingebaute fehlt) und eine **leere** Werkzeugliste; die ``GEMINI.md`` aus ``~/.gemini`` war **nicht**
+dabei, weil ``GEMINI_CLI_HOME`` auf einen leeren Wegwerf-Ordner zeigt."""
+GEMINI_TASK = "Lies den Berichtstext auf der Standardeingabe und antworte genau nach der Systemanweisung."
+GEMINI_ENV_REMOVED = CLOUD_KEYS_REMOVED + ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_GCA", "GOOGLE_CLOUD_PROJECT", "GEMINI_CLI_HOME", "GEMINI_SYSTEM_MD")
 
-    Ohne ``ai.cloud.enabled`` (oder mit ``VARPHOT_AI=off``/``VARPHOT_AI_CLOUD=off``) ist jeder Weg **nicht benutzbar** und ``detail`` nennt den Schalter; die Kommandozeile wird dann gar nicht aufgerufen.
-    Gemini ist noch nicht eingerichtet (KONZEPT §11.15).
+
+def _gemini_home(env=None) -> Path:
+    """Ordner der Gemini-Anmeldung dieses Rechners: ``$GEMINI_CLI_HOME/.gemini`` oder ``~/.gemini`` (in Datalore ein Verweis auf das Volume ``/auth/gemini``)."""
+    env = os.environ if env is None else env
+    return Path(env.get("GEMINI_CLI_HOME") or Path.home()) / ".gemini"
+
+
+def gemini_auth(env=None) -> tuple[str | None, str | None]:
+    """Anmeldeart der Gemini-Kommandozeile und ggf. der Schluessel: ``("api-key", Schluessel)``, ``("oauth", None)`` oder ``(None, None)``.
+
+    Reihenfolge: Umgebungsvariable ``GEMINI_API_KEY``, dann die Zeile ``GEMINI_API_KEY=…`` in ``~/.gemini/.env`` (so legt man den Schluessel in Datalore im Volume ab), dann eine bereits
+    zwischengespeicherte Google-Anmeldung (``oauth_creds.json``). Der Schluessel wird **nie** in Meldungen oder Ausgaben geschrieben; diese Funktion ruft das Programm nicht auf.
+    """
+    env = os.environ if env is None else env
+    key = (env.get("GEMINI_API_KEY") or "").strip()
+    d = _gemini_home(env)
+    if not key and (d / ".env").is_file():
+        try:
+            for ln in (d / ".env").read_text(encoding="utf-8", errors="replace").splitlines():
+                m = re.match(r"\s*(?:export\s+)?GEMINI_API_KEY\s*=\s*(.*?)\s*$", ln)
+                if m and m.group(1).strip("'\""):
+                    key = m.group(1).strip("'\"")
+        except OSError:
+            pass
+    if key:
+        return "api-key", key
+    if (d / "oauth_creds.json").is_file():
+        return "oauth", None
+    return None, None
+
+
+def probe_gemini_cli() -> Backend:
+    """Prueft die Gemini-Kommandozeile: vorhanden **und** eine Anmeldung gefunden (:func:`gemini_auth`); kein Modellaufruf, kein Netz.
+
+    Ob ein Schluessel **gueltig** ist, zeigt erst der Aufruf. ``detail`` nennt die Anmeldeart (API-Schluessel oder Google-Anmeldung), nie den Schluessel.
+    """
+    if not shutil.which("gemini"):
+        return Backend("gemini-cli", "Cloud", False, "nicht installiert (Programm 'gemini' nicht gefunden)")
+    kind, _ = gemini_auth()
+    if kind == "api-key":
+        return Backend("gemini-cli", "Cloud", True, "API-Schluessel gefunden (GEMINI_API_KEY)")
+    if kind == "oauth":
+        return Backend("gemini-cli", "Cloud", True, "Google-Anmeldung gefunden")
+    return Backend("gemini-cli", "Cloud", False, "keine Anmeldung: GEMINI_API_KEY setzen (in Datalore: in /auth/gemini/.env) oder 'gemini' im Terminal anmelden")
+
+
+def detect_cloud_backends(cfg: dict | None = None) -> list[Backend]:
+    """Cloud-Wege (nie automatisch gewaehlt: :func:`choose_backend` und :func:`detect_backends` kennen sie nicht): ``claude-cli``, danach ``gemini-cli`` (feste Reihenfolge).
+
+    Ohne ``ai.cloud.enabled`` (oder mit ``VARPHOT_AI=off``/``VARPHOT_AI_CLOUD=off``) ist jeder Weg **nicht benutzbar** und ``detail`` nennt den Schalter; die Kommandozeilen werden dann gar nicht aufgerufen.
+    Modelle: ``ai.cloud.model`` (Claude), ``ai.cloud.gemini_model`` (Gemini); ohne Angabe waehlt das Programm.
     """
     cfg = cfg or load_ai_config()
     cloud = cfg.get("cloud", {})
     if not cfg.get("enabled", True) or not cloud.get("enabled", False):
         why = "nicht eingeschaltet (observer.json: ai.cloud.enabled = true)"
-        return [Backend("claude-cli", "Cloud", False, why), Backend("gemini-api", "Cloud", False, why)]
+        return [Backend("claude-cli", "Cloud", False, why), Backend("gemini-cli", "Cloud", False, why)]
     claude = probe_claude_cli()
     claude.model = cloud.get("model") or None
-    return [claude, Backend("gemini-api", "Cloud", False, "noch nicht eingerichtet (KONZEPT §11.15)")]
+    gemini = probe_gemini_cli()
+    gemini.model = cloud.get("gemini_model") or None
+    return [claude, gemini]
 
 
 def cloud_preflight_lines(cfg: dict | None = None) -> list[tuple[str, bool, str]]:
-    """Zeile fuer die Vorbedingungen: ``Cloud-KI`` aus oder bereit; ohne Einschalten kein Programmaufruf."""
-    bk = detect_cloud_backends(cfg)[0]
-    return [("Cloud-KI Claude", bk.usable, ("bereit (nur mit Einwilligung je Lauf, Text wird anonymisiert) — " if bk.usable else "") + bk.detail)]
+    """Zeilen fuer die Vorbedingungen: ``Cloud-KI Claude`` und ``Cloud-KI Gemini`` aus oder bereit; ohne Einschalten kein Programmaufruf."""
+    names = {"claude-cli": "Cloud-KI Claude", "gemini-cli": "Cloud-KI Gemini"}
+    return [(names[b.kind], b.usable, ("bereit (nur mit Einwilligung je Lauf, Text wird anonymisiert) — " if b.usable else "") + b.detail) for b in detect_cloud_backends(cfg)]
 
 
 def choose_backend(backends: list[Backend]) -> Backend | None:
@@ -466,6 +521,45 @@ _THINK = re.compile(r"<think>.*?</think>", re.S)
 
 def _clean(text: str) -> str:
     return _THINK.sub("", text).strip()
+
+
+def _run_gemini(text: str, system: str, model: str | None, timeout: float) -> str:
+    """Ruft ``gemini -p`` isoliert auf und liefert die Antwort (Fehler als Ausnahme, :func:`ai_review` macht daraus ``ReviewResult.error``).
+
+    Isolation (gemessen, siehe :data:`GEMINI_DENY_ALL`): leerer Wegwerf-Ordner als Arbeitsordner **und** als ``GEMINI_CLI_HOME`` (keine ``GEMINI.md``, keine Einstellungen, keine Erweiterungen,
+    kein Heimverzeichnis-Pfad in der Anfrage), eigene Systemanweisung per ``GEMINI_SYSTEM_MD`` (ersetzt die eingebaute), alle Werkzeuge per Richtlinie verboten, Text ueber die Standardeingabe.
+    Die Anmeldung kommt aus :func:`gemini_auth`: ein API-Schluessel nur ueber die Umgebung des Kindprozesses (nie in der Argumentliste), eine Google-Anmeldung als Kopie von ``oauth_creds.json`` in den
+    Wegwerf-Ordner (mit dem Ordner geloescht). Ohne ``model`` waehlt die Kommandozeile selbst (ein zusaetzlicher kleiner Routing-Aufruf mit demselben Text).
+    """
+    exe = shutil.which("gemini")
+    if not exe:
+        raise FileNotFoundError("gemini nicht gefunden")
+    kind, key = gemini_auth()
+    if kind is None:
+        raise ValueError("keine Gemini-Anmeldung gefunden (GEMINI_API_KEY oder Anmeldung der Kommandozeile)")
+    with tempfile.TemporaryDirectory() as tmp_:
+        tmp = Path(tmp_)
+        home, work = tmp / "home" / ".gemini", tmp / "work"
+        home.mkdir(parents=True)
+        work.mkdir()
+        (tmp / "system.md").write_text(system, encoding="utf-8")
+        (tmp / "deny.toml").write_text(GEMINI_DENY_ALL, encoding="utf-8")
+        (home / "settings.json").write_text(json.dumps({"security": {"auth": {"selectedType": "gemini-api-key" if kind == "api-key" else "oauth-personal"}}}), encoding="utf-8")
+        env = {k: v for k, v in os.environ.items() if k not in GEMINI_ENV_REMOVED}
+        env.update(GEMINI_CLI_HOME=str(tmp / "home"), GEMINI_SYSTEM_MD=str(tmp / "system.md"))
+        if kind == "api-key":
+            env["GEMINI_API_KEY"] = key
+        else:
+            shutil.copyfile(_gemini_home() / "oauth_creds.json", home / "oauth_creds.json")
+        cmd = [exe, "--skip-trust", "--policy", str(tmp / "deny.toml"), "--output-format", "text"] + (["--model", model] if model else []) + ["-p", GEMINI_TASK]
+        r = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=timeout, cwd=work, env=env, check=False)
+    if r.returncode != 0:
+        err = " ".join(ln for ln in (x.strip() for x in r.stderr.splitlines()) if ln and not ln.startswith(("Warning:", "[STARTUP]", "at ", "An unexpected critical error")))
+        err = re.sub(r"Full report available at: \S+\s*", "", err)                                   # Pfad der Fehlerdatei sagt nichts; die Ursache steht dahinter
+        if key:
+            err = err.replace(key, "…")
+        raise RuntimeError(f"gemini Rueckgabecode {r.returncode}: {err[:200]}")
+    return r.stdout
 
 
 def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout: float = 300.0) -> ReviewResult:
@@ -505,6 +599,8 @@ def ai_review(text: str, backend: Backend, system: str = SYSTEM_PROMPT, timeout:
             if r.returncode != 0:
                 raise RuntimeError(f"claude Rueckgabecode {r.returncode}: {r.stderr.strip()[:200]}")
             res.text = _clean(r.stdout)
+        elif backend.kind == "gemini-cli":
+            res.text = _clean(_run_gemini(text, system, backend.model, timeout))
         else:
             raise ValueError(f"Backend {backend.label()} ist nicht aufrufbar")
         if not res.text:
