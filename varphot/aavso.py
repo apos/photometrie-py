@@ -315,9 +315,10 @@ def check_plausibility(observations: list[Observation], obstype: str = "CCD", ex
     if site is not None and target_radec is not None:
         F.extend(_check_site_time(observations, site, target_radec, airmass_tol))
     srt = sorted(observations, key=lambda o: o.jd)
-    jumps = sum(1 for a, b in zip(srt, srt[1:]) if (b.jd - a.jd) * 1440 <= jump_minutes and a.filt == b.filt and abs(b.mag - a.mag) > jump_mag)
+    steps = [abs(b.mag - a.mag) for a, b in zip(srt, srt[1:]) if (b.jd - a.jd) * 1440 <= jump_minutes and a.filt == b.filt and abs(b.mag - a.mag) > jump_mag]
+    jumps = len(steps)
     if jumps:
-        add("WARN", "sprung", f"{jumps} Sprung/Spruenge > {jump_mag} mag innerhalb {jump_minutes:g} min (Ausreisser?)")
+        add("WARN", "sprung", f"{jumps} Sprung/Spruenge > {jump_mag} mag innerhalb {jump_minutes:g} min, groesster {max(steps):.2f} mag (Ausreisser?)")
     return F
 
 

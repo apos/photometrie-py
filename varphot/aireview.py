@@ -71,11 +71,17 @@ METHOD_TEXT = {"mono": "Mono-Kamera mit Messfilter (Johnson V)", "monorgb": "Mon
 VERDICTS = "OK, AUFFAELLIG oder NICHT_PRUEFBAR"
 
 
+def jd_to_date(jd: float) -> str:
+    """Julianisches Datum → Kalenderdatum (UT) als ``JJJJ-MM-TT``; Rechnung in der Software, damit die KI nicht umrechnen muss."""
+    import datetime
+    return (datetime.datetime(2000, 1, 1, 12) + datetime.timedelta(days=float(jd) - 2451545.0)).strftime("%Y-%m-%d")
+
+
 def build_context(f: dict) -> str:
     """Abschnitt ``## Kontext`` fuer die KI: was der Text ist, was erwartet wurde, was Absicht ist, was die Software schon geprueft hat.
 
     ``f`` (alle Schluessel optional): ``method``, ``camera``, ``mode`` (``untransformiert``/``transformiert``), ``exp_filter``, ``exp_trans`` (bool), ``exp_obstype``, ``is_test``, ``n_points``,
-    ``n_comps_sel`` (ausgewaehlt), ``n_comps_ens`` (Median der je Bild im Ensemble benutzten), ``n_gaia``, ``chart``, ``obstype_open`` (bei Farbkamera bei der AAVSO noch nicht geklaert).
+    ``n_comps_sel`` (ausgewaehlt), ``n_comps_ens`` (Median der je Bild im Ensemble benutzten), ``n_gaia``, ``chart``, ``jd_range`` (kleinster, groesster JD), ``eval_date``, ``obstype_open`` (bei Farbkamera bei der AAVSO noch nicht geklaert).
     Enthaelt keine persoenlichen Angaben (Beobachtercode/Standort stehen nur im Bericht und werden vor dem Senden ersetzt).
     """
     L = ["## Kontext (verbindlich; gilt als wahr, nicht anzweifeln)",
@@ -93,6 +99,12 @@ def build_context(f: dict) -> str:
         L.append(f"  * 'Comps' ({f['n_comps_sel']}, ausgewaehlte Vergleichssterne) und 'Ensemble' ({f.get('n_comps_ens', '?')}, Median der je Bild tatsaechlich benutzten Comps) sind **zwei verschiedene Groessen**; Ensemble <= Comps ist normal (Ausreisser-Verwurf je Bild).")
     if f.get("chart") and str(f["chart"]).startswith("Gaia"):
         L.append("  * CHART 'Gaia DR3 V-deriv' ist der vorgesehene Notbehelf, wenn keine AAVSO-Sequenz-ID vorliegt; er steht schon als Warnung im Bericht (nicht erneut melden, nur auf Widersprueche achten).")
+    L.append("  * Das Datum in 'Quelle:' und im Dateinamen ist der Tag der **Auswertung** (Sitzung), nicht der Beobachtung; die Beobachtungszeit steht nur im JD. Beide duerfen weit auseinanderliegen (bei Testdaten aus einem Archiv: Jahre).")
+    if f.get("jd_range"):
+        a, b = (jd_to_date(x) for x in f["jd_range"])
+        L.append(f"  * Beobachtet (von der Software aus dem JD in Kalenderdaten umgerechnet, UT): {a} bis {b}" + (f"; ausgewertet am {f['eval_date']}." if f.get("eval_date") else ".") + " Rechne nicht selbst um, vergleiche mit diesen Daten.")
+    if f.get("n_points") is not None:
+        L.append(f"  * 'Kopf der Datei' zeigt nur die ersten Datenzeilen; die Zahl der Punkte ({f['n_points']}) steht nur im Bericht. Fehlende weitere Datenzeilen sind kein Fehler.")
     L.append("  * Platzhalter in eckigen Klammern (z. B. [BEOBACHTERCODE]) sind ausgeblendete Angaben, ausgefuellt und kein Fehler.")
     L.append("- Von der Software schon sicher geprueft (nicht wiederholen): Pflichtfelder und Format, Zeit (Zukunft, doppelte Zeilen), Helligkeitsbereich, Fehler > 0, Luftmasse, Check-Stern-Streuung, Filter/TRANS/OBSTYPE-Regeln.")
     return "\n".join(L)

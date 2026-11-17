@@ -460,3 +460,15 @@ def test_system_prompt_forbids_bare_ok_and_limits_scope():
 def test_context_and_prompt_hold_no_personal_data():
     blob = A.build_context(FACTS) + A.build_system_prompt(FACTS)
     assert "@" not in blob and "/Users/" not in blob and "/work/" not in blob
+
+
+def test_context_explains_session_date_and_truncated_head():
+    c = A.build_context(FACTS)
+    assert "Tag der **Auswertung**" in c and "nicht der Beobachtung" in c      # Sitzungsdatum gegen JD der Archivdaten war ein Fehlalarm (Probelauf 2026-11-17)
+    assert "nur die ersten Datenzeilen" in c and "(100)" in c
+
+
+def test_context_gives_calendar_dates_computed_by_the_software():
+    assert A.jd_to_date(2458802.651) == "2019-11-15" and A.jd_to_date(2458858.548) == "2020-01-10"      # LCO-Testdaten (docs/testdaten.md)
+    c = A.build_context(dict(FACTS, jd_range=(2458802.651, 2458858.548), eval_date="2026-11-17"))
+    assert "2019-11-15 bis 2020-01-10" in c and "ausgewertet am 2026-11-17" in c and "Rechne nicht selbst um" in c

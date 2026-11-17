@@ -145,3 +145,11 @@ def test_check_star_scatter_offset_and_jumps():
 def test_maturity_warns_only_for_unverified():
     w = maturity_warnings(["aavso_format", "transform_lightcurve", "siril_cfa_script", "unbekannt"])
     assert len(w) == 3 and not any("aavso_format" in x for x in w) and "[ungetestet] siril_cfa_script" in "\n".join(w)
+
+
+def test_jump_warning_names_the_largest_jump():
+    import dataclasses
+    obs = _obs()
+    obs[5] = dataclasses.replace(obs[5], mag=obs[4].mag + 0.9)                  # 0.9 mag Sprung innerhalb 7,2 min
+    f = [x for x in check_plausibility(obs, "CCD", None, now_jd=NOW) if x.code == "sprung"]
+    assert f and "groesster 0.9" in f[0].text and "> 0.3 mag" in f[0].text

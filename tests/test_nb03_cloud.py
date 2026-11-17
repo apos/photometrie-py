@@ -42,7 +42,7 @@ def _setup(tmp_path, monkeypatch, mode="claude", enabled=True):
           "TEXT": "#OBSCODE=ABCD\n#NOTES Standort Balkon Musterstadt\n", "OBS": SimpleNamespace(aavso_code="ABCD", site_name="Balkon Musterstadt"), "_own": [],
           "w_ai": SimpleNamespace(value=mode), "w_mode": SimpleNamespace(value="untransformiert"),
           "PLAN": SimpleNamespace(method="mono", camera_model="QHY268M", aavso_filter="V", obstype="CCD"), "MODE_T": False, "BAND": "V", "FILT": "V", "OBSTYPE": "CCD",
-          "OBSTYPE_UNCONFIRMED": False, "IS_TESTDATA": True, "OBSV": [1, 2], "comps": [1, 2, 3], "N_ENS": 3, "n_gaia": 0, "CHART": "X43370IPN"}
+          "OBSTYPE_UNCONFIRMED": False, "IS_TESTDATA": True, "DATA": __import__("pandas").DataFrame({"jd_mid": [2458802.65, 2458858.55]}), "today": "2026-11-17", "OBSV": [1, 2], "comps": [1, 2, 3], "N_ENS": 3, "n_gaia": 0, "CHART": "X43370IPN"}
     return ns, shown, rec, exports
 
 
