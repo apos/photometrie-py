@@ -618,7 +618,24 @@ Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **
 
 **Tests** (`tests/test_aieval.py`, ohne echte KI): alle Fälle passen auf die Grundlage; je Prüfpunkt Abstimm- und Messfall; Wertung (Treffer, falscher Punkt, Übersehen, Fehlalarm, Format, Anbieterfehler, erfundenes Zitat); Raten und Intervall; die Kommandozeile mit einer Attrappe, die wie ein fehlerfreier Leser antwortet (Prüfstand zeigt dann 0 % und 0 %), und die Einwilligung (ohne `--run` und ohne `--yes-send-cloud` wird nichts gesendet).
 
-**Grenzen.** Die Fehler sind künstlich und eindeutig; echte Fehler sind unschärfer, die gemessene Übersehensrate ist daher eher eine **untere** Schranke. Ein Fehler je Fall; Fehler, die sich gegenseitig verdecken, sind nicht abgebildet. Eine Grundlage (ein Stern, Mono, Testdaten, untransformiert): Transformierte Berichte (Punkt „Koeffizienten“) und Farbkameras sind **nicht** gemessen. Die Zahlen gelten für einen Anbieter, ein Modell und den Tag; die Antworten schwanken von Lauf zu Lauf. **Ergebnisse:** noch keine gemessen (Stand 2026-11-17: Werkzeug gebaut und mit Attrappe getestet; Läufe gegen Claude, Gemini und lokal stehen aus und brauchen die Einwilligung des Autors je Anbieter).
+**Grenzen.** Die Fehler sind künstlich und eindeutig; echte Fehler sind unschärfer, die gemessene Übersehensrate ist daher eher eine **untere** Schranke. Ein Fehler je Fall; Fehler, die sich gegenseitig verdecken, sind nicht abgebildet. Eine Grundlage (ein Stern, Mono, Testdaten, untransformiert): Transformierte Berichte (Punkt „Koeffizienten“) und Farbkameras sind **nicht** gemessen. Die Zahlen gelten für einen Anbieter, ein Modell und den Tag; die Antworten schwanken von Lauf zu Lauf. **Ergebnisse.**
+
+*Claude (Kommandozeile, Standardmodell), 2026-11-17, Gruppe `measure`, Anweisung `f1bce73b70ef`, 13 Fälle × 2 = 26 Läufe, keine Anbieterfehler, kein Formatfehler, im Mittel 21 s; Rohdaten `PHOTOMETRIE_PY_DATA/ai_eval/ai_eval_claude_2026-11-17.jsonl`:*
+
+| Größe | Wert | 95-%-Intervall |
+|---|---|---|
+| Übersehensrate, streng (vorgesehener Punkt nicht AUFFAELLIG) | 2/20 = 10 % | 3–30 % |
+| dasselbe ohne den fehlerhaften Fall `p2_ensemble` (siehe unten) | 0/18 = 0 % | 0–18 % |
+| Fehlalarmrate (Kontrolllauf mit mindestens einer Auffälligkeit) | 1/6 = 17 % | 3–56 % |
+| Fehlerläufe mit zusätzlicher Meldung an einem anderen Punkt | 5/20 = 25 % | 11–47 % |
+
+- **Erkannt:** alle Fälle der Punkte 1, 3, 4, 5, 6, 7 in beiden Wiederholungen; Punkt 2 nur bei `p2_comps_gesamt`.
+- **`p2_ensemble` ist ein fehlerhafter Fall, nicht (nur) ein Übersehen:** „Ensemble 4 von 6“ in der NOTES-Spalte einer Zeile widerspricht dem **Median** 5 im Bericht nicht (je Bild darf die Zahl abweichen); die KI sagt das in beiden Läufen und folgt damit dem Kontext. Dass dies erst nach der Messung auffiel, schwächt die Trennung von Abstimmen und Messen; der Fall ist zu ersetzen (z. B. `Comps_ausgewaehlt: 7` bei „6 von 6“), die Messung danach zu wiederholen.
+- **Fehlalarm = Lücke im Kontext (Regel §11.15.8):** An Punkt 2 meldete Claude in 4 von 26 Läufen (`k0_unveraendert_m`, `p5_offset_fehlt`, `p6_ohne_schwelle` ×2) „Quelle: …_2026_11_16“ gegen den Dateinamen „…2026-11-17“. Ursache ist die Kontextzeile, die beide Daten als „Tag der Auswertung“ ausgibt; tatsächlich ist die Quelle der **Sitzungsordner** (angelegt am Vortag) und der Dateiname das Ausgabedatum. Fehler im Kontext, nicht der KI. Behebung offen (Kontext ändern, beide Gruppen neu messen).
+- **Urteil und Begründung widersprechen sich** in einzelnen Läufen: `p4_keine_offenen` #1 meldet Punkt 6 als AUFFAELLIG, die Begründung endet „Urteil daher OK“; `p1_filter_b` #1 meldet Punkt 5 als AUFFAELLIG mit der Begründung „(OK) … kein Fehler“. Die Zeile mit dem Urteil ist nicht allein verlässlich; ein Test auf diesen Widerspruch fehlt noch.
+- **Zitate:** Die erste strenge Wertung ergab 33 % „erfundene“ Zitate — überwiegend Artefakt der Wertung (die KI lässt die Markdown-Sterne des Berichts weg, kürzt mit „...“, zitiert ganze Zeilen unvollständig). Nach Korrektur (`check_quotes`, `--rescore`) bleiben 42/690 = 6 %; ich habe die Restfälle durchgesehen: Lücken zwischen schlecht paarbaren Anführungszeichen, der vom Prompt selbst vorgegebene Satz „alle Zeilen nennen Wert und Schwelle“ und das zusammengesetzte „KNAME 94“ (Feldname und Wert aus verschiedenen Spalten). Erfundenen Inhalt habe ich in diesen Fällen nicht gefunden; die Zahl ist **kein** sauberes Maß, nur ein Hinweis.
+- **Nicht gemessen:** Gruppe `tune`, Gemini, lokale Modelle, mehr als zwei Läufe je Fall, andere Berichte (transformiert, Farbkamera).
+
 
 ### 11.16 Prüfkriterien: feste Regeln gegen KI, Katalogabgleich mit VSX (R1, R2 umgesetzt 2026-11-14; R3 zurückgestellt; R4 in §14.1)
 

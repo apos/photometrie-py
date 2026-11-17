@@ -66,6 +66,10 @@ def test_parse_answer_and_quote_check(base):
     assert (total, bad, missing) == (7, 1, ["steht nirgends im Text"])
     assert E.check_quotes(_answer(), sent)[:2] == (7, 0)
     assert E.check_quotes('1. OK | Gefunden: "alle   Comps\nGaia" | Grund: x', "alle Comps Gaia")[1] == 0        # Leerraum wird vereinheitlicht
+    assert E.check_quotes('1. OK | Gefunden: "Comps_ausgewaehlt: 6" | Grund: x', "- **Comps_ausgewaehlt**: 6")[1] == 0       # Markdown-Sterne im Bericht, nicht im Zitat
+    assert E.check_quotes('1. OK | Gefunden: "[WARN] check_streuung ... [WARN] sprung ..." | Grund: x', "[WARN] check_streuung: a\n[WARN] sprung: b")[1] == 0   # Auslassung trennt in Stuecke
+    assert E.check_quotes('1. OK | Gefunden: "[WARN] check_streuung ... [WARN] gibtsnicht" | Grund: x', "[WARN] check_streuung: a")[1] == 1
+    assert E.check_quotes('1. OK | Gefunden: Punkte: "100" (Zeile "a") und "b | Grund: x', "x")[0] == 0                       # ungerade Zahl Anfuehrungszeichen: nicht wertbar
 
 
 def test_score_run_statuses_and_hits(base):
@@ -164,3 +168,17 @@ def test_cli_runs_cases_writes_raw_results_and_report(tmp_path, monkeypatch, cap
     assert s["miss"]["k"] == 0 and s["false_alarm"]["k"] == 0 and s["valid"] == len(rows)               # der Orakel-Leser ist perfekt: Prüfstand zeigt 0 % und 0 %
     assert "Übersehensrate" in md and "0/" in md
     assert re.search(r"\[\d+/\d+\] p1_obstype_dslr", capsys.readouterr().out)
+
+
+def test_cli_rescore_uses_saved_answers_without_any_call(tmp_path, monkeypatch, capsys, base):
+    monkeypatch.setenv("VARPHOT_CONFIG", str(tmp_path / "keine.json"))
+    t = _tool()
+    monkeypatch.setattr(t, "ai_review", lambda *a, **k: (_ for _ in ()).throw(AssertionError("kein Aufruf erlaubt")))
+    facts, body = base
+    c = next(x for x in E.CASES if x.id == "p3_keine")
+    old = {"case": c.id, "repeat": 0, "answer": _answer(flag=(3,)).replace("# Export", "**Gaia_Comps**: 6 von 6"), "error": "", "seconds": 3.0, "backend": "claude-cli @ Cloud", "prompt": "x"}
+    f = tmp_path / "alt.jsonl"
+    f.write_text(json.dumps(old) + "\n", encoding="utf-8")
+    assert t.main(["--rescore", str(f)]) == 0
+    md = (tmp_path / "alt_neu.md").read_text(encoding="utf-8")
+    assert "neu gewertet" in md and "0/1 = 0 %" in md and "Erfundene Zitate" in md.replace("## ", "")

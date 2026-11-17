@@ -147,19 +147,30 @@ def parse_answer(text: str) -> dict:
     return {"verdicts": verdicts, "fazit": bool(re.search(r"^\s*Fazit\s*:", text or "", re.M | re.I))}
 
 
-def check_quotes(text: str, sent: str) -> tuple[int, int, list[str]]:
-    """``(Zahl der Zitate, Zahl der erfundenen, Liste der erfundenen)``: ein Zitat zählt als erfunden, wenn es (nach Vereinheitlichung der Leerzeichen) **nicht wörtlich** im gesendeten Text steht.
+_ELLIPSIS = re.compile(r"\.{3}|…")
 
-    Gezählt werden die in Anführungszeichen stehenden Stücke von ``Gefunden:`` bis ``Grund:`` (Stücke unter 3 Zeichen und ``Fehlt``-Angaben ausgenommen)."""
-    sent_n = _norm(sent)
+
+def _clean_quote_text(s: str) -> str:
+    """Zitat und gesendeter Text werden vor dem Vergleich gleich behandelt: Markdown-Zeichen (``**``, Backticks) entfallen, Leerraum wird vereinheitlicht."""
+    return _norm(s.replace("**", "").replace("`", ""))
+
+
+def check_quotes(text: str, sent: str) -> tuple[int, int, list[str]]:
+    """``(Zahl der Zitate, Zahl der erfundenen, Liste der erfundenen)``: ein Zitat zählt als erfunden, wenn ein Stück davon **nicht wörtlich** im gesendeten Text steht.
+
+    Gezählt werden die in Anführungszeichen stehenden Stücke von ``Gefunden:`` bis ``Grund:``. Gleich behandelt werden Markdown-Zeichen (``**`` im Bericht, das die KI beim Zitieren weglässt) und Leerraum;
+    Auslassungen (``...`` oder ``…`` im Zitat) trennen das Zitat in Stücke, jedes Stück muss vorkommen. Stücke unter 3 Zeichen zählen nicht. Zeilen mit **ungerader** Zahl gerader Anführungszeichen (verschachtelt,
+    nicht sauber paarbar) werden nicht gewertet — sonst entstünden Scheinzitate aus den Lücken zwischen den Zitaten. Erster Lauf 2026-11-17 mit der strengen Fassung: 33 % „erfunden“, fast alles Artefakt dieser Fälle."""
+    sent_n = _clean_quote_text(sent)
     total, missing = 0, []
     for ln in (text or "").splitlines():
         m = QUOTES_RE.search(ln)
-        if not m:
+        if not m or m.group(1).count('"') % 2:
             continue
-        for q in re.findall(r"[\"„“«»]([^\"„“«»]{3,}?)[\"“”«»]", m.group(1)):
+        for q in re.findall(r'"([^"]{3,}?)"', m.group(1)):
             total += 1
-            if _norm(q) not in sent_n:
+            parts = [p.strip(" ,;") for p in _ELLIPSIS.split(_clean_quote_text(q))]
+            if any(len(p) >= 3 and p not in sent_n for p in parts):
                 missing.append(q)
     return total, len(missing), missing
 

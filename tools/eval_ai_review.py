@@ -9,7 +9,7 @@ Aufruf (aus dem Projektordner)::
 
 ``--backend``: ``claude`` oder ``gemini`` (Cloud, braucht ``ai.cloud.enabled`` und Anmeldung wie in NB03) oder ``local`` (wie NB03 „Lokal“). Ohne ``--run`` zeigt das Werkzeug nur den Plan (Zahl der Aufrufe, Anweisung, erster Text anonymisiert wie in NB03) und endet; Cloud
 sendet **nur mit ``--run`` und ``--yes-send-cloud``** (Einwilligung für genau diesen Lauf). Der Text ist ein Testbericht (LCO-Testdaten, Code TST01); er läuft trotzdem durch
-dieselbe Anonymisierung und dieselbe Prüfung auf Restwerte. ``--split``: ``measure`` (Standard, die maßgeblichen Fälle), ``tune`` (zum Abstimmen der Anweisung) oder ``all``. ``--repeats``: Wiederholungen je Fall
+dieselbe Anonymisierung und dieselbe Prüfung auf Restwerte. ``--rescore DATEI.jsonl`` wertet gespeicherte Antworten mit der aktuellen Wertung neu (kein Aufruf, nichts gesendet). ``--split``: ``measure`` (Standard, die maßgeblichen Fälle), ``tune`` (zum Abstimmen der Anweisung) oder ``all``. ``--repeats``: Wiederholungen je Fall
 (ein Modell antwortet nicht jedes Mal gleich). ``--jobs``: gleichzeitige Aufrufe (Standard 1; Cloud-Kontingent beachten).
 
 Ausgabe: je Lauf eine Zeile in ``<out>/ai_eval_<Weg>_<Datum>.jsonl`` (ganze Antwort inklusive) und der Bericht ``….md``; Standardordner ``PHOTOMETRIE_PY_DATA/ai_eval`` (sonst ``./ai_eval``). Rückgabecode 0 = fertig
@@ -38,6 +38,30 @@ def _pick_backend(name: str, cfg: dict):
     return next((b for b in detect_cloud_backends(cfg) if b.kind == kind), None)
 
 
+def _rescore(path: Path, facts: dict, body: str) -> int:
+    """Wertet gespeicherte Antworten mit der **aktuellen** Wertung neu (ohne Aufruf). Ältere Dateien ohne Feld ``sent``: der Text wird aus den Fällen neu gebaut (Cloud: wie beim Senden anonymisiert)."""
+    rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    by_id = {c.id: c for c in cases("all")}
+    cfg = load_ai_config()
+    obs, own = load_config()
+    runs = []
+    for r in rows:
+        c = by_id[r["case"]]
+        sent = r.get("sent")
+        if sent is None:
+            cloud = "Cloud" in r.get("backend", "")
+            _, msg = build_case(c, facts, body, anon_note=cloud)
+            sent = prepare_for_cloud(msg, collect_secrets(obs, own, cfg), max_chars=cfg["cloud"]["max_chars"]).text if cloud else msg
+        new = score_run(c, r["answer"], sent, r.get("error", ""), r.get("seconds", 0.0))
+        new["repeat"] = r.get("repeat", 0)
+        runs.append(new)
+    label = rows[0].get("backend", "?") if rows else "?"
+    md = path.with_name(path.stem + "_neu.md")
+    md.write_text(format_report(label + " (neu gewertet)", rows[0].get("prompt", "?") if rows else "?", runs), encoding="utf-8")
+    print(md.read_text(encoding="utf-8"))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--backend", choices=["claude", "gemini", "local"])
@@ -47,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--list", action="store_true", help="Fälle anzeigen und enden")
+    ap.add_argument("--rescore", type=Path, metavar="JSONL", help="gespeicherte Antworten neu werten (nichts senden, kein Aufruf); schreibt <Datei>_neu.md")
     ap.add_argument("--run", action="store_true", help="Aufrufe wirklich ausführen (ohne: nur Plan zeigen)")
     ap.add_argument("--yes-send-cloud", action="store_true", help="zusätzlich bei Cloud: Einwilligung, den Text an den Anbieter zu senden (für diesen Lauf)")
     a = ap.parse_args(argv)
@@ -57,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         for c in cases("all"):
             print(f"{c.split:8} {c.id:28} {'Kontrolle' if c.is_control else 'Punkt ' + '/'.join(map(str, c.expect)):10} {c.description}")
         return 0
+    if a.rescore:
+        return _rescore(a.rescore, facts, body)
     if not a.backend:
         ap.error("--backend fehlt (claude, gemini oder local)")
     cfg = load_ai_config()
@@ -93,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         res = ai_review(sent, bk, system=system, timeout=a.timeout)
         run = score_run(c, res.text, sent, res.error, res.seconds)
         run["repeat"] = r
+        run["sent"] = sent
         return run
 
     with ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex, open(jsonl, "a", encoding="utf-8") as fh:
