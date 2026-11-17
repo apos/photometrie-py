@@ -40,7 +40,9 @@ def _setup(tmp_path, monkeypatch, mode="claude", enabled=True):
     monkeypatch.setattr(d, "display", lambda o, *a, **k: shown.append(o))
     ns = {"ui": ui, "widgets": widgets, "display": shown.append, "EXPORTS": exports, "name": "aavso_x_V.txt", "ISSUES": [], "ERRORS": [], "FINDINGS": [],
           "TEXT": "#OBSCODE=ABCD\n#NOTES Standort Balkon Musterstadt\n", "OBS": SimpleNamespace(aavso_code="ABCD", site_name="Balkon Musterstadt"), "_own": [],
-          "w_ai": SimpleNamespace(value=mode)}
+          "w_ai": SimpleNamespace(value=mode), "w_mode": SimpleNamespace(value="untransformiert"),
+          "PLAN": SimpleNamespace(method="mono", camera_model="QHY268M", aavso_filter="V", obstype="CCD"), "MODE_T": False, "BAND": "V", "FILT": "V", "OBSTYPE": "CCD",
+          "OBSTYPE_UNCONFIRMED": False, "IS_TESTDATA": True, "OBSV": [1, 2], "comps": [1, 2, 3], "N_ENS": 3, "n_gaia": 0, "CHART": "X43370IPN"}
     return ns, shown, rec, exports
 
 
@@ -69,7 +71,7 @@ def test_cloud_cell_sends_anonymized_text_after_confirmation_and_restores_answer
     sent = (rec / "stdin.txt").read_text()
     assert "ABCD" not in sent and "Musterstadt" not in sent and "[BEOBACHTERCODE]" in sent
     argv = (rec / "argv.txt").read_text()
-    assert "Du pruefst den Bericht" in argv and "HINWEIS: Der Text ist anonymisiert" in argv                  # Systemprompt mit Platzhalter-Hinweis
+    assert "zweite Leserin" in argv and "HINWEIS: Der Text ist anonymisiert" in argv                  # Systemprompt mit Platzhalter-Hinweis
     log = (exports / "aavso_x_V_ki_gesendet.md").read_text(encoding="utf-8")
     assert "ABCD" not in log and "[BEOBACHTERCODE]" in log
     bericht = (exports / "aavso_x_V_bericht.md").read_text(encoding="utf-8")
@@ -91,3 +93,16 @@ def test_cloud_cell_skips_when_mode_is_off_or_gemini(tmp_path, monkeypatch):
     ns, shown, rec, exports = _setup(tmp_path / "zwei", monkeypatch, mode="gemini")
     exec(compile(_cell("from varphot import detect_backends"), "nb03[13]", "exec"), ns)
     assert "Gemini ist noch nicht eingerichtet" in _html(shown)
+
+
+def test_cloud_cell_sends_context_and_case_specific_system_prompt(tmp_path, monkeypatch):
+    """Der Text beginnt mit dem Kontext (Erwartung, Absicht), die Systemanweisung hat die zusammengestellten Pruefpunkte."""
+    ns, shown, rec, exports = _setup(tmp_path, monkeypatch)
+    exec(compile(_cell("from varphot import detect_backends"), "nb03[13]", "exec"), ns)
+    ok, go, out = next(o for o in shown if isinstance(o, widgets.VBox)).children
+    ok.value = True
+    go.click()
+    sent = (rec / "stdin.txt").read_text()
+    argv = (rec / "argv.txt").read_text()
+    assert sent.startswith("## Kontext") and "Filter V, TRANS NO, OBSTYPE CCD" in sent and "QHY268M" in sent
+    assert "Kein Urteil ohne woertliches Zitat" in argv and "Testkennzeichnung" in argv and "[BEOBACHTERCODE]" in argv        # Prüfpunkte, Testfall, Anonymisierungshinweis

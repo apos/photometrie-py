@@ -197,13 +197,16 @@ def summary(anon: Anonymized) -> list[tuple[str, int]]:
 
 
 def save_sent_text(directory: str | Path, base: str, anon: Anonymized, provider: str, model: str = "") -> Path:
-    """Legt den **gesendeten, anonymisierten** Text neben dem Bericht ab (``<base>_ki_gesendet.md``); die Zuordnung Platzhalter → Original wird nie geschrieben."""
+    """Legt den **gesendeten, anonymisierten** Text neben dem Bericht ab (``<base>_ki_gesendet.md``); die Zuordnung Platzhalter → Original wird nie geschrieben.
+
+    Rechte ``0644`` auf **jedem** System gleich (Mac, Datalore-Agent als uid 5000): Der Text ist schon anonymisiert und so schutzbedürftig wie der Bericht daneben. Mit ``0600`` konnte der
+    Nextcloud-Client auf panama die vom Agenten (uid 5000) geschriebene Datei nicht lesen und synchronisierte sie nie auf den Mac (2026-11-16)."""
     p = Path(directory) / f"{base}_ki_gesendet.md"
     head = (f"# An die KI gesendet ({provider}{', ' + model if model else ''})\n\nZeit (UTC): {datetime.datetime.now(datetime.timezone.utc):%Y-%m-%d %H:%M:%S}. "
             f"Anonymisierte Stellen: {', '.join(f'{n}× {k}' for k, n in summary(anon)) or 'keine'}.\n\n---\n\n")
     p.write_text(head + anon.text + "\n", encoding="utf-8")
     try:
-        os.chmod(p, 0o600)
+        os.chmod(p, 0o644)
     except OSError:
         pass
     return p

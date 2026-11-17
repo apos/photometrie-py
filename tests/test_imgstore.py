@@ -38,7 +38,7 @@ def env(tmp_path):
 
 
 def run(env, *args, check=True):
-    r = subprocess.run(["bash", str(TOOL), *args], env=env, capture_output=True, text=True)
+    r = subprocess.run(["bash", str(TOOL), *args], env=env, capture_output=True, text=True, check=False)
     if check:
         assert r.returncode == 0, r.stderr
     return r

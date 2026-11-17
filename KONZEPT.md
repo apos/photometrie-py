@@ -587,6 +587,20 @@ Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **
 
 **Offen:** (a) Kontingent des Claude-Kontos und die Regel für `claude -p` aus einem Notebook (ein Aufruf je Bericht, vom Nutzer ausgelöst) bei Anthropic klären; (b) Einstellung zur Datennutzung im Konto prüfen; (c) Gemini: bezahlte oder kostenlose Stufe; (d) die Liste der anonymisierten Angaben vom Autor bestätigen lassen (insbesondere Standort).
 
+#### 11.15.8 Eingegrenzter Prüfauftrag mit Kontext (umgesetzt 2026-11-17)
+
+**Anlass (Autor, 2026-11-17):** Der erste Lauf mit Claude in Datalore (2026-11-16, an den LCO-Testdaten) lieferte „OK: Es gibt keine Hinweise auf Farb-, Bayer- oder RGB-Kamera“ — ein Urteil ohne Beleg, ohne Wissen über die Kamera. Der Prompt muss wie unsere Qualitätssicherung im BM (Regel 00012: präzise, konkrete, belegte Aussagen; kein „ist ok“ ohne Beleg) **eingegrenzt** sein und **Kontext** mitgeben, und der Bericht muss so verfasst sein, dass er keine vermeidbaren Widersprüche enthält.
+
+**Methode (vier Regeln, `varphot/aireview.py`: `build_context`, `build_system_prompt`):**
+1. **Kontext kommt aus den Daten der Software, nicht aus Annahmen der KI:** was der Text ist (automatisch erzeugt, zweite Leserin), Aufnahme (Methode, Kamera, Betriebsart), **Erwartung** aus Plan und Regel (Filter, `TRANS`, `OBSTYPE`), Testdaten ja/nein, und was **Absicht und kein Fehler** ist (Comps ausgewählt ≠ Ensemble je Bild; Gaia-CHART als Notbehelf; Platzhalter). Der Kontext gilt als wahr.
+2. **Die Prüfpunkte stellt die Software je Fall zusammen** (z. B. „Testkennzeichnung“ nur bei Testdaten, „Koeffizienten“ nur bei transformiert); die KI entscheidet nie, ob ein Punkt gilt.
+3. **Jedes Urteil braucht ein wörtliches Zitat** (`<Nr>. <OK|AUFFAELLIG|NICHT_PRUEFBAR> | Gefunden: "…" | Grund: …`); auch ein OK muss zeigen, was geprüft wurde. `NICHT_PRUEFBAR` statt Raten, wenn die Stelle fehlt.
+4. **Was feste Regeln sicher prüfen, wird nicht wiederholt** (Format, Zahlenbereiche, Filter/TRANS/OBSTYPE-Regeln, Luftmasse, Check-Streuung). Die KI prüft nur, was Software schlecht kann: Widersprüche zwischen Textstellen (Zahlen, Mengenwörter wie „teils“/„alle“, Überschrift gegen Inhalt, Warnungen verschwiegen) und Verständlichkeit.
+
+**Probelauf (2026-11-17, Claude, anonymisierter Bericht der LCO-Testdaten, 18 s):** Alle sieben Punkte mit Zitat beantwortet. Gefunden wurden drei echte Fehler des **Berichts**, nicht der KI: (a) „Comps teils Gaia-abgeleitet“ bei 6 von 6, (b) Überschrift „Reifegrad (nicht an echten Daten geprüft)“ über „alle … geprüft“, (c) `check_offset` ohne Schwelle. Alle drei sind behoben (NB03 Zellen 8 und 11, `check_plausibility`), ebenso die doppelte Comp-Zahl (Kopf „Comps: 6“ gegen Notiz „Ensemble 5 Comps“, jetzt „Comps_ausgewaehlt“, „Comps_im_Ensemble_Median_je_Bild“, Notiz „Ensemble 5 von 6 Comps“). Das Auffinden von Fehlern im eigenen Bericht zeigt: der Prüfer taugt, und die **Quelle der Fehler gehört zuerst behoben** (der Bericht), nicht dem Prompt aufgebürdet.
+
+**Grenzen:** Eine Stichprobe mit einem Modell, kein Maß für Fehlalarm- und Übersehensrate; kleine lokale Modelle (§11.14) folgen dem Format unzuverlässiger, derselbe Prompt gilt für sie. Der Kontext nennt Kamera und Filter, aber keine persönlichen Angaben.
+
 ### 11.16 Prüfkriterien: feste Regeln gegen KI, Katalogabgleich mit VSX (R1, R2 umgesetzt 2026-11-14; R3 zurückgestellt; R4 in §14.1)
 
 **Frage des Autors:** Was soll die Plausibilitätsprüfung mit festen Regeln prüfen, was die KI? Vorschlag: Zahlen, Bereiche und Ortsangaben **deterministisch** (Katalogbereich aus VSX, Luftmasse und Sichtbarkeit aus Standort und Zeit); die KI bleibt Zweitleserin für Text. Eine stärkere KI (Claude) könnte zusätzlich Sternwissen beisteuern, aber nur als Hinweis, der gegen VSX gegengeprüft wird.

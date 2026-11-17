@@ -305,7 +305,7 @@ def check_plausibility(observations: list[Observation], obstype: str = "CCD", ex
         if sd > kmag_scatter_max:
             add("WARN", "check_streuung", f"Check-Stern streut mit {sd:.3f} mag (> {kmag_scatter_max}) — Photometrie/Comps pruefen")
         if kmag_expected is not None and abs(mean - kmag_expected) > 0.05:
-            add("WARN", "check_offset", f"Check-Stern im Mittel {mean:.3f} mag, Katalog {kmag_expected:.3f} (Differenz {mean - kmag_expected:+.3f})")
+            add("WARN", "check_offset", f"Check-Stern im Mittel {mean:.3f} mag, Katalog {kmag_expected:.3f} (Differenz {mean - kmag_expected:+.3f}, Schwelle 0.05 mag) — Vergleichssterne/Nullpunkt pruefen")
     if catalog is not None and all(math.isfinite(m) for m in mags):
         tol = max(catalog_tol, 1.0) if catalog.uncertain else catalog_tol
         out = sum(1 for m in mags if m < catalog.lo - tol or m > catalog.hi + tol)
