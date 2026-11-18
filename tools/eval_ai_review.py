@@ -9,7 +9,7 @@ Aufruf (aus dem Projektordner)::
 
 ``--backend``: ``claude`` oder ``gemini`` (Cloud, braucht ``ai.cloud.enabled`` und Anmeldung wie in NB03) oder ``local`` (wie NB03 „Lokal“). Ohne ``--run`` zeigt das Werkzeug nur den Plan (Zahl der Aufrufe, Anweisung, erster Text anonymisiert wie in NB03) und endet; Cloud
 sendet **nur mit ``--run`` und ``--yes-send-cloud``** (Einwilligung für genau diesen Lauf). Der Text ist ein Testbericht (LCO-Testdaten, Code TST01); er läuft trotzdem durch
-dieselbe Anonymisierung und dieselbe Prüfung auf Restwerte. ``--rescore DATEI.jsonl`` wertet gespeicherte Antworten mit der aktuellen Wertung neu (kein Aufruf, nichts gesendet). ``--split``: ``measure`` (Standard, die maßgeblichen Fälle), ``tune`` (zum Abstimmen der Anweisung) oder ``all``. ``--repeats``: Wiederholungen je Fall
+dieselbe Anonymisierung und dieselbe Prüfung auf Restwerte. ``--rescore DATEI.jsonl`` wertet gespeicherte Antworten mit der aktuellen Wertung neu (kein Aufruf, nichts gesendet). ``--cases a,b`` beschränkt auf einzelne Fälle (Wiederholung von Läufen mit Anbieterfehler). ``--split``: ``measure`` (Standard, die maßgeblichen Fälle), ``tune`` (zum Abstimmen der Anweisung) oder ``all``. ``--repeats``: Wiederholungen je Fall
 (ein Modell antwortet nicht jedes Mal gleich). ``--jobs``: gleichzeitige Aufrufe (Standard 1; Cloud-Kontingent beachten).
 
 Ausgabe: je Lauf eine Zeile in ``<out>/ai_eval_<Weg>_<Datum>.jsonl`` (ganze Antwort inklusive) und der Bericht ``….md``; Standardordner ``PHOTOMETRIE_PY_DATA/ai_eval`` (sonst ``./ai_eval``). Rückgabecode 0 = fertig
@@ -66,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--backend", choices=["claude", "gemini", "local"])
     ap.add_argument("--split", choices=["measure", "tune", "all"], default="measure")
+    ap.add_argument("--cases", help="nur diese Fälle (Kennungen, durch Komma getrennt), z. B. zum Wiederholen von Läufen mit Anbieterfehler")
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--timeout", type=float, default=300.0)
@@ -79,6 +80,12 @@ def main(argv: list[str] | None = None) -> int:
 
     facts, body = load_baseline()
     cs = cases(a.split)
+    if a.cases:
+        want = [x.strip() for x in a.cases.split(",") if x.strip()]
+        unknown = [x for x in want if x not in {c.id for c in cases("all")}]
+        if unknown:
+            ap.error("unbekannte Fälle: " + ", ".join(unknown))
+        cs = [c for c in cases("all") if c.id in want]
     if a.list:
         for c in cases("all"):
             print(f"{c.split:8} {c.id:28} {'Kontrolle' if c.is_control else 'Punkt ' + '/'.join(map(str, c.expect)):10} {c.description}")
