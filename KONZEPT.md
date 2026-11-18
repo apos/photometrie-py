@@ -634,7 +634,7 @@ Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **
 - **Fehlalarm = Lücke im Kontext (Regel §11.15.8):** An Punkt 2 meldete Claude in 4 von 26 Läufen (`k0_unveraendert_m`, `p5_offset_fehlt`, `p6_ohne_schwelle` ×2) „Quelle: …_2026_11_16“ gegen den Dateinamen „…2026-11-17“. Ursache ist die Kontextzeile, die beide Daten als „Tag der Auswertung“ ausgibt; tatsächlich ist die Quelle der **Sitzungsordner** (angelegt am Vortag) und der Dateiname das Ausgabedatum. Fehler im Kontext, nicht der KI. Behoben 2026-11-17: Der Kontext sagt jetzt, die Quelle nenne den Tag, an dem die Sitzung angelegt wurde, der Dateiname den Tag der Ausgabe, alle drei Daten dürften verschieden sein (schon um einen Tag). Neue Anweisung `cbfd3592ad5a`.
 - **Urteil und Begründung widersprechen sich** in einzelnen Läufen: `p4_keine_offenen` #1 meldet Punkt 6 als AUFFAELLIG, die Begründung endet „Urteil daher OK“; `p1_filter_b` #1 meldet Punkt 5 als AUFFAELLIG mit der Begründung „(OK) … kein Fehler“. Die Zeile mit dem Urteil ist nicht allein verlässlich; ein Test auf diesen Widerspruch fehlt noch.
 - **Zitate:** Die erste strenge Wertung ergab 33 % „erfundene“ Zitate — überwiegend Artefakt der Wertung (die KI lässt die Markdown-Sterne des Berichts weg, kürzt mit „...“, zitiert ganze Zeilen unvollständig). Nach Korrektur (`check_quotes`, `--rescore`) bleiben 42/690 = 6 %; ich habe die Restfälle durchgesehen: Lücken zwischen schlecht paarbaren Anführungszeichen, der vom Prompt selbst vorgegebene Satz „alle Zeilen nennen Wert und Schwelle“ und das zusammengesetzte „KNAME 94“ (Feldname und Wert aus verschiedenen Spalten). Erfundenen Inhalt habe ich in diesen Fällen nicht gefunden; die Zahl ist **kein** sauberes Maß, nur ein Hinweis.
-- **Nicht gemessen:** Gemini, lokale Modelle, mehr als zwei Läufe je Fall, andere Berichte (transformiert, Farbkamera).
+- **Nicht gemessen:** lokale Modelle, mehr als zwei Läufe je Fall, andere Berichte (transformiert, Farbkamera).
 
 *Zweite Messung mit Claude, 2026-11-17, nach der Korrektur von Kontext und Fall, **beide Gruppen**, Anweisung `cbfd3592ad5a`, 22 Fälle × 2 = 44 Läufe, keine Anbieter- oder Formatfehler, im Mittel 20 s; Rohdaten `ai_eval_claude_2026-11-17_v2.jsonl`:*
 
@@ -648,6 +648,23 @@ Umgebungsvariable (Name in der Konfiguration), optional macOS-Schlüsselbund. **
 - **Der Fehlalarm zum Sitzungsdatum trat nicht mehr auf** (0 von 44 Läufen, vorher 4 von 26). Alle 17 Fehlerfälle wurden in beiden Läufen am vorgesehenen Punkt gemeldet, auch `p2_comps_ausgewaehlt`. Die eine zusätzliche Meldung (`p4_keine_offenen` #1, Punkt 3) ist berechtigt: „Keine“ in der Überschrift steht gegen drei aufgelistete Warnungen. Ein Widerspruch zwischen Urteilszeile und Begründung wie in der ersten Messung ist mir in dieser nicht aufgefallen (einfache Textsuche, nicht lückenlos).
 - **Wie weit das trägt:** Die Korrektur des Kontexts und der Austausch des Falls wurden **nach Ansicht der Ergebnisse von `measure`** vorgenommen; `measure` ist damit nicht mehr unabhängig, und `tune` wurde nie zum Abstimmen benutzt. Die Zahlen sind eine zweite Stichprobe an denselben Fällen, kein unabhängiger Nachweis. Die Intervalle sind breit (obere Grenze der Übersehensrate 16 %, der Fehlalarmrate 39 %), die Fehler sind künstlich und eindeutig, und es ist ein Bericht mit einem Modell. „0 %“ heißt hier: in dieser Stichprobe nichts übersehen, nicht: es wird nichts übersehen. Für einen unabhängigen Beleg braucht es **neue Fälle** (andere Berichte, unschärfere Fehler) oder einen anderen Stern; vor einer weiteren Anpassung der Anweisung neue `measure`-Fälle anlegen.
 
+
+*Gemini (Kommandozeile, `gemini-3.1-flash-lite`), gemessen 2026-11-17/18 mit derselben Anweisung `cbfd3592ad5a`, beide Gruppen, 22 Fälle × 2 = 44 Läufe; Rohdaten `ai_eval_gemini_gesamt.jsonl`:*
+
+Sechs Läufe (alle Fälle von Punkt 1, die ersten sechs der Reihe) endeten mit Anbieterfehler (`TypeError: terminated`, Netzverbindung abgebrochen; der Rechner war in den Ruhezustand gegangen, ein anderer Lauf dauerte 18 803 s). Sie wurden unter `caffeinate` wiederholt (`--cases … --tag wdh`, alle sechs Treffer) und mit den 38 gültigen Läufen zusammengeführt (`--rescore`). Die Aussage gilt also für 44 gültige Läufe.
+
+| Größe | `measure` | `tune` | zusammen |
+|---|---|---|---|
+| Übersehensrate, streng | 4/20 = 20 % (8–42 %) | 2/14 = 14 % (4–40 %) | 6/34 = 18 % |
+| Fehlalarmrate | 0/6 = 0 % (0–39 %) | 0/4 = 0 % (0–49 %) | 0/10 |
+| zusätzliche Meldung an anderem Punkt | 1/20 | 0/14 | 1/34 |
+
+- **Alle sechs Übersehen betreffen Punkt 2** (`p2_zeitraum` ×2, `p2_comps_gesamt` ×2, `p2_comps_ausgewaehlt` ×2): Punkt 2 wurde in **6 von 6** Läufen nicht gemeldet, alle anderen Punkte (1, 3, 4, 5, 6, 7) in **28 von 28**. Das ist ein Muster, kein Zufall. Gemini prüft von den mehrfach vorkommenden Zahlen nur einen Teil: bei `p2_zeitraum` zitiert es die Comps statt des Zeitraums, bei den Comps-Fällen vergleicht es „Comps_ausgewaehlt: 6“ mit „Gaia_Comps: 6 von 6“ und übersieht „von 8“ bzw. „7“. Claude zählte alle Größen auf und fand sie.
+- **Fehlalarme:** keine in 10 Kontrollläufen (wie bei Claude). Die Sitzungsdatum-Lücke (§11.15.8) tritt nicht auf.
+- **Dauer:** Median etwa 17 s je Lauf (Claude etwa 20 s); die Mittelwerte im Bericht sind durch den Ruhezustand verfälscht.
+- **Zitate:** 6 % „erfundene“; es sind überwiegend zwei Zitate in **einem** Anführungszeichenpaar („A und B“), also eine Grenze der Wertung, kein erfundener Inhalt.
+- **Grenzen:** wie bei Claude (kleine Stichprobe, künstliche Fehler, ein Bericht, `measure` nicht mehr unabhängig). Zusätzlich: gemessen ist das **kleine** Modell `gemini-3.1-flash-lite`; ein größeres Gemini-Modell kann anders abschneiden. Ob die Schwäche an Punkt 2 an der offenen Formulierung („Zahlen, die mehr als einmal vorkommen“) liegt, ist **Vermutung**; geprüft ist nur das Ergebnis.
+- **Folge, nicht umgesetzt:** Für Gemini die zu vergleichenden Größen je Fall von der Software aufzählen lassen (Punkte, Zeitraum, Comps ausgewählt, Comps im Ensemble, Check-Stern) statt „mehr als einmal vorkommende Zahlen“ offen zu lassen (Methode wie §11.15.8: Prüfpunkte pro Fall zusammenstellen). Vor dem Abstimmen **neue** `measure`-Fälle für Punkt 2 anlegen, sonst misst man die Abstimmung.
 
 ### 11.16 Prüfkriterien: feste Regeln gegen KI, Katalogabgleich mit VSX (R1, R2 umgesetzt 2026-11-14; R3 zurückgestellt; R4 in §14.1)
 

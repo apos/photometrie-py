@@ -182,3 +182,16 @@ def test_cli_rescore_uses_saved_answers_without_any_call(tmp_path, monkeypatch, 
     assert t.main(["--rescore", str(f)]) == 0
     md = (tmp_path / "alt_neu.md").read_text(encoding="utf-8")
     assert "neu gewertet" in md and "0/1 = 0 %" in md and "Erfundene Zitate" in md.replace("## ", "")
+
+
+def test_cli_cases_filter_runs_only_the_named_cases(tmp_path, monkeypatch, capsys, base):
+    monkeypatch.setenv("VARPHOT_CONFIG", str(tmp_path / "keine.json"))
+    t = _tool()
+    monkeypatch.setattr(t, "ai_review", _oracle(base))
+    monkeypatch.setattr(t, "_pick_backend", lambda name, cfg: A.Backend("ollama", "lokal", True, "ok", url="http://127.0.0.1:1", model="m"))
+    out = tmp_path / "wdh"
+    assert t.main(["--backend", "local", "--run", "--cases", "p1_obstype_dslr,k0_unveraendert", "--repeats", "3", "--tag", "wdh", "--out", str(out)]) == 0
+    rows = [json.loads(ln) for ln in next(out.glob("*_wdh.jsonl")).read_text(encoding="utf-8").splitlines()]
+    assert sorted({r["case"] for r in rows}) == ["k0_unveraendert", "p1_obstype_dslr"] and len(rows) == 6      # auch Faelle der anderen Gruppe (tune), Wiederholungen je Fall
+    with pytest.raises(SystemExit):
+        t.main(["--backend", "local", "--cases", "gibt_es_nicht"])
