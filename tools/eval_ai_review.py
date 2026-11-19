@@ -46,7 +46,10 @@ def _rescore(path: Path, facts: dict, body: str) -> int:
     obs, own = load_config()
     runs = []
     for r in rows:
-        c = by_id[r["case"]]
+        c = by_id.get(r["case"])
+        if c is None:                                                  # Fall inzwischen entfernt oder ersetzt (z. B. p2_ensemble): nicht neu wertbar
+            print(f"übersprungen (Fall nicht mehr vorhanden): {r['case']}", file=sys.stderr)
+            continue
         sent = r.get("sent")
         if sent is None:
             cloud = "Cloud" in r.get("backend", "")

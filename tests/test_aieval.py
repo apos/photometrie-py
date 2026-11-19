@@ -225,3 +225,12 @@ def test_cli_retries_only_provider_errors(tmp_path, monkeypatch, capsys, base):
     calls.clear()
     assert t.main(["--backend", "local", "--run", "--cases", "p3_keine", "--repeats", "1", "--retries", "0", "--tag", "x", "--out", str(out)]) == 0
     assert len(calls) == 1                                                                              # ohne --retries kein zweiter Versuch
+
+
+def test_label_conflicts_detects_self_retracted_verdicts():
+    txt = ('1. OK | Gefunden: "x" | Grund: gleich.\n'
+           '2. AUFFAELLIG | Gefunden: "y" | Grund: Zahl fehlt. Korrektur: Urteil OK.\n'
+           '3. AUFFAELLIG | Gefunden: "z" | Grund: Zeitraum weicht ab (bewusst zwei Groessen, kein Widerspruch).\n'
+           '4. OK | Gefunden: "w" | Grund: Urteil daher OK.\n'
+           '5. AUFFAELLIG | Gefunden: "v" | Grund: alles stimmt, Urteil dennoch gesetzt.')
+    assert E.label_conflicts(txt) == [2, 5]                                                         # nur AUFFAELLIG-Zeilen mit Rücknahme; Punkt 3 ist ein echter Befund, Punkt 4 ist OK

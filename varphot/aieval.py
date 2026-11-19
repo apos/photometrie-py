@@ -164,6 +164,22 @@ def _clean_quote_text(s: str) -> str:
     return _norm(s.replace("**", "").replace("`", ""))
 
 
+_RETRACT_RE = re.compile(r"Korrektur:|korrigiert|Urteil\s+(?:daher\s+|dennoch\s+)?(?:OK|gesetzt)|richtig lautet OK|Urteil\s+(?:ist\s+)?falsch|dieses Urteil falsch", re.I)
+
+
+def label_conflicts(text: str) -> list[int]:
+    """Punkte, deren Zeile **AUFFAELLIG** sagt, die Begründung das Urteil aber selbst zurücknimmt („Korrektur: Urteil OK“, „Urteil daher OK“, „korrigiert“, „Urteil dennoch gesetzt“).
+
+    Die KI schreibt das Urteil zuerst und begründet danach; manche Läufe korrigieren sich dann mitten in der Zeile (Messung 2026-11-17/19). Ein Mensch, der nur die Urteilszeile liest, sähe einen Fehlalarm.
+    Heuristik auf bekannte Formeln; ein Widerspruch in anderen Worten bleibt unentdeckt (Untergrenze)."""
+    out = []
+    for ln in (text or "").splitlines():
+        m = VERDICT_RE.match(ln)
+        if m and m.group(2).upper().startswith("AUFF") and _RETRACT_RE.search(ln):
+            out.append(int(m.group(1)))
+    return out
+
+
 def check_quotes(text: str, sent: str) -> tuple[int, int, list[str]]:
     """``(Zahl der Zitate, Zahl der erfundenen, Liste der erfundenen)``: ein Zitat zählt als erfunden, wenn ein Stück davon **nicht wörtlich** im gesendeten Text steht.
 
@@ -195,7 +211,7 @@ def score_run(case: Case, answer: str, sent: str, error: str = "", seconds: floa
         return {**run, "status": "format"}
     flagged = sorted(n for n, v in p["verdicts"].items() if v == "AUFFAELLIG")
     total, bad, missing = check_quotes(answer, sent)
-    run.update(status="ok", flagged=flagged, unchecked=sorted(n for n, v in p["verdicts"].items() if v == "NICHT_PRUEFBAR"), quotes=total, quotes_invented=bad, invented=missing)
+    run.update(status="ok", flagged=flagged, label_conflicts=[n for n in label_conflicts(answer) if n in flagged], unchecked=sorted(n for n, v in p["verdicts"].items() if v == "NICHT_PRUEFBAR"), quotes=total, quotes_invented=bad, invented=missing)
     if case.is_control:
         run["false_alarm"] = bool(flagged)
     else:
@@ -247,6 +263,7 @@ def summarize(runs: list[dict], split: str = "measure") -> dict:
             "false_alarm": rate(sum(r["false_alarm"] for r in ctl), len(ctl)),
             "false_alarm_points": rate(sum(len(r["flagged"]) for r in ctl), N_POINTS * len(ctl)),
             "other_flags_in_error_runs": rate(sum(bool(r["other_flags"]) for r in err), len(err)),
+            "label_conflict_lines": rate(sum(len(r.get("label_conflicts", [])) for r in ok), sum(len(r["flagged"]) for r in ok)),
             "invented_quotes": rate(sum(r["quotes_invented"] for r in ok), q_all),
             "seconds_mean": (sum(r["seconds"] for r in rs) / len(rs) if rs else None),
             "miss_by_point": {pt: rate(k, n) for pt, (k, n) in sorted(per_point.items())},
@@ -266,6 +283,7 @@ def format_report(label: str, pid: str, runs: list[dict]) -> str:
                 f"- **Fehlalarmrate** (Kontrollläufe mit mindestens einer Auffälligkeit): {pct(s['false_alarm'])}",
                 f"- Fehlalarme je Urteil (Kontrollläufe): {pct(s['false_alarm_points'])}",
                 f"- Fehlerläufe mit zusätzlichen Meldungen an anderen Punkten: {pct(s['other_flags_in_error_runs'])}",
+                f"- AUFFAELLIG-Zeilen, deren Begründung das Urteil selbst zurücknimmt (Heuristik, Untergrenze): {pct(s['label_conflict_lines'])}",
                 f"- Erfundene Zitate (stehen nicht wörtlich im Text): {pct(s['invented_quotes'])}",
                 f"- mittlere Dauer: {s['seconds_mean']:.1f} s" if s["seconds_mean"] is not None else "- mittlere Dauer: —", ""]
         if s["miss_by_point"]:
