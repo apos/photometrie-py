@@ -85,8 +85,17 @@ CASES: tuple[Case, ...] = (
     Case("p1_trans_yes", "measure", (1,), "TRANS YES statt erwartet NO (Datenzeilen und Bericht)", ((",V,NO,", ",V,YES,"), ("- **TRANS**: NO", "- **TRANS**: YES"))),
     # ---- Punkt 2: dieselbe Zahl, zwei Werte
     Case("p2_zeitraum", "tune", (2,), "Zeitraum im Bericht beginnt 10 Tage nach der ersten Datenzeile", (("JD 2458802.651 –", "JD 2458812.651 –"),)),
-    Case("p2_comps_ausgewaehlt", "measure", (2,), "Bericht nennt 7 ausgewählte Comps, die NOTES und Gaia_Comps 'von 6'", (("- **Comps_ausgewaehlt**: 6", "- **Comps_ausgewaehlt**: 7"),)),
-    Case("p2_comps_gesamt", "measure", (2,), "NOTES nennen 8 Comps, der Bericht 6", (("Ensemble 5 von 6 Comps", "Ensemble 5 von 8 Comps"),)),
+    Case("p2_comps_ausgewaehlt", "tune", (2,), "Bericht nennt 7 ausgewählte Comps, die NOTES und Gaia_Comps 'von 6'", (("- **Comps_ausgewaehlt**: 6", "- **Comps_ausgewaehlt**: 7"),)),
+    # Neue Messfaelle fuer Punkt 2, angelegt VOR der Aenderung der Anweisung fuer Punkt 2 (2026-11-18); die drei aelteren Punkt-2-Faelle sind nach der ersten Gemini-Messung nach ``tune`` verschoben
+    # (ihre Ergebnisse waren bekannt) — die Anweisung fuer Punkt 2 wird nur gegen diese drei abgestimmt.
+    Case("p2_gaia_zahl", "tune", (2, 3), "Gaia_Comps '5 von 6' statt '6 von 6' (Warnung und 'alle Comps' sagen 6)", (("- **Gaia_Comps**: 6 von 6", "- **Gaia_Comps**: 5 von 6"),)),
+    # 2026-11-19: p2_gaia_zahl blieb bei Gemini in 2 von 2 Laeufen unentdeckt, weil die Aufzaehlung der Software die Zahl der Gaia-Comps NICHT nannte (Luecke in der Anweisung, nicht im Modell). Behoben; der Fall
+    # ist damit bekannt und liegt jetzt in ``tune``. Frischer Messfall: die Zahl steht in der Warnung unter dem Kopf falsch.
+    Case("p2_gaia_warnung", "measure", (2, 3), "'Warnungen: 4 von 6 Comps Gaia-abgeleitet' statt 6 von 6 (Gaia_Comps und 'alle Comps' sagen 6)", (("Warnungen: 6 von 6 Comps Gaia-abgeleitet", "Warnungen: 4 von 6 Comps Gaia-abgeleitet"),)),
+    Case("p2_zeitraum_fein", "measure", (2,), "Zeitraum beginnt 0,2 Tage nach der ersten Datenzeile", (("JD 2458802.651 –", "JD 2458802.851 –"),)),
+    Case("p2_streuung_zahl", "measure", (2, 5), "check_streuung unter 'Offene Punkte' 0.065 statt 0.056 (feste Prüfung unverändert)", (("- [WARN] check_streuung: Check-Stern streut mit 0.056 mag", "- [WARN] check_streuung: Check-Stern streut mit 0.065 mag"),)),
+    Case("p2_katalog_zahl", "measure", (2, 5), "check_offset unter 'Offene Punkte' Katalog 9.243 statt 9.423 (feste Prüfung unverändert)", (("- [WARN] check_offset: Check-Stern im Mittel 9.317 mag, Katalog 9.423", "- [WARN] check_offset: Check-Stern im Mittel 9.317 mag, Katalog 9.243"),)),
+    Case("p2_comps_gesamt", "tune", (2,), "NOTES nennen 8 Comps, der Bericht 6", (("Ensemble 5 von 6 Comps", "Ensemble 5 von 8 Comps"),)),
     # ---- Punkt 3: Mengenwort gegen Zahl
     Case("p3_keine", "tune", (3,), "'keine Comps Gaia-abgeleitet' bei 6 von 6", (("alle Comps Gaia-abgeleitet", "keine Comps Gaia-abgeleitet"),)),
     Case("p3_teils", "measure", (3,), "'teils Gaia-abgeleitet' bei 6 von 6", (("alle Comps Gaia-abgeleitet", "teils Gaia-abgeleitet"),)),

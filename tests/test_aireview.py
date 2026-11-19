@@ -583,3 +583,17 @@ def test_gemini_model_comes_from_config(tmp_path, monkeypatch):
     cfg = A.load_ai_config(tmp_path / "keine.json")
     cfg["cloud"].update(enabled=True, gemini_model="gemini-aus-konfig")
     assert A.detect_cloud_backends(cfg)[1].model == "gemini-aus-konfig"
+
+
+def test_numbers_point_lists_each_quantity_with_the_value_of_the_software():
+    """Punkt 2 zaehlt die Groessen einzeln mit dem Wert der Software auf (Gemini pruefte bei offener Formulierung nur einen Teil, KONZEPT §11.15.9); ohne Werte bleibt die offene Fassung."""
+    f = {"exp_filter": "V", "n_points": 100, "n_comps_sel": 6, "n_comps_ens": 5, "n_gaia": 6, "jd_range": (2458802.65081, 2458858.548)}
+    p2 = A.build_system_prompt(f).split("\n")[5]
+    assert p2.startswith("2. Zahlen gegen die Werte der Software")
+    for need in ("(1) Zeitraum: die Software sagt JD 2458802.651 – 2458858.548", "'Comps_ausgewaehlt'", "jeweils muss N = 6 sein", "(3) Gaia-abgeleitete Comps: die Software sagt 6 von 6", "Warnungen: g von N Comps Gaia-abgeleitet", "(4) Ensemble: die Software sagt 5", "(5) Punkte: die Software sagt 100",
+                 "nie groesser als die Zahl der ausgewaehlten Comps", "Check-Stern-Streuung und Katalogwert", "kein Widerspruch"):
+        assert need in p2, need
+    only = A.build_system_prompt({"exp_filter": "V", "n_comps_sel": 6}).split("\n")[5]
+    assert "(1) ausgewaehlte Comps" in only and "Zeitraum" not in only.split("Danach")[0] and "Punkte: die Software" not in only
+    old = A.build_system_prompt({"exp_filter": "V"}).split("\n")[5]
+    assert old.startswith("2. Zahlen, die im Bericht mehr als einmal vorkommen") and "die Software sagt" not in old
