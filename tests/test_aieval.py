@@ -195,3 +195,42 @@ def test_cli_cases_filter_runs_only_the_named_cases(tmp_path, monkeypatch, capsy
     assert sorted({r["case"] for r in rows}) == ["k0_unveraendert", "p1_obstype_dslr"] and len(rows) == 6      # auch Faelle der anderen Gruppe (tune), Wiederholungen je Fall
     with pytest.raises(SystemExit):
         t.main(["--backend", "local", "--cases", "gibt_es_nicht"])
+
+
+def test_software_values_in_the_facts_agree_with_the_baseline_report(base):
+    """Die Werte, die Punkt 2 der Anweisung nennt (aus den Tatsachen), muessen im echten Bericht der Grundlage genauso stehen — sonst waere schon der unveraenderte Bericht ein Fehlalarm."""
+    facts, body = base
+    a, b = facts["jd_range"]
+    assert f"**Zeitraum**: JD {a:.3f} – {b:.3f}" in body and f"**Comps_ausgewaehlt**: {facts['n_comps_sel']}" in body
+    assert f"**Comps_im_Ensemble_Median_je_Bild**: {facts['n_comps_ens']}" in body and f"**Punkte**: {facts['n_points']}" in body
+    assert f"**Gaia_Comps**: {facts['n_gaia']} von {facts['n_comps_sel']}" in body and f"von {facts['n_comps_sel']} Comps" in body
+    p2 = [c for c in E.CASES if 2 in c.expect]
+    assert {c.split for c in p2} == {"tune", "measure"} and sum(c.split == "measure" for c in p2) == 4 and sum(c.split == "tune" for c in p2) == 4
+
+
+def test_cli_retries_only_provider_errors(tmp_path, monkeypatch, capsys, base):
+    monkeypatch.setenv("VARPHOT_CONFIG", str(tmp_path / "keine.json"))
+    t = _tool()
+    calls = []
+    good = _oracle(base)
+    def flaky(text, backend, system="", timeout=0):
+        calls.append(1)
+        return A.ReviewResult(error="RuntimeError: 503 high demand") if len(calls) < 3 else good(text, backend, system, timeout)
+    monkeypatch.setattr(t, "ai_review", flaky)
+    monkeypatch.setattr(t, "_pick_backend", lambda name, cfg: A.Backend("ollama", "lokal", True, "ok", url="http://127.0.0.1:1", model="m"))
+    out = tmp_path / "r"
+    assert t.main(["--backend", "local", "--run", "--cases", "p3_keine", "--repeats", "1", "--retries", "2", "--out", str(out)]) == 0
+    row = json.loads(next(out.glob("*.jsonl")).read_text(encoding="utf-8"))
+    assert row["status"] == "ok" and row["attempts"] == 3 and len(calls) == 3                          # zwei Anbieterfehler, dann eine lesbare Antwort
+    calls.clear()
+    assert t.main(["--backend", "local", "--run", "--cases", "p3_keine", "--repeats", "1", "--retries", "0", "--tag", "x", "--out", str(out)]) == 0
+    assert len(calls) == 1                                                                              # ohne --retries kein zweiter Versuch
+
+
+def test_label_conflicts_detects_self_retracted_verdicts():
+    txt = ('1. OK | Gefunden: "x" | Grund: gleich.\n'
+           '2. AUFFAELLIG | Gefunden: "y" | Grund: Zahl fehlt. Korrektur: Urteil OK.\n'
+           '3. AUFFAELLIG | Gefunden: "z" | Grund: Zeitraum weicht ab (bewusst zwei Groessen, kein Widerspruch).\n'
+           '4. OK | Gefunden: "w" | Grund: Urteil daher OK.\n'
+           '5. AUFFAELLIG | Gefunden: "v" | Grund: alles stimmt, Urteil dennoch gesetzt.')
+    assert E.label_conflicts(txt) == [2, 5]                                                         # nur AUFFAELLIG-Zeilen mit Rücknahme; Punkt 3 ist ein echter Befund, Punkt 4 ist OK

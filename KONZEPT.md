@@ -664,7 +664,28 @@ Sechs Läufe (alle Fälle von Punkt 1, die ersten sechs der Reihe) endeten mit A
 - **Dauer:** Median etwa 17 s je Lauf (Claude etwa 20 s); die Mittelwerte im Bericht sind durch den Ruhezustand verfälscht.
 - **Zitate:** 6 % „erfundene“; es sind überwiegend zwei Zitate in **einem** Anführungszeichenpaar („A und B“), also eine Grenze der Wertung, kein erfundener Inhalt.
 - **Grenzen:** wie bei Claude (kleine Stichprobe, künstliche Fehler, ein Bericht, `measure` nicht mehr unabhängig). Zusätzlich: gemessen ist das **kleine** Modell `gemini-3.1-flash-lite`; ein größeres Gemini-Modell kann anders abschneiden. Ob die Schwäche an Punkt 2 an der offenen Formulierung („Zahlen, die mehr als einmal vorkommen“) liegt, ist **Vermutung**; geprüft ist nur das Ergebnis.
-- **Folge, nicht umgesetzt:** Für Gemini die zu vergleichenden Größen je Fall von der Software aufzählen lassen (Punkte, Zeitraum, Comps ausgewählt, Comps im Ensemble, Check-Stern) statt „mehr als einmal vorkommende Zahlen“ offen zu lassen (Methode wie §11.15.8: Prüfpunkte pro Fall zusammenstellen). Vor dem Abstimmen **neue** `measure`-Fälle für Punkt 2 anlegen, sonst misst man die Abstimmung.
+- **Folge (umgesetzt 2026-11-18/19, siehe unten):** Für Gemini die zu vergleichenden Größen je Fall von der Software aufzählen lassen (Punkte, Zeitraum, Comps ausgewählt, Comps im Ensemble, Check-Stern) statt „mehr als einmal vorkommende Zahlen“ offen zu lassen (Methode wie §11.15.8: Prüfpunkte pro Fall zusammenstellen). Vor dem Abstimmen **neue** `measure`-Fälle für Punkt 2 anlegen, sonst misst man die Abstimmung.
+
+**Punkt 2 für Gemini verbessert (2026-11-18/19), Anweisung `3484c31c2adb`.** Änderung: `_numbers_point` in `varphot/aireview.py` — die Software zählt die zu prüfenden Größen **einzeln mit ihrem Wert** auf (Zeitraum, ausgewählte Comps, Gaia-abgeleitete Comps, Ensemble, Punkte) und verlangt je Größe ein Zitat; ohne Werte bleibt die offene Fassung. Abgestimmt nur gegen vier Fälle in `tune` (`p2_zeitraum`, `p2_comps_gesamt`, `p2_comps_ausgewaehlt`, `p2_gaia_zahl`); vorher angelegte frische `measure`-Fälle: `p2_zeitraum_fein`, `p2_streuung_zahl`, `p2_katalog_zahl`, `p2_gaia_warnung`.
+
+- **Abstimmrunde Gemini:** 9 von 9 gültigen Läufen an den drei damaligen Punkt-2-Fällen erkannt (vorher 0 von 6).
+- **Lücke in meiner Anweisung:** Beim Fall `p2_gaia_zahl` (Gaia_Comps „5 von 6“) meldete Gemini in 2 von 2 Läufen nichts, weil die Aufzählung die Zahl der Gaia-Comps nicht nannte (nur das „von N“). Behoben, der Fall ist seitdem bekannt und liegt in `tune` (3 von 3 erkannt); als frischer Messfall dient `p2_gaia_warnung`.
+
+*Bestätigungsmessung, Gruppe `measure`, 15 Fälle × 2 = 30 Läufe je Anbieter, alle gültig (bei Gemini 3 Läufe erst nach Wiederholung eines Anbieterfehlers):*
+
+| Größe | Gemini `flash-lite` | Claude |
+|---|---|---|
+| Übersehensrate | 0/24 = 0 % (0–14 %) | 0/24 = 0 % (0–14 %) |
+| davon Punkt 2 | 0/8 | 0/8 |
+| Fehlalarmrate | 0/6 = 0 % (0–39 %) | 0/6 = 0 % (0–39 %) |
+| Fehlerläufe mit Meldung an anderem Punkt | 2/24 | 5/24 |
+| AUFFAELLIG-Zeilen, die ihr Urteil selbst zurücknehmen (Heuristik) | 0/28 | **4/36 = 11 %** (4–25 %) |
+| Dauer im Mittel | 16 s | 18 s |
+
+- **Gemini:** Gegenüber der Messung davor (Punkt 2: 0 von 6 erkannt, 6/34 übersehen insgesamt) jetzt alle Fehler erkannt. Die zwei zusätzlichen Meldungen (`p5_warnungen_keine`, Punkt 3) sind berechtigt („keine“ gegen drei aufgelistete Warnungen).
+- **Claude, Nebenwirkung:** Übersehen und Fehlalarme unverändert 0, aber in 4 von 36 AUFFAELLIG-Zeilen nimmt die Begründung das Urteil selbst zurück („Korrektur: Urteil OK“, „Urteil dennoch gesetzt“); in der Messung davor mit derselben Heuristik 0 von 35. Ein Leser der Urteilszeile sähe einen Fehlalarm. Die Heuristik wurde **nach** Ansicht der Daten eingebaut und findet nur bekannte Formeln (Untergrenze). **Vermutung:** Die längere Aufzählung bei Punkt 2 verleitet Claude, erst das Urteil zu schreiben und dann zu korrigieren. Mögliche Abhilfe (nicht umgesetzt, erst messen): Antwortformat mit dem Urteil **am Zeilenende** (Zitat und Grund zuerst).
+- **Wie weit das trägt:** `measure` ist nicht mehr unabhängig (die drei Fälle `p2_zeitraum_fein`, `p2_streuung_zahl`, `p2_katalog_zahl` entstanden, nachdem das Muster bei Punkt 2 bekannt war; die übrigen `measure`-Fälle sind seit der ersten Messung bekannt). Kleine Stichprobe, ein Bericht, künstliche Fehler, ein kleines Gemini-Modell. Für einen unabhängigen Beleg neue Berichte und unschärfere Fehler.
+- **Technik:** Bei zwei gleichzeitigen Aufrufen brach Gemini in 14 von 30 Läufen mit „Incomplete JSON segment“ oder 503 ab (auch nach drei Versuchen); nacheinander lief es stabil. Darum `--retries` und `--jobs 1` für Gemini.
 
 ### 11.16 Prüfkriterien: feste Regeln gegen KI, Katalogabgleich mit VSX (R1, R2 umgesetzt 2026-11-14; R3 zurückgestellt; R4 in §14.1)
 

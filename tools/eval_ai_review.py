@@ -46,7 +46,10 @@ def _rescore(path: Path, facts: dict, body: str) -> int:
     obs, own = load_config()
     runs = []
     for r in rows:
-        c = by_id[r["case"]]
+        c = by_id.get(r["case"])
+        if c is None:                                                  # Fall inzwischen entfernt oder ersetzt (z. B. p2_ensemble): nicht neu wertbar
+            print(f"übersprungen (Fall nicht mehr vorhanden): {r['case']}", file=sys.stderr)
+            continue
         sent = r.get("sent")
         if sent is None:
             cloud = "Cloud" in r.get("backend", "")
@@ -70,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--timeout", type=float, default=300.0)
+    ap.add_argument("--retries", type=int, default=0, help="Wiederholungen eines Aufrufs bei Anbieterfehler (Überlast 503, abgebrochener Datenstrom); Standard 0")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--tag", default="", help="Zusatz im Dateinamen (z. B. v2), damit ein neuer Lauf desselben Tages nicht an die alte Datei anhängt")
     ap.add_argument("--list", action="store_true", help="Fälle anzeigen und enden")
@@ -125,8 +129,14 @@ def main(argv: list[str] | None = None) -> int:
 
     def one(job):
         c, r, system, sent = job
-        res = ai_review(sent, bk, system=system, timeout=a.timeout)
-        run = score_run(c, res.text, sent, res.error, res.seconds)
+        attempts = 0
+        while True:                                              # nur Anbieterfehler werden wiederholt, nie eine lesbare Antwort
+            attempts += 1
+            res = ai_review(sent, bk, system=system, timeout=a.timeout)
+            run = score_run(c, res.text, sent, res.error, res.seconds)
+            if run["status"] != "error" or attempts > max(0, a.retries):
+                break
+        run["attempts"] = attempts
         run["repeat"] = r
         run["sent"] = sent
         return run

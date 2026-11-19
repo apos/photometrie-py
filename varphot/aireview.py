@@ -111,12 +111,38 @@ def build_context(f: dict) -> str:
     return "\n".join(L)
 
 
+def _numbers_point(f: dict) -> str:
+    """Prueftext fuer Punkt 2 (Zahlen). Kennt die Software die Werte (``n_points``, ``n_comps_sel``, ``n_comps_ens``, ``n_gaia``, ``jd_range``), zaehlt sie die **einzeln zu pruefenden Groessen** mit ihrem Wert auf, statt die KI
+    'Zahlen, die mehr als einmal vorkommen' selbst suchen zu lassen. Grund (Messung 2026-11-17/18, KONZEPT §11.15.9): Gemini (flash-lite) pruefte bei der offenen Formulierung nur einen Teil der Groessen und uebersah
+    in 6 von 6 Laeufen einen Fehler an Punkt 2; Claude zaehlte alle selbst auf."""
+    rest = ("Danach Zahlen, die im Bericht an zwei Stellen stehen (zum Beispiel Check-Stern-Streuung und Katalogwert unter 'Offene Punkte' gegen dieselben Angaben unter 'Ergebnis der festen Pruefungen'): zitiere beide Fundstellen; "
+            "verschieden = AUFFAELLIG. Groessen, die der Kontext als verschieden erklaert, sind kein Widerspruch.")
+    items = []
+    if f.get("jd_range"):
+        a, b = f["jd_range"]
+        items.append(f"Zeitraum: die Software sagt JD {a:.3f} – {b:.3f}; zitiere 'Zeitraum' im Bericht und das Datum der ersten Datenzeile (der Beginn muss gleich sein)")
+    if f.get("n_comps_sel") is not None:
+        x = f["n_comps_sel"]
+        items.append(f"ausgewaehlte Comps: die Software sagt {x}; zitiere 'Comps_ausgewaehlt' im Bericht, das 'von N' in 'Ensemble k von N Comps' (NOTES-Spalte der Datenzeilen) und 'Gaia_Comps' ('g von N') - jeweils muss N = {x} sein")
+    if f.get("n_gaia") and f.get("n_comps_sel") is not None:
+        items.append(f"Gaia-abgeleitete Comps: die Software sagt {f['n_gaia']} von {f['n_comps_sel']}; zitiere 'Gaia_Comps' und, falls vorhanden, die Zahl in 'Warnungen: g von N Comps Gaia-abgeleitet' - beide muessen {f['n_gaia']} von {f['n_comps_sel']} lauten")
+    if f.get("n_comps_ens") is not None:
+        items.append(f"Ensemble: die Software sagt {f['n_comps_ens']} (Median je Bild); zitiere 'Comps_im_Ensemble_Median_je_Bild' (das k in der NOTES-Spalte darf je Zeile kleiner sein, nie groesser als die Zahl der ausgewaehlten Comps)")
+    if f.get("n_points") is not None:
+        items.append(f"Punkte: die Software sagt {f['n_points']}; zitiere 'Punkte' im Bericht")
+    if not items:
+        return ("Zahlen, die im Bericht mehr als einmal vorkommen (Punkte, Zeitraum, Zahl der Comps, Check-Stern): zitiere jeweils beide Fundstellen. Gleiche Groesse mit verschiedenem Wert = AUFFAELLIG; "
+                "Groessen, die der Kontext als verschieden erklaert, sind kein Widerspruch.")
+    return ("Zahlen gegen die Werte der Software (verbindlich), **jede Groesse einzeln**: " + "; ".join(f"({i}) {t}" for i, t in enumerate(items, 1))
+            + ". Jede Abweichung vom Wert der Software oder zwischen zwei Fundstellen = AUFFAELLIG; nenne in Fundstellen immer die Zahl. " + rest)
+
+
 def build_system_prompt(f: dict) -> str:
     """Systemanweisung mit den **fuer diesen Fall zusammengestellten** Pruefpunkten (die KI entscheidet nie selbst, ob ein Punkt gilt)."""
     pts = []
     if f.get("exp_filter") is not None:
         pts.append(f"Abgleich mit der Erwartung aus dem Kontext (Filter {f['exp_filter']}, TRANS {'YES' if f.get('exp_trans') else 'NO'}, OBSTYPE {f.get('exp_obstype') or 'CCD'}): zitiere aus 'Kopf der Datei' die Zeile #OBSTYPE und aus der ersten Datenzeile die Felder FILT und TRANS. Gleich = OK, abweichend = AUFFAELLIG.")
-    pts.append("Zahlen, die im Bericht mehr als einmal vorkommen (Punkte, Zeitraum, Zahl der Comps, Check-Stern): zitiere jeweils beide Fundstellen. Gleiche Groesse mit verschiedenem Wert = AUFFAELLIG; Groessen, die der Kontext als verschieden erklaert, sind kein Widerspruch.")
+    pts.append(_numbers_point(f))
     pts.append("Mengenwoerter ('teils', 'alle', 'keine', 'einige', 'ein Teil') gegen die Zahl in derselben Datei: zitiere Wort und Zahl; passen sie nicht zusammen = AUFFAELLIG.")
     pts.append("Ueberschriften gegen ihren Inhalt (zum Beispiel 'nicht an echten Daten geprueft' ueber einer Liste, die sagt, alles sei geprueft): zitiere Ueberschrift und erste Zeile darunter.")
     pts.append("Warnungen: steht jede Zeile aus 'Ergebnis der festen Pruefungen' auch unter 'Offene Punkte'? Und sagt 'Warnungen:' oben nicht 'keine', obwohl Punkte aufgelistet sind? Zitiere die Gegenstellen.")
